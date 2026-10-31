@@ -1,9 +1,9 @@
-import type { CodeResponse, JoinResponse, PhotoUploadResponse } from "../shared/api";
-import { parsePhotoId, parsePhotoMime, parsePlayerName, type NameError, type PhotoId } from "../shared/model";
+import { CONTEST_UPLOAD_PATH, UPLOAD_FIELDS, type CodeResponse, type JoinResponse, type PhotoUploadResponse } from "../shared/api";
+import { parsePhotoId, parsePhotoMime, parsePlayerName, parseUploadKey, type NameError, type PhotoId } from "../shared/model";
 import { adminCookieValue, isAdminCookie, joinCodeMatches, pidCookieValue, playerFromCookie, secretMatches } from "./auth";
 import { notFound, readBody, readCookie, readJson, redirect, sameOrigin, setCookie, status } from "./http";
-import { SOCKET_ROLE_HEADER, type SocketRole } from "./party";
-import { PHOTO_MAX_BYTES, type StoredPhoto } from "./photo-store";
+import { SOCKET_ROLE_HEADER, type ContestUpload, type SocketRole } from "./party";
+import { PHOTO_MAX_BYTES, type PhotoUpload, type StoredPhoto } from "./photo-store";
 
 type Ctx = { req: Request; env: Env; params: Record<string, string | undefined> };
 type Route = { method: string; pattern: URLPattern; handler: (ctx: Ctx) => Promise<Response> | Response };
@@ -39,6 +39,46 @@ function photoResponse(id: PhotoId, photo: StoredPhoto | null): Response {
   return new Response(photo.bytes, {
     headers: { "Content-Type": photo.mime, "Cache-Control": "private, max-age=31536000, immutable", ETag: `"${id}"` },
   });
+}
+
+const CONTEST_BODY_MAX_BYTES = 2 * PHOTO_MAX_BYTES + 64 * 1024;
+
+async function photoPart(form: FormData, field: string): Promise<PhotoUpload | Response> {
+  const part = form.get(field);
+  if (!(part instanceof File)) return status(400);
+  if (part.size > PHOTO_MAX_BYTES) return status(413);
+  const mime = parsePhotoMime(part.type);
+  if (!mime) return status(415);
+  return { mime, bytes: await part.arrayBuffer() };
+}
+
+const uploadResponses: { [S in ContestUpload["status"]]: (result: Extract<ContestUpload, { status: S }>) => Response } = {
+  created: ({ id }) => Response.json({ id } satisfies PhotoUploadResponse),
+  replayed: ({ id }) => Response.json({ id } satisfies PhotoUploadResponse),
+  closed: () => Response.json({ error: "Uppladdningen är stängd." }, { status: 403 }),
+  conflict: () => status(409),
+  "no-player": () => status(401),
+};
+
+async function uploadContest(ctx: Ctx): Promise<Response> {
+  const playerId = await guest(ctx);
+  if (!playerId) return status(401);
+  const bytes = await readBody(ctx.req, CONTEST_BODY_MAX_BYTES);
+  if (!bytes) return status(413);
+  let form: FormData;
+  try {
+    form = await new Response(bytes, { headers: { "Content-Type": ctx.req.headers.get("Content-Type") ?? "" } }).formData();
+  } catch {
+    return status(400);
+  }
+  const key = parseUploadKey(form.get(UPLOAD_FIELDS.key));
+  if (!key) return status(400);
+  const photo = await photoPart(form, UPLOAD_FIELDS.photo);
+  if (photo instanceof Response) return photo;
+  const thumb = await photoPart(form, UPLOAD_FIELDS.thumb);
+  if (thumb instanceof Response) return thumb;
+  const result = await party(ctx.env).uploadContest(playerId, key, photo, thumb);
+  return (uploadResponses[result.status] as (r: ContestUpload) => Response)(result);
 }
 
 async function socket(ctx: Ctx, role: SocketRole): Promise<Response> {
@@ -122,10 +162,15 @@ export const routes: Route[] = [
     return status(204);
   }),
 
+  route("POST", CONTEST_UPLOAD_PATH, uploadContest),
+
   route("GET", "/photos/:id", async (ctx) => {
-    if (!(await guest(ctx)) && !(await isAdmin(ctx))) return status(401);
+    const admin = await isAdmin(ctx);
+    const viewer = admin ? null : await guest(ctx);
+    if (!admin && !viewer) return status(401);
     const id = parsePhotoId(ctx.params.id);
-    return id ? photoResponse(id, await party(ctx.env).photo(id)) : notFound();
+    if (!id) return notFound();
+    return photoResponse(id, await (viewer ? party(ctx.env).guestPhoto(viewer, id) : party(ctx.env).photo(id)));
   }),
 ];
 

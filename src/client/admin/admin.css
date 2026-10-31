@@ -67,3 +67,54 @@
   .players li { grid-template-columns: 14px minmax(0, 1fr) auto; }
   .players .when { display: none; }
 }
+
+.contest { grid-column: 1 / -1; }
+.contest h3 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: #5a7590; }
+.contest .empty { margin: 0; }
+.contest-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 20px; }
+.contest-head h2 { margin: 0 auto 0 0; font-family: var(--round); font-size: 24px; color: var(--ice-800); }
+.toggle { display: flex; align-items: center; gap: 10px; }
+.toggle .state { font-weight: 650; font-size: 14px; padding: 6px 12px; border-radius: 999px; background: #fdecea; color: #a1261b; }
+.toggle .state.open { background: #e5f6ec; color: #1b6e3a; }
+.download { display: flex; align-items: center; gap: 12px; }
+.download progress { width: 140px; accent-color: var(--ice-500); }
+.download .error { margin: 0; }
+.contest-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: start; }
+
+.thumb-btn { padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--ice-100); width: 56px; height: 56px; flex: none; box-shadow: 0 0 0 1px var(--silver); }
+.thumb-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.tally { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tally li { display: grid; grid-template-columns: 32px 56px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 8px 12px; border-radius: 14px; }
+.tally li:nth-child(odd) { background: rgb(230 243 253 / 0.55); }
+.tally li.lead { box-shadow: 0 0 0 2px var(--ice-300) inset; background: linear-gradient(90deg, #fff, var(--ice-100)); }
+.rank { font: 800 20px var(--round); color: var(--ice-600); text-align: center; }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tally-votes { font-weight: 750; font-size: 18px; white-space: nowrap; }
+.tally-votes .muted { font-weight: 500; font-size: 14px; }
+
+.badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; background: var(--silver-light); color: #4a6178; box-shadow: 0 0 0 1px var(--silver) inset; }
+.badge.current { background: #e5f6ec; color: #1b6e3a; box-shadow: none; }
+.badge.fame { background: linear-gradient(90deg, #fff6d8, #fdecb8); color: #7a5a00; box-shadow: none; }
+.badge.removed { background: #f3f4f6; color: #6b7280; }
+.badge.hidden { background: #fdecea; color: #a1261b; box-shadow: none; }
+.badge.tie { background: #fff5e1; color: #8a4b00; box-shadow: 0 0 0 1px #f2c679 inset; }
+
+.entrants { list-style: none; margin: 0; padding: 0 4px 4px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px 20px; align-items: start; max-height: 70vh; overflow-y: auto; }
+.entrants h4 { margin: 0 0 8px; font-size: 16px; }
+.entrants h4 .muted { font-weight: 500; font-size: 14px; }
+.versions { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.versions li { display: grid; gap: 6px; justify-items: start; padding: 10px; border-radius: 14px; background: rgb(255 255 255 / 0.7); box-shadow: 0 0 0 1px var(--silver-light) inset; }
+.versions .thumb-btn { width: 100%; height: auto; aspect-ratio: 1; }
+.versions li.hidden-version .thumb-btn img { opacity: 0.45; filter: grayscale(0.6); }
+.versions .badges { justify-self: stretch; display: flex; flex-wrap: wrap; gap: 4px; }
+.versions .meta { font-size: 13px; color: #5a7590; }
+.versions .link { padding: 4px 8px; margin-left: -8px; }
+.link:disabled { opacity: 0.5; cursor: default; }
+
+.viewer { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 32px; background: rgb(18 54 94 / 0.82); cursor: zoom-out; }
+.viewer img { max-width: 100%; max-height: 100%; border-radius: 16px; box-shadow: 0 0 0 4px #fff, 0 20px 40px rgb(0 0 0 / 0.3); }
+
+@media (max-width: 900px) {
+  .contest-body { grid-template-columns: 1fr; }
+}

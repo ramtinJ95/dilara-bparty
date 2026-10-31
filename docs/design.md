@@ -74,16 +74,23 @@ code and runs the admin view; it is not a shared game screen.
   so browsing costs little data. Photos are fetched through a Worker route that
   checks the join cookie. See [hosting.md](hosting.md).
 - Every version a guest uploads is kept in storage for the hosts to go through
-  later. Guests only ever see the current photo, and removing a photo hides it
-  without deleting it.
-- The gallery shows current photos without names. Names are revealed with the
-  results.
+  later. Removing a photo hides it without deleting it, and any votes on it go
+  back to the voters.
+- Replacing a photo that has votes moves the old photo to a **hall of fame**
+  section of the gallery. It keeps its votes, can still get and lose votes, and
+  can still win. It leaves the hall of fame when its last vote moves away.
+  Replaced photos without votes are never shown again. Before replacing or
+  removing, the uploader sees how many votes the photo has and what will happen
+  to them.
+- The gallery shows current photos and the hall of fame, without names or vote
+  counts. Names and counts are revealed with the results. Each uploader sees
+  how many votes their own photo has.
 - Voting is open during the day. Each guest has 3 votes, can put more than one
   of them on the same photo, can't vote for their own photo, and can move votes
   until voting closes.
 - The host closes uploads and voting from the admin view. The photo with the
   most votes wins. The host, or Dilara, breaks a tie.
-- The host can hide any photo from the gallery.
+- The host can hide any photo from the gallery. Its votes go back to the voters.
 
 ## Finale
 
@@ -107,9 +114,3 @@ code and runs the admin view; it is not a shared game screen.
   version, download everything.
 - Landing page photo upload.
 - End the party and wipe the data, after downloading the photos.
-
-## Open questions
-
-- **Replacing a photo that has votes.** Votes are cast during the day, so a
-  guest may replace a photo that already has votes. One idea is a "hall of fame"
-  where voted photos live on after they are replaced. Not decided.
