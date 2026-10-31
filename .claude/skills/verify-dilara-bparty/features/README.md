@@ -1,6 +1,6 @@
 # dilara-bparty verification map
 
-This directory is the maintained source for verifying what guests and the host can see and do. Read this index, then use the matching feature file as the recipe. The quiz and the photo contest are being built now. Each adds its own feature file here when it lands.
+This directory is the maintained source for verifying what guests and the host can see and do. Read this index, then use the matching feature file as the recipe. The quiz is being built now and adds its own feature file here when it lands.
 
 ## Baseline preconditions
 
@@ -36,5 +36,6 @@ Each feature file starts with an H1 title and one paragraph about the user-visib
 - [Guest shell and tabs](./guest-shell.md) covers the greeting, the live guest count, the three tabs and the reconnect pill.
 - [Admin player list](./admin-players.md) covers the live roster, rename and merge.
 - [Landing photo](./landing-photo.md) covers uploading, replacing and removing the photo on the join page.
+- [Photo contest](./photo-contest.md) covers uploading with retry, voting, the hall of fame, and the admin's tally and toggles.
 - [Gated photo route](./photo-route.md) covers who can fetch `/photos/<id>` and its cache header.
 - [Reconnect on bad networks](./reconnect.md) covers slow profiles, drops, frozen tabs and catching up to the current state.

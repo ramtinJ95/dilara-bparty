@@ -13,7 +13,7 @@ Every stored photo is served only through `/photos/<id>`, and only to a joined g
 
 ## How to get to it (user POV)
 
-- A guest's phone loads photos as images in the app. Today that is only the landing photo on the join page.
+- A guest's phone loads photos as images: the landing photo on the join page, and contest photos and thumbnails in Mitt foto and Galleri.
 - The admin view loads the landing photo preview from `/photos/<id>`.
 
 ## Driving it with Playwright
@@ -33,5 +33,5 @@ Preconditions:
 ## Gotchas
 
 - `context.request` shares the context's cookies, so it proves the gate the way the browser hits it.
-- The photo contest will add guest photos and thumbnails behind the same route. Add their cases here.
+- Contest photos and thumbnails use the same route. A contest photo's ID is the `src` of `Din bild` in Mitt foto.
 - A 401 is the correct answer for a cookieless request. A 404 there means the route didn't match.

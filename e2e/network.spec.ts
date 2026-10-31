@@ -71,6 +71,7 @@ test("a frozen background tab catches up when it resumes, with or without its so
   await expect(greeting(page, bag)).toBeVisible({ timeout: 5_000 });
 
   await line.cut("clean");
+  await expect(reconnecting(page)).toBeVisible();
   await freeze();
   await expect(onlineDot(host, bag)).toHaveCount(0);
   await renameFromAdmin(host, bag, locked);

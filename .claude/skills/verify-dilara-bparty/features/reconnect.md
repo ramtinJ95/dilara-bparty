@@ -24,7 +24,7 @@ Preconditions:
 - **Slow network.** On `phone("bad-3g")`, join and then rename from the admin. The phone shows the new greeting within a few seconds, and a reload brings back the same state.
 - **Clean drop.** Run `await line.cut("clean")`. The phone shows `reconnecting(page)`, and `onlineDot(admin, name)` disappears. Rename the player from the admin; the phone keeps the old greeting. Run `await line.restore()`. The phone shows the new greeting, the pill goes away, and the dot comes back.
 - **Silent drop.** Run `await line.cut("silent")`, rename, wait, then `await line.restore()`. The admin keeps showing the phone online throughout. Give the phone up to 60 s to show the new greeting.
-- **Freeze.** Run `await line.lifecycle!.freeze()`, rename, then `await line.lifecycle!.resume()`. The phone shows the new name at once. To model a phone that also lost its socket, run `line.cut("clean")` before `freeze()` and `line.restore()` before `resume()`. Cutting after the freeze leaves the server end open until the resume, because that end lives in the page.
+- **Freeze.** Run `await line.lifecycle!.freeze()`, rename, then `await line.lifecycle!.resume()`. The phone shows the new name at once. To model a phone that also lost its socket, run `line.cut("clean")`, wait for `reconnecting(page)`, then `freeze()`; run `line.restore()` before `resume()`. Cutting after the freeze leaves the server end open until the resume, because that end lives in the page.
 - **Proof.** `evidence()` on the phone while the pill shows and after it catches up, and on the laptop while the dot is off.
 
 ## Gotchas

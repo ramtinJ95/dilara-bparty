@@ -85,11 +85,12 @@ This kills only the process group that `start` created (npx, vite and workerd), 
 | `scripts/journeys/join-by-link.ts` | `node .claude/skills/verify-dilara-bparty/scripts/journeys/join-by-link.ts <base-url> [evidence-dir]` |
 | `scripts/verify.ts` | imported by journeys: `import { openVerify, readSecrets } from "../verify.ts"` |
 | Network tests | `npm run test:e2e` (builds the Worker, serves it on port 4317 with test secrets) |
+| Staging deploy (Mac) | `scripts/deploy-staging.sh [--dry-run]` |
 | Party rehearsal | `JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium\|webkit] [--guests 20] [--out <dir>]` |
 
 ## Party rehearsal
 
-`npm run rehearse` runs about 20 phones in separate browser contexts plus one admin laptop against any deployment. Each phone gets a placeholder name tagged with the run, a device (iPhone 15 or Pixel 7) and a network profile (good, slow 4G, bad 3G, flaky). The steps then join everyone by link or code, lock and unlock phones, drop flaky phones cleanly and silently, and rejoin two phones that lost their cookie by name. After each step, a probe guest arrives and leaves, and every phone must show the count change. That proves each phone is live, not just showing a stale screen. The admin view must show each change.
+`npm run rehearse` runs about 20 phones in separate browser contexts plus one admin laptop against any deployment. Each phone gets a placeholder name tagged with the run, a device (iPhone 15 or Pixel 7) and a network profile (good, slow 4G, bad 3G, flaky). The steps then join everyone by link or code, lock and unlock phones, drop flaky phones cleanly and silently, rejoin two phones that lost their cookie by name, upload contest photos (one phone offline, one cut mid-send), vote for known photos, replace a voted photo into the hall of fame, and close and reopen voting. After each step, a probe guest arrives and leaves, and every phone must show the count change. That proves each phone is live, not just showing a stale screen. The admin view must show each change.
 
 It writes `report.md`, `report.html`, `report.png`, `report.json`, `rehearsal.gif` (the admin's player list and three phones) and screenshots of failures to the folder it prints. It exits 1 on any failed check. Its timings include CPU contention from every phone running on one machine, and a dev server target inflates page loads (the report notes it).
 
@@ -103,14 +104,14 @@ npm run rehearse -- --base-url "$BASE_URL" --guests 8          # quicker
 
 ### Adding steps for a feature
 
-The steps are in `e2e/rehearsal/steps/`. `index.ts` holds the run order, and `presence.ts` holds join, lock, drop, rejoin and the final `settle`. For the quiz or the photo contest:
+The steps are in `e2e/rehearsal/steps/`. `index.ts` holds the run order. `presence.ts` holds join, lock, drop, rejoin and the final `settle`. `photos.ts` holds upload, vote and hall-of-fame, and is the example to follow. For the quiz:
 
-1. Write `e2e/rehearsal/steps/quiz.ts` (or `photos.ts`) that exports `Step[]`. A `Step` is `{ id, title, run(r) }` from `e2e/rehearsal/rehearsal.ts`.
-2. Add them to `steps` in `index.ts`, after `presenceSteps` and before `settle`.
+1. Write `e2e/rehearsal/steps/quiz.ts` that exports `Step[]`. A `Step` is `{ id, title, run(r) }` from `e2e/rehearsal/rehearsal.ts`.
+2. Add them to `steps` in `index.ts`, after `photoSteps` and before `settle`.
 3. In `run`, drive the admin with `r.admin` and the phones with `r.guests` (each has `page`, `line`, `profile` and the current `name`). Record outcomes with `r.check(label, fn, page)`, per-phone durations with `r.time(kind, guest, fn)` (the report groups these by network profile), and observations with `r.note(text)`.
 4. Leave every guest online and current at the end of the step.
 
-Quiz rounds belong there, with speed fairness checks: start a question while some phones are on `bad-3g` or mid-`cut`, and use `r.time` to compare when each profile saw the question and when its answer was accepted. Uploads and votes belong in `photos.ts`.
+Quiz rounds belong there, with speed fairness checks: start a question while some phones are on `bad-3g` or mid-`cut`, and use `r.time` to compare when each profile saw the question and when its answer was accepted. Derive expected scores from a table of who answered what, as `photos.ts` does for votes.
 
 ## Staging
 
@@ -124,20 +125,24 @@ for name in JOIN_SECRET ADMIN_SECRET; do
 done
 ```
 
-Deploy (`npx wrangler login` first). The build must set `CLOUDFLARE_ENV=staging` in the same command as the deploy, because `wrangler deploy` uses whatever the last build wrote to `dist/`:
+Deploy with the script (`npx wrangler login` first; add `--dry-run` to stop before the upload):
 
 ```sh
-export JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)"
-export ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)"
-CLOUDFLARE_ENV=staging npx vite build && npx wrangler deploy --secrets-file <(printf 'JOIN_SECRET=%s\nADMIN_SECRET=%s\n' "$JOIN_SECRET" "$ADMIN_SECRET")
+scripts/deploy-staging.sh
 ```
 
-The deploy prints the URL, `https://dilara-bparty-staging.<account-subdomain>.workers.dev`. Then rehearse in the same shell:
+It builds with `CLOUDFLARE_ENV=staging` and the secrets unset, because the Vite plugin copies dev values into `dist/<env>/.dev.vars` for `vite preview`. They come from `.dev.vars.staging` or else `.dev.vars`, plus any required secret in the environment. The script keeps an empty `.dev.vars.staging` and refuses to deploy if any `.dev.vars` is under `dist/`. It passes the Keychain values to `wrangler deploy --secrets-file` in a temporary mode-600 JSON file that a trap deletes. Don't pass them by process substitution: macOS fails with `"/dev/fd/12" is not valid`. Never export the secrets before a build.
+
+The deploy prints the URL, `https://dilara-bparty-staging.<account-subdomain>.workers.dev`. Then rehearse, with the secrets in that command's environment only:
 
 ```sh
 npx playwright install chromium webkit
-npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>.workers.dev
-npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>.workers.dev --browser webkit
+export STAGING=https://dilara-bparty-staging.<account-subdomain>.workers.dev
+for browser in chromium webkit; do
+  JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)" \
+  ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)" \
+  npm run rehearse -- --base-url "$STAGING" --browser "$browser"
+done
 ```
 
 Staging keeps its players between runs. The rehearsal tags names per run and counts only its own guests, so old players do no harm. To start clean, delete the Worker with `npx wrangler delete --name dilara-bparty-staging` and deploy again. Then check in the Cloudflare dashboard that its Durable Object namespace went with it, because this was not tried.

@@ -39,15 +39,16 @@ To prove a guest or admin behaviour in a real browser, use the `verify-dilara-bp
 for name in JOIN_SECRET ADMIN_SECRET; do
   security add-generic-password -U -s dilara-bparty-staging -a "$name" -w "$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')"
 done
-# deploy (after npx wrangler login), then rehearse
-export JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)"
-export ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)"
-CLOUDFLARE_ENV=staging npx vite build && npx wrangler deploy --secrets-file <(printf 'JOIN_SECRET=%s\nADMIN_SECRET=%s\n' "$JOIN_SECRET" "$ADMIN_SECRET")
+# deploy (after npx wrangler login); add --dry-run to check without deploying
+scripts/deploy-staging.sh
+# rehearse, with the secrets in the environment of this command only
 npx playwright install chromium webkit
+JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)" \
+ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)" \
 npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>.workers.dev [--browser webkit]
 ```
 
-Build and deploy in one command. `wrangler deploy` ships whatever the last `vite build` wrote to `dist/`, and a build without `CLOUDFLARE_ENV=staging` targets the party domain.
+`scripts/deploy-staging.sh` builds with `CLOUDFLARE_ENV=staging` and the secrets unset, then deploys. The Vite plugin copies dev values into `dist/<env>/.dev.vars` for `vite preview`, from `.dev.vars.staging` or else `.dev.vars`, plus any required secret in the environment. So the script keeps an empty `.dev.vars.staging` and refuses to deploy if any `.dev.vars` is under `dist/`. It passes the Keychain values in a temporary mode-600 JSON file that a trap deletes. Process substitution (`<(…)`) fails on macOS with `"/dev/fd/12" is not valid`. Never export the secrets before a build.
 
 ## Conventions
 
