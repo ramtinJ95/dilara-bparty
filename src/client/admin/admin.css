@@ -1,0 +1,69 @@
+#app { position: relative; z-index: 1; }
+
+.admin { max-width: 1360px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 40px) 40px; }
+
+.admin header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.admin h1 { margin: 0; font-family: var(--round); font-size: 26px; color: var(--ice-800); }
+.admin h2 { margin: 0 0 14px; font-size: 18px; color: var(--ice-900); }
+
+.status { padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 650; background: #fdecea; color: #a1261b; }
+.status.on { background: #e5f6ec; color: #1b6e3a; }
+
+.muted { color: #5a7590; }
+.error { color: #b3261e; margin: 10px 0 0; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.side { display: grid; gap: 24px; }
+
+.card { padding: 24px; }
+
+.join-card { display: grid; justify-items: center; text-align: center; }
+.join-card h2 { font-family: var(--round); font-size: 30px; color: var(--ice-800); margin-bottom: 8px; }
+.qr { width: min(100%, 62vh, 560px); height: auto; border-radius: 16px; box-shadow: 0 0 0 1px var(--silver); }
+.code-label { margin: 18px 0 0; font-size: 16px; }
+.code {
+  margin: 4px 0 0;
+  font: 800 clamp(48px, 7vw, 88px) / 1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  color: var(--ice-900);
+}
+.url { margin: 12px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+
+.players h2 .count { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; background: var(--ice-100); color: var(--ice-600); font-size: 15px; }
+.players h2 .muted { font-weight: 500; font-size: 15px; }
+.players ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 52vh; overflow-y: auto; }
+.players li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; }
+.players li:nth-child(odd) { background: rgb(230 243 253 / 0.55); }
+.players li.active { box-shadow: 0 0 0 2px var(--ice-300) inset; }
+.players .empty { margin: 0; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: #c3ccd5; box-shadow: 0 0 0 3px rgb(195 204 213 / 0.3); }
+.dot.on { background: #2fb45a; box-shadow: 0 0 0 3px rgb(47 180 90 / 0.22); }
+.name { font-weight: 650; font-size: 17px; overflow-wrap: anywhere; }
+.when { font-size: 13px; white-space: nowrap; }
+.actions { display: flex; gap: 4px; }
+.link { border: 0; background: none; padding: 8px 10px; border-radius: 10px; color: var(--ice-600); font-weight: 600; font-size: 14px; }
+.link:hover { background: var(--ice-100); }
+
+.rename { grid-column: 2 / -1; display: flex; gap: 8px; }
+.rename .field { min-height: 44px; font-size: 16px; }
+.merge { grid-column: 2 / -1; display: grid; gap: 10px; padding-top: 6px; }
+.merge label { display: grid; gap: 6px; font-size: 15px; }
+.merge .field { min-height: 44px; font-size: 16px; }
+.warning { margin: 0; font-size: 14px; color: #8a4b00; background: #fff5e1; padding: 8px 12px; border-radius: 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.btn.small { min-height: 44px; padding: 0 18px; font-size: 15px; }
+.btn.danger { background: linear-gradient(180deg, #e0574f, #c2362f); box-shadow: 0 6px 14px rgb(194 54 47 / 0.3); }
+
+.landing-photo .preview { display: grid; place-items: center; width: 180px; aspect-ratio: 1; border-radius: 50%; overflow: hidden; margin-bottom: 14px; background: radial-gradient(circle at 35% 30%, #fff, var(--ice-200)); box-shadow: 0 0 0 5px #fff, 0 0 0 6px var(--silver); }
+.landing-photo .preview img { width: 100%; height: 100%; object-fit: cover; }
+.landing-photo .hint { font-size: 13px; margin: 10px 0 0; }
+
+.toast { position: fixed; top: 16px; left: 50%; translate: -50% 0; z-index: 20; padding: 12px 18px; border-radius: 14px; background: #a1261b; color: #fff; font-weight: 600; box-shadow: 0 10px 24px rgb(161 38 27 / 0.3); }
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+  .qr { width: min(100%, 420px); }
+  .players li { grid-template-columns: 14px minmax(0, 1fr) auto; }
+  .players .when { display: none; }
+}
