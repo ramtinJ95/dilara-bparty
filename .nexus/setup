@@ -3,5 +3,6 @@
 set -e
 cd "$(dirname "$0")/.."
 .nexus/resume --setup
+sudo DEBIAN_FRONTEND=noninteractive apt-get update -q
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q chromium fonts-dejavu-core fonts-roboto-unhinted ffmpeg
 npx playwright install ffmpeg
