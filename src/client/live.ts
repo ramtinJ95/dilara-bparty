@@ -4,8 +4,8 @@ import { PING, PONG, type ServerMsg } from "../shared/protocol";
 export type LiveStatus = { kind: "connecting" } | { kind: "open" } | { kind: "waiting"; retryAt: number };
 export type SideMsg<S> = Exclude<ServerMsg<S>, { t: "state" }>;
 
-const PING_EVERY_MS = 25_000;
-const SILENCE_LIMIT_MS = 40_000;
+const PING_EVERY_MS = 5_000;
+const SILENCE_LIMIT_MS = 11_000;
 const BACKOFF_FIRST_MS = 500;
 const BACKOFF_MAX_MS = 10_000;
 const STABLE_AFTER_MS = 10_000;
@@ -76,7 +76,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   }
 
   const wake = () => {
-    const stale = status.kind === "open" && Date.now() - lastHeard > PING_EVERY_MS;
+    const stale = status.kind === "open" && Date.now() - lastHeard > SILENCE_LIMIT_MS;
     if (status.kind === "waiting" || stale) open();
   };
   const onVisibility = () => document.visibilityState === "visible" && wake();

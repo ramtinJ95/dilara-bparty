@@ -100,20 +100,32 @@ describe("connectLive", () => {
     waitOutRetry();
     dropAfter(200);
     waitOutRetry();
-    expect(dropAfter(15_000)).toBe(375);
+    expect(dropAfter(10_500)).toBe(375);
   });
 
-  it("pings while open and reconnects when the server goes silent", () => {
+  it("pings every 5 s while open and reconnects 11 s after the server goes silent", () => {
     const socket = FakeSocket.latest();
     socket.onopen!();
-    vi.advanceTimersByTime(25_000);
+    vi.advanceTimersByTime(5_000);
     expect(socket.sent).toEqual(["ping"]);
     socket.onmessage!({ data: "pong" });
-    vi.advanceTimersByTime(39_000);
+    vi.advanceTimersByTime(10_999);
+    expect(socket.sent).toEqual(["ping", "ping", "ping"]);
     expect(FakeSocket.all).toHaveLength(1);
-    vi.advanceTimersByTime(1_000);
+    vi.advanceTimersByTime(1);
     expect(socket.closed).toBe(true);
     waitOutRetry();
+  });
+
+  it("keeps a socket that answers its pings", () => {
+    const socket = FakeSocket.latest();
+    socket.onopen!();
+    for (let i = 0; i < 12; i++) {
+      vi.advanceTimersByTime(5_000);
+      socket.onmessage!({ data: "pong" });
+    }
+    expect(socket.closed).toBe(false);
+    expect(FakeSocket.all).toHaveLength(1);
   });
 
   it("reconnects at once when the phone comes online or back to the foreground", () => {
@@ -128,12 +140,12 @@ describe("connectLive", () => {
   it("replaces an open socket that went quiet while the phone slept, and keeps a live one", () => {
     const socket = FakeSocket.latest();
     socket.onopen!();
-    vi.advanceTimersByTime(20_000);
     socket.onmessage!({ data: "pong" });
+    vi.advanceTimersByTime(10_000);
     doc.fire("visibilitychange");
     win.fire("online");
     expect(FakeSocket.all).toHaveLength(1);
-    vi.advanceTimersByTime(30_000);
+    vi.setSystemTime(Date.now() + 1_001);
     doc.fire("visibilitychange");
     expect(socket.closed).toBe(true);
     expect(FakeSocket.all).toHaveLength(2);
