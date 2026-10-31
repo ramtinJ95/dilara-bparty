@@ -85,6 +85,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 .btn:disabled { opacity: 0.6; cursor: default; }
+.btn:focus-visible { outline: 3px solid var(--ice-300); outline-offset: 3px; }
 
 .btn.secondary {
   color: var(--ice-800);

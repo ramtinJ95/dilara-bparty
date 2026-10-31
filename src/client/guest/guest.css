@@ -72,6 +72,9 @@
 
 .shell h1 { margin: 0; font-family: var(--round); font-size: 32px; font-weight: 800; color: var(--ice-800); overflow-wrap: anywhere; }
 .shell .online { margin: 6px 0 0; color: var(--ice-800); opacity: 0.75; font-size: 15px; }
+.shell header.compact { padding-top: calc(env(safe-area-inset-top) + 14px); padding-bottom: 0; }
+.shell header.compact h1 { font-size: 22px; }
+.shell header.compact .online { display: none; }
 
 .panel { margin: 18px 18px 0; padding: 32px 24px; display: grid; justify-items: center; gap: 10px; text-align: center; }
 .panel svg { width: 64px; height: 64px; color: var(--ice-500); }
