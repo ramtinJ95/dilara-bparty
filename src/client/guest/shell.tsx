@@ -1,6 +1,5 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { PhotoId } from "../../shared/model";
 import type { GuestCmd, GuestState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
@@ -8,7 +7,7 @@ import { useLive } from "../live";
 import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
 import { GalleryPanel } from "./gallery";
 import { MyPhotoPanel } from "./my-photo";
-import { photoUrl, Quiz } from "./quiz";
+import { Quiz } from "./quiz";
 import { UnlockPopup, useUnlockNotice } from "./unlock";
 import { useUploader, type Uploader } from "./use-upload";
 
@@ -69,17 +68,6 @@ function useToast(): [string | null, (message: string) => void] {
   return [toast, setToast];
 }
 
-const preloaded = new Map<PhotoId, HTMLImageElement>();
-
-function usePreload(next: PhotoId | null) {
-  useEffect(() => {
-    if (!next || preloaded.has(next)) return;
-    const img = new Image();
-    img.src = photoUrl(next);
-    preloaded.set(next, img);
-  }, [next]);
-}
-
 // Lives in the shell, not the quiz view, so a held answer is resent even if the guest left the Quiz tab.
 // It waits for the first snapshot after a reconnect, so it never answers from a state the server has moved past.
 function useResendHeld(state: GuestState | null, live: boolean, send: (cmd: GuestCmd) => boolean) {
@@ -115,7 +103,6 @@ export function Shell() {
   const onQuizTab = tab.id === "quiz";
   const unlocked = quiz !== null && quiz.phase !== "locked";
   const deadline = useDeadline(state, quiz?.phase === "open" ? quiz.endsInMs : null);
-  usePreload(quiz && "next" in quiz ? quiz.next : null);
   const unlock = useUnlockNotice(quiz && quiz.phase !== "locked" && quiz.phase !== "ended" ? quiz.unlockedAt : null, onQuizTab);
   const waitingForYou = quiz?.phase === "open" && quiz.pick === null && !onQuizTab;
 

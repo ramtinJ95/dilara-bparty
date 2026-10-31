@@ -50,7 +50,7 @@ Preconditions:
 ## Gotchas
 
 - The server owns the clock. Phones count down to the server's deadline, and the server accepts answers until 2 s after it (`GRACE_MS`). A check for `Tiden är ute!` has only those 2 s before the phone moves on to the closed screen.
-- A question waits for its photo. Until the photo has loaded, the phone shows `Laddar frågan …` and no options, and the answer timer has not started. Phones preload the next question's photo in the lobby and after each reveal, so the wait is usually zero.
+- A question waits for its photo. Until the photo has loaded, the phone shows `Laddar frågan …` and no options, and the answer timer has not started. `/photos/<id>` answers 404 to a guest until that question has started in the current run, and again after a reset, so phones fetch the photo only when the question opens. The admin can fetch every photo.
 - `Svar skickat!` shows once the server has the answer. Until then the phone shows `Skickar svaret …`, keeps the pick, and sends it again after a reconnect, so a line that drops right after the tap still ends with the pick kept.
 - Answers are final. The server keeps the first answer and ignores later ones, and the phone disables the options after a pick.
 - The popup's seen state is in `localStorage` under `quiz-unlock-seen`, keyed by the unlock time. Clearing cookies keeps it, and a new browser context starts without it. After `Reset quiz` and a new unlock, every phone gets the popup again.

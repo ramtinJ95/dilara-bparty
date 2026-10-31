@@ -20,7 +20,7 @@ import {
   view,
   type Admin,
 } from "./support/quiz";
-import { alarmAt, call, connectAdmin, elapse, fireAlarm, JOIN_SECRET, joinedCookie, uploadQuestionPhoto } from "./support/worker";
+import { adminCookie as adminCookieOf, alarmAt, call, connectAdmin, elapse, fireAlarm, JOIN_SECRET, joinedCookie, uploadQuestionPhoto } from "./support/worker";
 
 const texts = (s: AdminState) => s.quiz.questions.map((q) => q.text);
 
@@ -168,7 +168,7 @@ describe("quiz flow", () => {
     await elapse(22_000);
     expect(await fireAlarm()).toBe(true);
     expect(await stage(admin, "closed")).toEqual({ phase: "closed", q, n: 1, answered: 1, expected: 2 });
-    expect(await view(astrid!, "closed")).toMatchObject({ pick: 0, next: null });
+    expect(await view(astrid!, "closed")).toMatchObject({ pick: 0 });
     expect(await view(olle!, "closed")).toMatchObject({ pick: null });
     expect(await refused(olle!, q, 0)).toBe("Svaret kom för sent.");
     closeAll(admin, watcher, astrid!.socket, olle!.socket);
@@ -339,7 +339,9 @@ describe("quiz flow", () => {
 describe("question photos", () => {
   const bytes = new Uint8Array([255, 216, 255, 1, 2, 3]);
 
-  it("stores a question photo that phones preload and fetch through the gated route", async () => {
+  const photoStatus = (id: string, cookie?: string) => call(`/photos/${id}`, { cookie }).then((res) => res.status);
+
+  it("shows a guest a question photo only once its question has started in this run", async () => {
     const upload = await uploadQuestionPhoto(bytes);
     expect(upload.status).toBe(200);
     const { id: first } = (await upload.json()) as { id: string };
@@ -347,12 +349,35 @@ describe("question photos", () => {
 
     const admin = await host(choice({ photo: first as PhotoId }), number({ photo: second as PhotoId }));
     const astrid = await phone("Astrid");
+    const adminCookie = await adminCookieOf();
+    expect(await photoStatus(first, astrid.cookie)).toBe(404);
+    expect(await photoStatus(first, adminCookie)).toBe(200);
+
     await step(admin, "unlock", "lobby");
-    expect((await view(astrid, "lobby")).next).toBe(first);
+    expect(await photoStatus(first, astrid.cookie)).toBe(404);
     const q = await start(admin);
     expect((await view(astrid, "open")).question.photo).toBe(first);
+    expect(await photoStatus(first, astrid.cookie)).toBe(200);
+    expect(await photoStatus(second, astrid.cookie)).toBe(404);
     await answer(astrid, q, 0);
-    expect((await view(astrid, "closed")).next).toBe(second);
+    await step(admin, "reveal", "reveal");
+    await start(admin);
+    expect(await photoStatus(first, astrid.cookie)).toBe(200);
+    expect(await photoStatus(second, astrid.cookie)).toBe(200);
+
+    await step(admin, "reset", "locked");
+    expect(await photoStatus(first, astrid.cookie)).toBe(404);
+    expect(await photoStatus(second, astrid.cookie)).toBe(404);
+    expect(await photoStatus(second, adminCookie)).toBe(200);
+    closeAll(admin, astrid.socket);
+  });
+
+  it("serves a started question's photo with the immutable cache header and only to joined guests", async () => {
+    const { id: first } = (await (await uploadQuestionPhoto(bytes)).json()) as { id: string };
+    const admin = await host(choice({ photo: first as PhotoId }));
+    const astrid = await phone("Astrid");
+    await step(admin, "unlock", "lobby");
+    await start(admin);
 
     const served = await call(`/photos/${first}`, { cookie: astrid.cookie });
     expect(served.status).toBe(200);

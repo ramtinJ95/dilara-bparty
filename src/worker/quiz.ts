@@ -151,6 +151,15 @@ export class Quiz {
     });
   }
 
+  // A question photo is secret until its question has started in this run; a reset hides it again.
+  photoStarted(photo: PhotoId): boolean {
+    return (
+      this.sql
+        .exec("SELECT 1 FROM rounds JOIN questions ON questions.id = rounds.question_id WHERE json_extract(questions.body, '$.photo') = ?", photo)
+        .toArray().length > 0
+    );
+  }
+
   // When the Durable Object must wake to close the open round, which no message may arrive to trigger.
   wakeAt(): number | null {
     const stage = this.stage();
@@ -246,7 +255,6 @@ type Current = {
   unlockedAt: number;
   n: number;
   total: number;
-  next: PhotoId | null;
   endsInMs: number;
   question: GuestQuestion;
   mine: Map<PlayerId, Counted>;
@@ -256,9 +264,9 @@ type Current = {
   rows: Map<PlayerId, BoardRow>;
 };
 
-const idleGuests: { [P in IdlePhase]: (unlockedAt: number, next: PhotoId | null) => GuestQuiz } = {
+const idleGuests: { [P in IdlePhase]: (unlockedAt: number) => GuestQuiz } = {
   locked: () => ({ phase: "locked" }),
-  lobby: (unlockedAt, next) => ({ phase: "lobby", unlockedAt, next }),
+  lobby: (unlockedAt) => ({ phase: "lobby", unlockedAt }),
   ended: (unlockedAt) => ({ phase: "ended", unlockedAt }),
 };
 
@@ -272,14 +280,13 @@ const asked = (c: Current, player: PlayerId) => ({
 
 const roundGuests: { [P in RoundPhase]: (c: Current, player: PlayerId) => GuestQuiz } = {
   open: (c, p) => ({ phase: "open", endsInMs: c.endsInMs, ...asked(c, p) }),
-  closed: (c, p) => ({ phase: "closed", ...asked(c, p), next: c.next }),
+  closed: (c, p) => ({ phase: "closed", ...asked(c, p) }),
   reveal: (c, p) => ({
     phase: "reveal",
     ...asked(c, p),
     points: c.mine.get(p)?.points ?? 0,
     score: c.rows.get(p)?.score ?? 0,
     result: c.result,
-    next: c.next,
   }),
   leaderboard: (c, p) => ({
     phase: "leaderboard",
@@ -288,7 +295,6 @@ const roundGuests: { [P in RoundPhase]: (c: Current, player: PlayerId) => GuestQ
     total: c.total,
     top: c.board.slice(0, TOP),
     you: c.rows.get(p) ?? null,
-    next: c.next,
   }),
 };
 
@@ -302,7 +308,6 @@ const adminStages: { [P in RoundPhase]: (c: Current) => AdminStage } = {
 function view({ stage, unlockedAt, questions, rounds, answers, roster, online, now }: ViewInput): QuizView {
   const played = rounds.map((r) => r.question_id);
   const upcoming = questions.find((q) => !played.includes(q.id)) ?? null;
-  const next = upcoming?.photo ?? null;
   // A merged player may have answered from both ids; the answer that counts is the best one, else the first.
   const counted = new Map<string, Counted>();
   for (const a of answers) {
@@ -327,7 +332,7 @@ function view({ stage, unlockedAt, questions, rounds, answers, roster, online, n
   };
 
   if (!("round" in stage)) {
-    const guest = idleGuests[stage.phase](unlockedAt, next);
+    const guest = idleGuests[stage.phase](unlockedAt);
     return { admin: { stage: { phase: stage.phase }, ...common }, guest: () => guest };
   }
 
@@ -338,7 +343,6 @@ function view({ stage, unlockedAt, questions, rounds, answers, roster, online, n
     unlockedAt,
     n: round.n,
     total: questions.length,
-    next,
     endsInMs: Math.max(0, round.deadline - now),
     question: guestQuestion(question),
     mine,

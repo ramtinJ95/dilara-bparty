@@ -39,15 +39,14 @@ export type BoardRow = { id: PlayerId; name: string; score: number; rank: number
 type Unlocked = { unlockedAt: number };
 type Round = Unlocked & { n: number; total: number };
 type Asked = Round & { question: GuestQuestion; pick: number | null };
-type Preload = { next: PhotoId | null };
 
 export type GuestQuiz =
   | { phase: "locked" }
-  | ({ phase: "lobby" } & Unlocked & Preload)
+  | ({ phase: "lobby" } & Unlocked)
   | ({ phase: "open"; endsInMs: number } & Asked)
-  | ({ phase: "closed" } & Asked & Preload)
-  | ({ phase: "reveal"; points: number; score: number; result: RoundResult } & Asked & Preload)
-  | ({ phase: "leaderboard"; top: BoardRow[]; you: BoardRow | null } & Round & Preload)
+  | ({ phase: "closed" } & Asked)
+  | ({ phase: "reveal"; points: number; score: number; result: RoundResult } & Asked)
+  | ({ phase: "leaderboard"; top: BoardRow[]; you: BoardRow | null } & Round)
   | ({ phase: "ended" } & Unlocked);
 
 type Tally = { q: QuestionId; n: number; answered: number; expected: number };

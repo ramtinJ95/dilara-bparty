@@ -64,8 +64,10 @@ code and runs the admin view; it is not a shared game screen.
 - Each answer is timed on the phone, so a slow connection never costs points.
   The phone starts its timer when the question is on screen, after its photo
   has loaded, stops it at the tap and sends the elapsed time with the answer.
-  Phones load the next question's photo ahead of time so it doesn't hold the
-  question up.
+  A question's photo is served to guests only once that question has started
+  in the current run, so a leaked or guessed link can't show it early. Phones
+  therefore fetch it when the question starts. A slow photo shortens the
+  countdown on that phone but never costs points.
 - The server clamps the reported time to at least 0, to at most its own time
   between sending the question to that phone and receiving the answer, and to
   the answer window. A phone could still report less time than it took, within

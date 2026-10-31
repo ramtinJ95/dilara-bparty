@@ -147,7 +147,8 @@ export class Party extends DurableObject<Env> {
 
   private sharedPhoto(id: PhotoId): StoredPhoto | null {
     const photo = this.photos.get(id);
-    return photo?.kind === "landing" || photo?.kind === "question" ? photo : null;
+    if (photo?.kind === "landing") return photo;
+    return photo?.kind === "question" && this.quiz.photoStarted(id) ? photo : null;
   }
 
   uploadContest(playerId: PlayerId, key: UploadKey, photo: PhotoUpload, thumb: PhotoUpload): ContestUpload {
