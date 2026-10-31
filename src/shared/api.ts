@@ -9,3 +9,6 @@ export type JoinResponse = { status: "joined" } | { status: "exists"; name: stri
 export type ApiError = { error: string };
 
 export type PhotoUploadResponse = { id: PhotoId };
+
+export const CONTEST_UPLOAD_PATH = "/api/photo";
+export const UPLOAD_FIELDS = { photo: "photo", thumb: "thumb", key: "key" } as const;
