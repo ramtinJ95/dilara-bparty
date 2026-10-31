@@ -32,9 +32,13 @@ export function readCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
+const JSON_MAX_BYTES = 4096;
+
 export async function readJson(req: Request): Promise<Record<string, unknown>> {
+  const bytes = await readBody(req, JSON_MAX_BYTES);
+  if (!bytes) return {};
   try {
-    const body: unknown = await req.json();
+    const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
     return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
   } catch {
     return {};
@@ -43,8 +47,21 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
 
 export async function readBody(req: Request, maxBytes: number): Promise<ArrayBuffer | null> {
   if (Number(req.headers.get("Content-Length") ?? 0) > maxBytes) return null;
-  const bytes = await req.arrayBuffer();
-  return bytes.byteLength > maxBytes ? null : bytes;
+  if (!req.body) return new ArrayBuffer(0);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of req.body) {
+    size += chunk.byteLength;
+    if (size > maxBytes) return null;
+    chunks.push(chunk);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return out.buffer;
 }
 
 export function sameOrigin(req: Request): boolean {

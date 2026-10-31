@@ -9,6 +9,15 @@ describe("joining", () => {
     expect(res.headers.getSetCookie()).toEqual([]);
   });
 
+  it("refuses an oversized body without reading it as JSON, even when streamed", async () => {
+    const json = JSON.stringify({ secret: JOIN_SECRET, name: "Astrid", padding: "x".repeat(10_000) });
+    const body = new Blob([json]).stream();
+    const res = await call("/api/join", { method: "POST", body, headers: { "Content-Type": "application/json" } });
+    expect(res.status).toBe(403);
+    expect(res.headers.getSetCookie()).toEqual([]);
+    expect((await postJson("/api/join", JSON.parse(json))).status).toBe(403);
+  });
+
   it("sets an HttpOnly, Secure, SameSite=Lax pid cookie", async () => {
     const { res, body } = await join("Astrid");
     expect(body).toEqual({ status: "joined" });
