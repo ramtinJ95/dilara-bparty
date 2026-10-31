@@ -9,7 +9,7 @@ TypeScript on Cloudflare Workers with static assets, one Durable Object (`Party`
 - `src/worker/`: the Worker and the Durable Object. `routes.ts` is the route table. `auth.ts` signs the `pid` and `admin` cookies. `party.ts` is the Durable Object, `players.ts` and `photo-store.ts` its tables, `schema.ts` its migrations (append a step, never edit one).
 - `src/shared/`: types used on both sides. `model.ts` has the branded ids and parsers. `protocol.ts` has the WebSocket messages.
 - `src/client/`: three pages, one per HTML entry (`neutral.html`, `guest.html`, `admin.html`). `live.ts` is the reconnecting WebSocket.
-- `test/`: Worker tests in the Workers runtime. `e2e/`: the Playwright smoke test and the PR media script.
+- `test/`: Worker tests in the Workers runtime. `test/client/` drives `live.ts` with fake timers and a stub WebSocket. `e2e/`: the Playwright smoke test and the PR media script.
 
 Photos are blobs in the Durable Object's SQLite, one row per version, at most about 2 MB each. There is no R2. Serve them only through `/photos/<id>`, which checks the cookie and sends an immutable cache header.
 
