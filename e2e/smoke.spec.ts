@@ -1,7 +1,8 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { secrets } from "./server";
-import { addQuestion, answer, unlockPopup } from "./drive";
+import { addQuestion, answer, reconnecting, unlockPopup } from "./drive";
+import { shapeNetwork } from "./phone-network";
 import { joinViaApi, laptop, openAdmin, openShell } from "./support";
 
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
@@ -130,7 +131,11 @@ test("the host runs a question; a guest on another tab is called in, answers, an
   });
   const kim = await openShell(kimContext);
   await kim.getByRole("button", { name: "Galleri" }).click();
-  const olle = await openShell(await joinViaApi(browser, "Olle"));
+  const olleContext = await joinViaApi(browser, "Olle");
+  const olle = await olleContext.newPage();
+  const olleLine = await shapeNetwork(olleContext, olle, "good");
+  await olle.goto("/app");
+  await expect(olle.getByRole("heading", { name: "Hej, Olle!" })).toBeVisible();
 
   await admin.getByRole("button", { name: "Unlock quiz" }).click();
   const popup = unlockPopup(kim);
@@ -173,5 +178,17 @@ test("the host runs a question; a guest on another tab is called in, answers, an
   await expect(first).toContainText("Du");
   await expect(admin.locator(".questions > ol > li").first()).toContainText("Played");
 
-  await Promise.all([adminContext.close(), kimContext.close(), olle.context().close()]);
+  await admin.getByRole("button", { name: "Next question" }).click();
+  await expect(olle.getByText("Fråga 2 av 2")).toBeVisible();
+  await olleLine.cut("clean");
+  await expect(reconnecting(olle)).toBeVisible();
+  await olle.getByLabel("Din gissning").fill("3");
+  await olle.getByRole("button", { name: "Skicka" }).click();
+  await expect(olle.getByText("Skickar svaret …")).toBeVisible();
+  await olleLine.restore();
+  await expect(olle.getByText("Svar skickat!")).toBeVisible({ timeout: 15_000 });
+  await expect(olle.getByText("Din gissning: 3")).toBeVisible();
+  await expect(admin.getByText("1 of 2 answered")).toBeVisible();
+
+  await Promise.all([adminContext.close(), kimContext.close(), olleContext.close()]);
 });

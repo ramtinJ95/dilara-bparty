@@ -82,7 +82,8 @@ export async function answer(guest: Page, pick: string, afterMs = 0) {
   } else {
     await guest.locator(".choice", { hasText: pick }).click();
   }
-  await expect(guest.getByText("Svar skickat!")).toBeVisible();
+  // The last answer closes the round, so the server's confirmation can arrive as the closed screen instead.
+  await expect(guest.getByText("Svar skickat!").or(guest.getByText("Väntar på rätt svar …"))).toBeVisible();
 }
 
 export const unlockPopup = (phone: Page): Locator => phone.getByRole("dialog", { name: "Quizet har börjat!" });
