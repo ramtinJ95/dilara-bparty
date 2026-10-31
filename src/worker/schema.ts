@@ -17,6 +17,24 @@ const migrations = [
     bytes BLOB NOT NULL,
     created_at INTEGER NOT NULL
   );`,
+  `CREATE TABLE entries (
+    photo TEXT PRIMARY KEY REFERENCES photos(id),
+    thumb TEXT NOT NULL REFERENCES photos(id),
+    owner TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('current', 'replaced', 'removed')),
+    hidden INTEGER NOT NULL DEFAULT 0,
+    upload_key TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX entries_one_current ON entries(owner) WHERE status = 'current';
+  CREATE INDEX entries_thumb ON entries(thumb);
+  CREATE TABLE votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    voter TEXT NOT NULL,
+    photo TEXT NOT NULL
+  );
+  CREATE INDEX votes_voter ON votes(voter);
+  CREATE INDEX votes_photo ON votes(photo);`,
 ];
 
 const VERSION_KEY = "schema_version";

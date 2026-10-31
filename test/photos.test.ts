@@ -1,6 +1,6 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import type { PhotoId, PhotoKind } from "../src/shared/model";
+import type { PhotoId } from "../src/shared/model";
 import { PhotoStore } from "../src/worker/photo-store";
 import { adminCookie, call, JOIN_SECRET, joinedCookie, uploadLanding } from "./support/worker";
 
@@ -63,12 +63,13 @@ describe("/j/<secret>/photos/<id>", () => {
     expect((await call(`/j/${JOIN_SECRET}/photos/${unknownId}`)).status).toBe(404);
   });
 
-  it("refuses photos of any other kind", async () => {
+  it("refuses photos of any other kind, as /photos does for a contest photo outside the gallery", async () => {
     const stub = env.PARTY.getByName("party");
     const id = await runInDurableObject(stub, (_, state) =>
-      new PhotoStore(state.storage.sql).put({ kind: "contest" as PhotoKind, owner: null, mime: "image/jpeg", bytes: bytes.buffer }),
+      new PhotoStore(state.storage.sql).put({ kind: "contest", owner: null, mime: "image/jpeg", bytes: bytes.buffer }),
     );
     expect((await call(`/j/${JOIN_SECRET}/photos/${id}`)).status).toBe(404);
-    expect((await call(`/photos/${id}`, { cookie: await joinedCookie("Astrid") })).status).toBe(200);
+    expect((await call(`/photos/${id}`, { cookie: await joinedCookie("Astrid") })).status).toBe(404);
+    expect((await call(`/photos/${id}`, { cookie: await adminCookie() })).status).toBe(200);
   });
 });

@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
-import type { JoinResponse } from "../../src/shared/api";
-import type { AdminCmd, AdminState, GuestState, ServerMsg } from "../../src/shared/protocol";
+import { CONTEST_UPLOAD_PATH, type JoinResponse } from "../../src/shared/api";
+import type { AdminCmd, AdminState, GuestCmd, GuestState, ServerMsg } from "../../src/shared/protocol";
 
 export const ORIGIN = "https://party.test";
 export const { JOIN_SECRET, ADMIN_SECRET } = env;
@@ -74,7 +74,7 @@ export class TestSocket<S> {
     return (msg as { t: "state"; state: S }).state;
   }
 
-  send(cmd: AdminCmd): void {
+  send(cmd: AdminCmd | GuestCmd): void {
     this.ws.send(JSON.stringify(cmd));
   }
 
@@ -103,4 +103,20 @@ export async function whoAmI(cookie: string): Promise<GuestState["you"]> {
 
 export async function uploadLanding(bytes: Uint8Array, type = "image/png"): Promise<Response> {
   return call("/api/admin/landing-photo", { method: "PUT", cookie: await adminCookie(), headers: { "Content-Type": type }, body: bytes });
+}
+
+export const newUploadKey = () => crypto.getRandomValues(new Uint8Array(16)).toBase64({ alphabet: "base64url", omitPadding: true });
+
+type ContestPart = { bytes: Uint8Array; type: string } | null;
+type ContestUploadInit = { key?: string; photo?: ContestPart; thumb?: ContestPart };
+
+export const jpeg = (...bytes: number[]) => ({ bytes: new Uint8Array([0xff, 0xd8, ...bytes]), type: "image/jpeg" });
+
+export function uploadContest(cookie: string | undefined, init: ContestUploadInit = {}): Promise<Response> {
+  const { key = newUploadKey(), photo = jpeg(1), thumb = jpeg(2) } = init;
+  const form = new FormData();
+  form.append("key", key);
+  if (photo) form.append("photo", new File([photo.bytes], "photo.jpg", { type: photo.type }));
+  if (thumb) form.append("thumb", new File([thumb.bytes], "thumb.jpg", { type: thumb.type }));
+  return call(CONTEST_UPLOAD_PATH, { method: "POST", cookie, body: form });
 }
