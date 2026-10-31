@@ -5,7 +5,8 @@ import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { CONTEST_UPLOAD_PATH } from "../src/shared/api";
 import { LOOKS, placeholder, pngFile, type Look } from "./placeholder";
 import { secrets } from "./server";
-import { addQuestion, answer, fillQuestion, joinViaApi, laptop, openAdmin, openShell, phone, type QuestionSpec } from "./support";
+import { addQuestion, answer, fillQuestion, type QuestionSpec } from "./drive";
+import { joinViaApi, laptop, openAdmin, openShell, phone } from "./support";
 
 const out = "artifacts";
 

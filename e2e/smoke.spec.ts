@@ -1,7 +1,8 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { secrets } from "./server";
-import { addQuestion, answer, joinViaApi, laptop, openAdmin, openShell } from "./support";
+import { addQuestion, answer, unlockPopup } from "./drive";
+import { joinViaApi, laptop, openAdmin, openShell } from "./support";
 
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 
@@ -132,7 +133,7 @@ test("the host runs a question; a guest on another tab is called in, answers, an
   const olle = await openShell(await joinViaApi(browser, "Olle"));
 
   await admin.getByRole("button", { name: "Unlock quiz" }).click();
-  const popup = kim.getByRole("dialog", { name: "Quizet har börjat!" });
+  const popup = unlockPopup(kim);
   await expect(popup).toBeVisible();
   await expect.poll(() => kim.evaluate(() => (window as unknown as { vibrated: unknown }).vibrated)).toEqual([200, 100, 200]);
   await expect(olle.getByRole("heading", { name: "Quizet börjar snart!" })).toBeVisible();
