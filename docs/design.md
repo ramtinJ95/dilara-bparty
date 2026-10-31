@@ -68,10 +68,11 @@ code and runs the admin view; it is not a shared game screen.
   whenever they like.
 - Phones shrink photos before upload (about 1600 px, JPEG, around 300 KB). The
   re-encode also strips EXIF data, including GPS location.
-- Photos go to R2 object storage; the Durable Object's database stores each
-  photo's key, owner and status. Photos are fetched through a Worker route that
-  checks the join cookie, never through a public bucket URL. See
-  [hosting.md](hosting.md).
+- Photos are stored in the Durable Object's SQLite database, with their owner
+  and status, so the app stays on the free plan with no card on file. Phones
+  also make a small thumbnail at upload (about 400 px), which the gallery uses,
+  so browsing costs little data. Photos are fetched through a Worker route that
+  checks the join cookie. See [hosting.md](hosting.md).
 - Every version a guest uploads is kept in storage for the hosts to go through
   later. Guests only ever see the current photo, and removing a photo hides it
   without deleting it.

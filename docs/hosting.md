@@ -22,10 +22,15 @@ network is exposed.
   WebSocket open to it, so it can push the next question and the leaderboard to
   everyone at once. Use the WebSocket Hibernation API so it sleeps between
   messages.
-- **R2 bucket for photos**: contest photos and question photos are stored in
-  R2, with their keys in the Durable Object's database. The bucket is private.
-  Phones load photos through a Worker route that checks the join cookie and
-  streams the object from R2, so a photo link is useless without having joined.
+- **Photos in the Durable Object**: contest photos, question photos and the
+  landing photo are stored as blobs in the Durable Object's SQLite database,
+  each version in its own row. SQLite limits a row to 2 MB, and phones shrink
+  photos to about 300 KB before upload, so the server rejects anything over
+  2 MB. Phones load photos through a Worker route that checks the join cookie,
+  so a photo link is useless without having joined. Each version has its own
+  URL and never changes, so phones can cache it and don't download it twice.
+  R2 was considered and dropped: enabling it needs a paid subscription with a
+  card on file, and past its free tier it bills instead of failing.
 - **Admin view on the laptop** (also usable on a phone): shows the QR code and
   short join code, and controls the game. There is no shared game screen; each
   phone shows the full quiz and photo contest. See [design.md](design.md).
@@ -58,15 +63,13 @@ Free plan allowances per day, compared with a padded estimate for one party
 | Durable Object duration | 13,000 GB-s | under 1,350 GB-s, even if it never hibernates |
 | SQLite rows written | 100,000 | a few hundred |
 | SQLite rows read | 5,000,000 | a few thousand |
-| SQLite storage | 5 GB total | under 1 MB |
+| SQLite storage | 5 GB total | under 100 MB, almost all photos |
 | Static asset requests | unlimited | |
 
-R2 for photos, compared with the same party: its free tier is 10 GB-month of
-storage, 1 million Class A (write) and 10 million Class B (read) operations per
-month, with free egress. Twenty guests uploading a few 300 KB photos each is
-well under 100 MB and a few thousand operations. Unlike Workers, R2 bills past
-its free tier rather than failing, and enabling it may ask for a payment method;
-check when setting up.
+Photos fit in the same allowances. Twenty guests uploading a few 300 KB photos
+each, plus thumbnails and every replaced version, is under 100 MB of the 5 GB,
+one row written per upload, and one row read per photo shown, which phone
+caching keeps low.
 
 Unknown: the docs don't state a maximum number of WebSockets per Durable
 Object. Twenty is far below anything that should matter, but test with real
@@ -85,8 +88,8 @@ and stored in Cloudflare, never in the repo.
 - During: the game refuses new joins after a set end time, and the host view can
   end it at any time.
 - After: download the photos, remove the `party.handmadeoasis.com` custom
-  domain or delete the Worker, wipe the Durable Object's stored data, and empty
-  and delete the R2 bucket.
+  domain or delete the Worker, and wipe the Durable Object's stored data,
+  photos included.
 
 ## Risks
 
@@ -108,5 +111,4 @@ in.
 - [Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
 - [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
 - [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
-- [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
 - [Gating static assets with a Worker](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)
