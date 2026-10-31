@@ -84,6 +84,7 @@ const lock: Step = {
     await Promise.all(
       lockers.map(async (g) => {
         await g.line.cut("clean");
+        await expect(reconnecting(g.page)).toBeVisible({ timeout: CATCH_UP_TIMEOUT });
         await g.line.lifecycle?.freeze();
       }),
     );

@@ -19,7 +19,8 @@ export type Line = {
   cut(outage: Outage): Promise<void>;
   restore(): Promise<void>;
   // Chromium only: Page.setWebLifecycleState freezes the page the way a phone freezes a background tab.
-  // The server end of the party socket lives in the page, so cut before freezing or the server only hears the close on resume.
+  // The server end of the party socket lives in the page, so cut and wait until the page shows it is reconnecting before freezing,
+  // or the server only hears the close on resume.
   lifecycle: { freeze(): Promise<void>; resume(): Promise<void> } | null;
 };
 
@@ -89,15 +90,16 @@ export async function shapeNetwork(context: BrowserContext, page: Page, name: Pr
   const setOffline = await throttleHttp(page, profile, cdp);
   return {
     profile: name,
+    // A clean cut closes the socket before going offline, so its close frame still reaches the server, as when the phone's OS drops it.
     async cut(outage) {
-      await context.setOffline(true);
-      await setOffline(true);
       for (const link of links) {
         link.dead = true;
         if (outage === "clean") await Promise.all([link.page.close({ code: 1006 }), link.server.close({ code: 1000 })]);
         else silenced.push(link);
       }
       links.clear();
+      await context.setOffline(true);
+      await setOffline(true);
     },
     async restore() {
       await context.setOffline(false);
