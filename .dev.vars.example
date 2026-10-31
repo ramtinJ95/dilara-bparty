@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local dev. Both values must be URL-safe (letters, digits, - and _).
+# Generate real ones with: openssl rand -base64 24 | tr '+/' '-_' | tr -d '='
+JOIN_SECRET=replace-me-join-secret
+ADMIN_SECRET=replace-me-admin-secret

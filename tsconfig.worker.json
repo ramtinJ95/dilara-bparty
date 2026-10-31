@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"],
+    "tsBuildInfoFile": "node_modules/.tmp/worker.tsbuildinfo"
+  },
+  "include": ["src/worker", "src/shared", "test/**/*.test.ts", "test/support", "test/setup.ts"],
+  "exclude": ["test/client"]
+}

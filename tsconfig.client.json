@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "tsBuildInfoFile": "node_modules/.tmp/client.tsbuildinfo"
+  },
+  "include": ["src/client", "src/shared", "test/client"]
+}

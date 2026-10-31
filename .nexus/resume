@@ -1,0 +1,43 @@
+#!/bin/sh
+# Runs on every wake. Installs npm packages only when package-lock.json differs from the last install, and makes sure .dev.vars exists.
+cd "$(dirname "$0")/.." || exit 1
+staging=.nexus-install
+stamp=node_modules/.lockfile-sha256
+attempts=1
+[ "${1:-}" != --setup ] || attempts=3
+
+# A wake never fails on a registry blip; the next wake tries again. Setup does fail, so a template always has packages.
+fail() {
+  echo "$1" >&2
+  [ "$attempts" -eq 1 ] && exit 0
+  exit 1
+}
+
+if [ ! -e .dev.vars ]; then
+  umask 077
+  printf 'JOIN_SECRET=%s\nADMIN_SECRET=%s\n' "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')" "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')" > .dev.vars
+fi
+
+# Installs beside the packages in use and swaps them in at the end, so a dev server started meanwhile never sees a half-empty node_modules.
+attempt() {
+  if mkdir "$staging" && cp package.json package-lock.json "$staging" && (cd "$staging" && npm ci --no-audit --no-fund) &&
+    echo "$sum" > "$staging/$stamp" && { [ ! -e node_modules ] || mv node_modules "$staging/old"; } &&
+    mv "$staging/node_modules" node_modules; then
+    rm -rf "$staging"
+    return 0
+  fi
+  [ -e node_modules ] || [ ! -d "$staging/old" ] || mv "$staging/old" node_modules
+  rm -rf "$staging"
+  return 1
+}
+
+[ -e node_modules ] || [ ! -d "$staging/old" ] || mv "$staging/old" node_modules
+rm -rf "$staging"
+sum=$(sha256sum package-lock.json | cut -d " " -f 1)
+[ "$(cat "$stamp" 2>/dev/null)" = "$sum" ] && exit 0
+i=0
+while [ "$i" -lt "$attempts" ]; do
+  attempt && exit 0
+  i=$((i + 1))
+done
+fail "The npm packages are not installed: run npm ci."
