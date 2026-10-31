@@ -372,7 +372,7 @@ describe("question photos", () => {
     closeAll(admin, astrid.socket);
   });
 
-  it("serves a started question's photo with the immutable cache header and only to joined guests", async () => {
+  it("makes phones revalidate a question photo, so a cached copy stops after a reset, and serves it only to joined guests", async () => {
     const { id: first } = (await (await uploadQuestionPhoto(bytes)).json()) as { id: string };
     const admin = await host(choice({ photo: first as PhotoId }));
     const astrid = await phone("Astrid");
@@ -381,8 +381,13 @@ describe("question photos", () => {
 
     const served = await call(`/photos/${first}`, { cookie: astrid.cookie });
     expect(served.status).toBe(200);
-    expect(served.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable");
+    expect(served.headers.get("Cache-Control")).toBe("private, no-cache");
     expect(new Uint8Array(await served.arrayBuffer())).toEqual(bytes);
+    const etag = served.headers.get("ETag")!;
+    const again = () => call(`/photos/${first}`, { cookie: astrid.cookie, headers: { "If-None-Match": etag } });
+    expect((await again()).status).toBe(304);
+    await step(admin, "reset", "locked");
+    expect((await again()).status).toBe(404);
     expect((await call(`/photos/${first}`)).status).toBe(401);
     expect((await call(`/j/${JOIN_SECRET}/photos/${first}`)).status).toBe(404);
     closeAll(admin, astrid.socket);

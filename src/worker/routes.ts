@@ -1,5 +1,5 @@
 import { CONTEST_UPLOAD_PATH, UPLOAD_FIELDS, type CodeResponse, type JoinResponse, type PhotoUploadResponse } from "../shared/api";
-import { parsePhotoId, parsePhotoMime, parsePlayerName, parseUploadKey, type NameError, type PhotoId } from "../shared/model";
+import { parsePhotoId, parsePhotoMime, parsePlayerName, parseUploadKey, type NameError, type PhotoId, type PhotoKind } from "../shared/model";
 import { adminCookieValue, isAdminCookie, joinCodeMatches, pidCookieValue, playerFromCookie, secretMatches } from "./auth";
 import { notFound, readBody, readCookie, readJson, redirect, sameOrigin, setCookie, status } from "./http";
 import { SOCKET_ROLE_HEADER, type ContestUpload, type SocketRole } from "./party";
@@ -34,11 +34,15 @@ async function entry({ req, env }: Ctx, name: Entry, landingPhoto?: PhotoId | nu
     .transform(res);
 }
 
-function photoResponse(id: PhotoId, photo: StoredPhoto | null): Response {
+const IMMUTABLE = "private, max-age=31536000, immutable";
+// A guest may see a question photo only while its question has started in this run, so every view asks again.
+const photoCaching: Record<PhotoKind, string> = { landing: IMMUTABLE, contest: IMMUTABLE, thumb: IMMUTABLE, question: "private, no-cache" };
+
+function photoResponse(req: Request, id: PhotoId, photo: StoredPhoto | null): Response {
   if (!photo) return notFound();
-  return new Response(photo.bytes, {
-    headers: { "Content-Type": photo.mime, "Cache-Control": "private, max-age=31536000, immutable", ETag: `"${id}"` },
-  });
+  const headers = { "Cache-Control": photoCaching[photo.kind], ETag: `"${id}"` };
+  if (req.headers.get("If-None-Match") === headers.ETag) return new Response(null, { status: 304, headers });
+  return new Response(photo.bytes, { headers: { ...headers, "Content-Type": photo.mime } });
 }
 
 const CONTEST_BODY_MAX_BYTES = 2 * PHOTO_MAX_BYTES + 64 * 1024;
@@ -125,7 +129,7 @@ export const routes: Route[] = [
     const id = parsePhotoId(ctx.params.id);
     if (!joinSecretMatches(ctx, ctx.params.secret) || !id) return notFound();
     const photo = await party(ctx.env).photo(id);
-    return photoResponse(id, photo?.kind === "landing" ? photo : null);
+    return photoResponse(ctx.req, id, photo?.kind === "landing" ? photo : null);
   }),
 
   route("POST", "/api/join", async (ctx) => {
@@ -173,7 +177,7 @@ export const routes: Route[] = [
     if (!admin && !viewer) return status(401);
     const id = parsePhotoId(ctx.params.id);
     if (!id) return notFound();
-    return photoResponse(id, await (viewer ? party(ctx.env).guestPhoto(viewer, id) : party(ctx.env).photo(id)));
+    return photoResponse(ctx.req, id, await (viewer ? party(ctx.env).guestPhoto(viewer, id) : party(ctx.env).photo(id)));
   }),
 ];
 
