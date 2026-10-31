@@ -1,18 +1,12 @@
-import { DurableObject } from "cloudflare:workers";
+import { notFound, withPrivacyHeaders } from "./http";
+import { match } from "./routes";
 
-export class Party extends DurableObject<Env> {
-  async hello() { return "hi"; }
-}
-
-const entry = (env: Env, req: Request, name: string) => env.ASSETS.fetch(new URL(`/${name}.html`, req.url));
+export { Party } from "./party";
 
 export default {
   async fetch(req, env) {
-    const { pathname } = new URL(req.url);
-    if (pathname === "/") return entry(env, req, "neutral");
-    if (pathname.startsWith("/j/")) return entry(env, req, "guest");
-    if (pathname === "/admin") return entry(env, req, "admin");
-    if (pathname === "/rpc") return new Response(await env.PARTY.get(env.PARTY.idFromName("party")).hello());
-    return new Response("Not found", { status: 404 });
+    const found = match(req);
+    const res = found ? await found.route.handler({ req, env, params: found.params }) : notFound();
+    return withPrivacyHeaders(res);
   },
 } satisfies ExportedHandler<Env>;
