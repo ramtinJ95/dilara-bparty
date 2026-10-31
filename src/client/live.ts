@@ -8,6 +8,7 @@ const PING_EVERY_MS = 25_000;
 const SILENCE_LIMIT_MS = 40_000;
 const BACKOFF_FIRST_MS = 500;
 const BACKOFF_MAX_MS = 10_000;
+const STABLE_AFTER_MS = 10_000;
 
 type Handlers<S> = { onMessage: (msg: ServerMsg<S>) => void; onStatus: (status: LiveStatus) => void };
 export type Live = { send: (data: string) => boolean; stop: () => void };
@@ -22,6 +23,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   let status: LiveStatus = { kind: "connecting" };
   let socket: WebSocket | null = null;
   let failures = 0;
+  let openedAt = 0;
   let lastHeard = 0;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -52,7 +54,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     socket = ws;
     heard();
     ws.onopen = () => {
-      failures = 0;
+      openedAt = Date.now();
       heard();
       enter({ kind: "open" });
     };
@@ -64,6 +66,8 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   }
 
   function retryLater() {
+    if (openedAt && Date.now() - openedAt >= STABLE_AFTER_MS) failures = 0;
+    openedAt = 0;
     drop();
     clearTimeout(silenceTimer);
     const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** failures++) * (0.5 + Math.random() / 2);
