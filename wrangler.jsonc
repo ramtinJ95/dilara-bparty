@@ -16,5 +16,16 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Party"] }],
   "secrets": { "required": ["JOIN_SECRET", "ADMIN_SECRET"] },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "dilara-bparty-staging",
+      "workers_dev": true,
+      "routes": [],
+      "durable_objects": {
+        "bindings": [{ "name": "PARTY", "class_name": "Party" }]
+      },
+      "secrets": { "required": ["JOIN_SECRET", "ADMIN_SECRET"] }
+    }
+  }
 }
