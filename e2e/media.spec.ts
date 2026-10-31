@@ -5,10 +5,9 @@ import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { CONTEST_UPLOAD_PATH } from "../src/shared/api";
 import { LOOKS, placeholder, pngFile, type Look } from "./placeholder";
 import { secrets } from "./server";
+import { addQuestion, answer, fillQuestion, joinViaApi, laptop, openAdmin, openShell, phone, type QuestionSpec } from "./support";
 
 const out = "artifacts";
-const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
-const laptop = { viewport: { width: 1440, height: 900 } };
 
 test.describe.configure({ mode: "serial" });
 test.setTimeout(120_000);
@@ -31,37 +30,16 @@ function sideBySideGif(inputs: [string, string], output: string) {
 
 const shot = (page: Page, name: string) => page.screenshot({ path: `${out}/${name}.png` });
 
-async function openAdmin(context: BrowserContext): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`/admin/${secrets.admin}`);
-  await expect(page.getByText("Live", { exact: true })).toBeVisible();
-  return page;
-}
-
-async function joinViaApi(browser: Browser, name: string): Promise<BrowserContext> {
-  const context = await browser.newContext(phone);
-  const res = await context.request.post("/api/join", { data: { secret: secrets.join, name } });
-  expect(await res.json()).toEqual({ status: "joined" });
-  return context;
-}
-
-async function openShell(context: BrowserContext): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto("/app");
-  await expect(page.getByRole("heading", { name: /^Hej, .+!$/ })).toBeVisible();
-  return page;
-}
-
 test("screenshots", async ({ browser }) => {
   const adminContext = await browser.newContext(laptop);
   const admin = await openAdmin(adminContext);
-  await admin.locator('input[type="file"]').setInputFiles({ name: "snow.png", mimeType: "image/png", buffer: await placeholder(admin, LOOKS.snow) });
+  await admin.locator('.landing-photo input[type="file"]').setInputFiles({ name: "snow.png", mimeType: "image/png", buffer: await placeholder(admin, LOOKS.snow) });
   await expect(admin.getByAltText("Current landing photo")).toBeVisible();
 
   const offline = await joinViaApi(browser, "Olle");
   await offline.close();
   const online = await Promise.all(["Astrid", "Testgäst", "Kim Testsson"].map((n) => joinViaApi(browser, n)));
-  await Promise.all(online.map(openShell));
+  await Promise.all(online.map((c) => openShell(c)));
 
   const guestContext = await browser.newContext(phone);
   const guest = await guestContext.newPage();
@@ -287,5 +265,189 @@ test("join-live video", async ({ browser }) => {
     "-filter_complex", "[1:v]scale=-2:900,pad=iw+40:900:20:0:color=white[p];[0:v][p]hstack=inputs=2:shortest=1",
     "-c:v", "libvpx", "-b:v", "3M", "-an",
     `${out}/join-live.webm`,
+  ]);
+});
+
+const quizQuestions = (photo: Buffer): QuestionSpec[] => [
+  { kind: "choice", text: "Vilken färg har snöflingan på bilden?", options: ["Blå", "Rosa", "Grön", "Lila"], correct: 0, photo },
+  { kind: "number", text: "Hur många ballonger hänger i taket?", answer: "12" },
+  { kind: "choice", text: "Vad blir vatten när det fryser?", options: ["Is", "Sand", "Sylt"], correct: 0 },
+];
+
+const bots = ["Astrid", "Olle", "Testgäst", "Saga Testsson", "Ture Testsson", "Vera Testsson"] as const;
+type Bot = (typeof bots)[number];
+
+// Speed points make the first board Astrid, Saga, Kim, Olle, Ture; the closest guesses on question 2
+// then lift Kim to first and Vera from outside the top five, pushing everyone else down.
+const plans: Record<Bot | "Kim", [pick: string, afterMs: number]>[] = [
+  { Astrid: ["Blå", 800], "Saga Testsson": ["Blå", 1600], Kim: ["Blå", 2800], Olle: ["Blå", 4200], "Ture Testsson": ["Blå", 5600], "Vera Testsson": ["Rosa", 2000], Testgäst: ["Lila", 2400] },
+  { Astrid: ["20", 900], "Saga Testsson": ["3", 1200], Kim: ["12", 2600], Olle: ["15", 2000], "Ture Testsson": ["11", 1500], "Vera Testsson": ["12", 3000], Testgäst: ["30", 1800] },
+];
+
+async function quizRoom(browser: Browser, admin: Page) {
+  await expect(admin.locator(".questions")).toBeVisible();
+  if ((await admin.locator(".questions > ol > li").count()) === 0) {
+    for (const q of quizQuestions(await placeholder(admin, LOOKS.snow))) await addQuestion(admin, q);
+  }
+  const pages = await Promise.all(bots.map(async (name) => openShell(await joinViaApi(browser, name))));
+  return new Map(bots.map((name, i) => [name, pages[i]!]));
+}
+
+function playRound(room: Map<Bot, Page>, plan: (typeof plans)[number]) {
+  return Promise.all([...room].map(([name, page]) => answer(page, ...plan[name])));
+}
+
+async function step(admin: Page, label: string | RegExp) {
+  await admin.getByRole("button", { name: label }).click();
+}
+
+test("quiz screenshots", async ({ browser }) => {
+  const adminContext = await browser.newContext(laptop);
+  const admin = await openAdmin(adminContext);
+  const [first, second, third] = quizQuestions(await placeholder(admin, LOOKS.snow));
+  await addQuestion(admin, first!);
+  await addQuestion(admin, second!);
+  const form = await fillQuestion(admin, third!);
+  await admin.evaluate(() => document.querySelector(".questions")!.scrollIntoView({ block: "start" }));
+  await shot(admin, "16-admin-questions");
+  await form.getByRole("button", { name: "Save question" }).click();
+  await expect(admin.locator(".questions > ol > li")).toHaveCount(3);
+  await admin.evaluate(() => scrollTo(0, 0));
+
+  const room = await quizRoom(browser, admin);
+  const kimContext = await joinViaApi(browser, "Kim Testsson");
+  const kim = await openShell(kimContext);
+  await kim.getByRole("button", { name: "Galleri" }).click();
+
+  await step(admin, "Unlock quiz");
+  await expect(kim.getByRole("dialog")).toBeVisible();
+  await kim.waitForTimeout(600);
+  await shot(kim, "17-quiz-popup");
+  await kim.getByRole("button", { name: "Till quizet" }).click();
+  await expect(kim.getByRole("heading", { name: "Quizet börjar snart!" })).toBeVisible();
+  await shot(kim, "18-quiz-lobby");
+
+  await step(admin, "Start question 1");
+  await expect(kim.locator(".q-photo")).toBeVisible();
+  await kim.waitForTimeout(1500);
+  await shot(kim, "19-quiz-question");
+  const [kimPick, kimAfter] = plans[0]!.Kim;
+  await Promise.all([playRound(room, plans[0]!), answer(kim, kimPick, Math.max(0, kimAfter - 1500)).then(() => shot(kim, "20-quiz-answered"))]);
+  await expect(admin.getByText("Answers closed")).toBeVisible();
+  await shot(kim, "21-quiz-closed");
+
+  await step(admin, "Reveal answer");
+  await expect(kim.getByRole("heading", { name: "Rätt!" })).toBeVisible();
+  await kim.waitForTimeout(1200);
+  await shot(kim, "22-quiz-reveal");
+  await shot(admin, "23-admin-reveal");
+
+  await step(admin, "Show leaderboard");
+  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+  await kim.waitForTimeout(2600);
+  await shot(kim, "24-quiz-leaderboard");
+
+  await step(admin, "Next question");
+  await expect(kim.getByLabel("Din gissning")).toBeVisible();
+  await kim.getByLabel("Din gissning").fill("12");
+  await shot(kim, "25-quiz-number");
+  await kim.getByLabel("Din gissning").fill("");
+  await Promise.all([playRound(room, plans[1]!), answer(kim, ...plans[1]!.Kim)]);
+  await expect(admin.getByText("Answers closed")).toBeVisible();
+  await step(admin, "Reveal answer");
+  await expect(kim.getByRole("heading", { name: "Närmast!" })).toBeVisible();
+  await kim.waitForTimeout(800);
+  await shot(kim, "26-quiz-reveal-number");
+  await expect(room.get("Astrid")!.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible();
+  await shot(room.get("Astrid")!, "27-quiz-reveal-number-wrong");
+
+  await step(admin, "Show leaderboard");
+  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+  await kim.waitForTimeout(2600);
+  await shot(kim, "28-quiz-leaderboard-moved");
+  await shot(room.get("Testgäst")!, "29-quiz-leaderboard-outside");
+  await shot(admin, "30-admin-leaderboard");
+
+  await step(admin, "End quiz");
+  await expect(admin.getByText(/End the quiz now\?/)).toBeVisible();
+  await step(admin, "Yes, end quiz");
+  await expect(kim.getByRole("heading", { name: "Quizet är slut!" })).toBeVisible();
+  await kim.waitForTimeout(500);
+  await shot(kim, "31-quiz-ended");
+  await expect(admin.getByText(/Winner/)).toBeVisible();
+  await shot(admin, "32-admin-ended");
+
+  await step(admin, "Reset quiz");
+  await step(admin, "Yes, reset quiz");
+  await expect(admin.getByText("Locked", { exact: true })).toBeVisible();
+  await Promise.all([adminContext.close(), kimContext.close(), ...[...room.values()].map((p) => p.context().close())]);
+});
+
+// Playwright's recordings shimmer slightly in every frame; denoising and dropping frames that barely change keeps each GIF a
+// few MB, and keeping every sixth still frame holds the final screen instead of looping straight away.
+const gifFilter = (width: number) =>
+  `fps=12,scale=${width}:-2:flags=lanczos,hqdn3d=4:3:6:6,mpdecimate=max=6,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle`;
+
+test("quiz videos", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const videoDir = `${out}/video-tmp`;
+  const adminContext = await browser.newContext({ ...laptop, recordVideo: { dir: videoDir, size: laptop.viewport } });
+  const kimContext = await joinViaApi(browser, "Kim Testsson", { ...phone, deviceScaleFactor: 1, recordVideo: { dir: videoDir, size: phone.viewport } });
+  const adminOpenedAt = Date.now();
+  const admin = await openAdmin(adminContext);
+  const room = await quizRoom(browser, admin);
+  const kim = await kimContext.newPage();
+  const startedAt = Date.now();
+  await kim.goto("/app#galleri");
+  await kim.waitForTimeout(1500);
+
+  await step(admin, "Unlock quiz");
+  await expect(kim.getByRole("dialog")).toBeVisible();
+  await kim.waitForTimeout(1800);
+  await kim.getByRole("button", { name: "Till quizet" }).click();
+  await kim.waitForTimeout(1500);
+  await step(admin, "Start question 1");
+  await Promise.all([playRound(room, plans[0]!), answer(kim, ...plans[0]!.Kim)]);
+  await expect(admin.getByText("Answers closed")).toBeVisible();
+  await kim.waitForTimeout(1500);
+  await step(admin, "Reveal answer");
+  await kim.waitForTimeout(3000);
+  await step(admin, "Show leaderboard");
+  await kim.waitForTimeout(3500);
+  const cycleEnd = Date.now();
+
+  await step(admin, "Next question");
+  await Promise.all([playRound(room, plans[1]!), answer(kim, ...plans[1]!.Kim)]);
+  await expect(admin.getByText("Answers closed")).toBeVisible();
+  await step(admin, "Reveal answer");
+  await expect(kim.getByRole("heading", { name: "Närmast!" })).toBeVisible();
+  const reorderStart = Date.now();
+  await kim.waitForTimeout(2000);
+  await step(admin, "Show leaderboard");
+  await kim.waitForTimeout(4000);
+  const reorderEnd = Date.now();
+
+  await step(admin, "Reset quiz");
+  await step(admin, "Yes, reset quiz");
+  const adminVideo = admin.video()!;
+  const kimVideo = kim.video()!;
+  await Promise.all([adminContext.close(), kimContext.close(), ...[...room.values()].map((p) => p.context().close())]);
+  renameSync(await adminVideo.path(), `${out}/quiz-admin.webm`);
+  renameSync(await kimVideo.path(), `${out}/quiz-phone.webm`);
+  rmSync(videoDir, { recursive: true, force: true });
+
+  const secs = (ms: number) => (ms / 1000).toFixed(2);
+  execFileSync("ffmpeg", [
+    "-y", "-loglevel", "error",
+    "-ss", secs(startedAt - adminOpenedAt), "-t", secs(cycleEnd - startedAt), "-i", `${out}/quiz-admin.webm`,
+    "-t", secs(cycleEnd - startedAt), "-i", `${out}/quiz-phone.webm`,
+    "-filter_complex", `[1:v]scale=-2:900,pad=iw+40:900:20:0:color=white[p];[0:v][p]hstack=inputs=2:shortest=1,${gifFilter(1100)}`,
+    `${out}/quiz-cycle.gif`,
+  ]);
+  execFileSync("ffmpeg", [
+    "-y", "-loglevel", "error",
+    "-ss", secs(reorderStart - startedAt), "-t", secs(reorderEnd - reorderStart), "-i", `${out}/quiz-phone.webm`,
+    "-vf", gifFilter(390),
+    `${out}/quiz-leaderboard.gif`,
   ]);
 });
