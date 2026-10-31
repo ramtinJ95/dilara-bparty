@@ -41,6 +41,12 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
+export async function readBody(req: Request, maxBytes: number): Promise<ArrayBuffer | null> {
+  if (Number(req.headers.get("Content-Length") ?? 0) > maxBytes) return null;
+  const bytes = await req.arrayBuffer();
+  return bytes.byteLength > maxBytes ? null : bytes;
+}
+
 export function sameOrigin(req: Request): boolean {
   const origin = req.headers.get("Origin");
   if (!origin) return false;

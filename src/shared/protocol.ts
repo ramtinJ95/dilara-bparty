@@ -1,9 +1,9 @@
-import { parsePlayerId, type PlayerId } from "./model";
+import { parsePlayerId, type PhotoId, type PlayerId } from "./model";
 
 export type GuestState = { you: { id: PlayerId; name: string }; online: number };
 
 export type AdminPlayer = { id: PlayerId; name: string; online: boolean; createdAt: number };
-export type AdminState = { players: AdminPlayer[]; join: { secret: string; code: string } };
+export type AdminState = { players: AdminPlayer[]; join: { secret: string; code: string }; landingPhoto: PhotoId | null };
 
 export type ServerMsg<S> = { t: "state"; state: S } | { t: "error"; message: string } | { t: "gone" };
 

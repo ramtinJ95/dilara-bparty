@@ -1,8 +1,9 @@
-import type { CodeResponse, JoinResponse } from "../shared/api";
-import { parsePlayerName, type NameError } from "../shared/model";
+import type { CodeResponse, JoinResponse, PhotoUploadResponse } from "../shared/api";
+import { parsePhotoId, parsePhotoMime, parsePlayerName, type NameError, type PhotoId } from "../shared/model";
 import { adminCookieValue, isAdminCookie, joinCodeMatches, pidCookieValue, playerFromCookie, secretMatches } from "./auth";
-import { notFound, readCookie, readJson, redirect, sameOrigin, setCookie, status } from "./http";
+import { notFound, readBody, readCookie, readJson, redirect, sameOrigin, setCookie, status } from "./http";
 import { SOCKET_ROLE_HEADER, type SocketRole } from "./party";
+import { PHOTO_MAX_BYTES, type StoredPhoto } from "./photo-store";
 
 type Ctx = { req: Request; env: Env; params: Record<string, string | undefined> };
 type Route = { method: string; pattern: URLPattern; handler: (ctx: Ctx) => Promise<Response> | Response };
@@ -23,11 +24,21 @@ const joinSecretMatches = (ctx: Ctx, given: unknown) => typeof given === "string
 
 type Entry = "neutral" | "guest" | "admin";
 
-async function entry({ req, env }: Ctx, name: Entry): Promise<Response> {
+async function entry({ req, env }: Ctx, name: Entry, landingPhoto?: PhotoId | null): Promise<Response> {
   const asset = await env.ASSETS.fetch(new URL(`/${name}.html`, req.url));
   const res = new Response(asset.body, asset);
   res.headers.set("Cache-Control", "no-store");
-  return res;
+  if (!landingPhoto) return res;
+  return new HTMLRewriter()
+    .on("head", { element: (head) => void head.append(`<meta name="landing-photo" content="${landingPhoto}">`, { html: true }) })
+    .transform(res);
+}
+
+function photoResponse(id: PhotoId, photo: StoredPhoto | null): Response {
+  if (!photo) return notFound();
+  return new Response(photo.bytes, {
+    headers: { "Content-Type": photo.mime, "Cache-Control": "private, max-age=31536000, immutable", ETag: `"${id}"` },
+  });
 }
 
 async function socket(ctx: Ctx, role: SocketRole): Promise<Response> {
@@ -58,7 +69,14 @@ export const routes: Route[] = [
     if (!joinSecretMatches(ctx, ctx.params.secret)) return notFound();
     const id = await guest(ctx);
     if (id && (await party(ctx.env).playerExists(id))) return redirect("/app");
-    return entry(ctx, "guest");
+    return entry(ctx, "guest", await party(ctx.env).landingPhoto());
+  }),
+
+  route("GET", "/j/:secret/photos/:id", async (ctx) => {
+    const id = parsePhotoId(ctx.params.id);
+    if (!joinSecretMatches(ctx, ctx.params.secret) || !id) return notFound();
+    const photo = await party(ctx.env).photo(id);
+    return photoResponse(id, photo?.kind === "landing" ? photo : null);
   }),
 
   route("POST", "/api/join", async (ctx) => {
@@ -87,6 +105,28 @@ export const routes: Route[] = [
   route("GET", "/admin", async (ctx) => ((await isAdmin(ctx)) ? entry(ctx, "admin") : notFound())),
 
   route("GET", "/ws/admin", async (ctx) => ((await isAdmin(ctx)) ? socket(ctx, { role: "admin" }) : notFound())),
+
+  route("PUT", "/api/admin/landing-photo", async (ctx) => {
+    if (!(await isAdmin(ctx))) return notFound();
+    const mime = parsePhotoMime(ctx.req.headers.get("Content-Type"));
+    if (!mime) return status(415);
+    const bytes = await readBody(ctx.req, PHOTO_MAX_BYTES);
+    if (!bytes) return status(413);
+    const id = await party(ctx.env).setLandingPhoto({ mime, bytes });
+    return Response.json({ id } satisfies PhotoUploadResponse);
+  }),
+
+  route("DELETE", "/api/admin/landing-photo", async (ctx) => {
+    if (!(await isAdmin(ctx))) return notFound();
+    await party(ctx.env).clearLandingPhoto();
+    return status(204);
+  }),
+
+  route("GET", "/photos/:id", async (ctx) => {
+    if (!(await guest(ctx)) && !(await isAdmin(ctx))) return status(401);
+    const id = parsePhotoId(ctx.params.id);
+    return id ? photoResponse(id, await party(ctx.env).photo(id)) : notFound();
+  }),
 ];
 
 export function match(req: Request): { route: Route; params: Ctx["params"] } | null {

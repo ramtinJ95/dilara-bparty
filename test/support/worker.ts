@@ -100,3 +100,7 @@ export async function whoAmI(cookie: string): Promise<GuestState["you"]> {
     socket.close();
   }
 }
+
+export async function uploadLanding(bytes: Uint8Array, type = "image/png"): Promise<Response> {
+  return call("/api/admin/landing-photo", { method: "PUT", cookie: await adminCookie(), headers: { "Content-Type": type }, body: bytes });
+}

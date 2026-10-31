@@ -1,13 +1,16 @@
 import { DurableObject } from "cloudflare:workers";
-import { parsePlayerName, type NameError, type PlayerId, type PlayerName } from "../shared/model";
+import { parsePlayerName, type NameError, type PhotoId, type PlayerId, type PlayerName } from "../shared/model";
 import { parseAdminCmd, PING, PONG, type AdminCmd, type AdminCmdOf, type AdminState, type GuestState, type ServerMsg } from "../shared/protocol";
 import { joinCode } from "./auth";
+import { PhotoStore, type PhotoUpload, type StoredPhoto } from "./photo-store";
 import { Players, type JoinResult, type Roster } from "./players";
 import { migrate } from "./schema";
 
 export type SocketRole = { role: "guest"; playerId: PlayerId } | { role: "admin" };
 
 export const SOCKET_ROLE_HEADER = "X-Party-Socket";
+
+const LANDING_PHOTO = "landing_photo";
 
 const adminNameErrors: Record<NameError, string> = {
   empty: "Name can't be empty.",
@@ -31,11 +34,13 @@ function send<S>(ws: WebSocket, msg: ServerMsg<S>): void {
 
 export class Party extends DurableObject<Env> {
   private readonly players: Players;
+  private readonly photos: PhotoStore;
   private code = "";
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.players = new Players(ctx.storage.sql);
+    this.photos = new PhotoStore(ctx.storage.sql);
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
     void ctx.blockConcurrencyWhile(async () => {
       migrate(ctx.storage);
@@ -51,6 +56,31 @@ export class Party extends DurableObject<Env> {
 
   playerExists(id: PlayerId): boolean {
     return this.players.resolve(id) !== undefined;
+  }
+
+  landingPhoto(): PhotoId | null {
+    const [row] = this.ctx.storage.sql.exec<{ value: PhotoId }>("SELECT value FROM settings WHERE key = ?", LANDING_PHOTO).toArray();
+    return row?.value ?? null;
+  }
+
+  setLandingPhoto(upload: PhotoUpload): PhotoId {
+    const id = this.photos.put({ ...upload, kind: "landing", owner: null });
+    this.ctx.storage.sql.exec(
+      "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      LANDING_PHOTO,
+      id,
+    );
+    this.broadcast();
+    return id;
+  }
+
+  clearLandingPhoto(): void {
+    this.ctx.storage.sql.exec("DELETE FROM settings WHERE key = ?", LANDING_PHOTO);
+    this.broadcast();
+  }
+
+  photo(id: PhotoId): StoredPhoto | null {
+    return this.photos.get(id);
   }
 
   override fetch(request: Request): Response {
@@ -103,6 +133,7 @@ export class Party extends DurableObject<Env> {
     return {
       players: roster.roots.map((p) => ({ ...p, online: online.has(p.id) })),
       join: { secret: this.env.JOIN_SECRET, code: this.code },
+      landingPhoto: this.landingPhoto(),
     };
   }
 }

@@ -8,6 +8,15 @@ const migrations = [
   );
   CREATE INDEX players_merged_into ON players(merged_into);
   CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+  `CREATE TABLE photos (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    owner TEXT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    bytes BLOB NOT NULL,
+    created_at INTEGER NOT NULL
+  );`,
 ];
 
 const VERSION_KEY = "schema_version";
