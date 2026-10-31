@@ -1,21 +1,6 @@
 import { useRef, useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
-
-const MAX_EDGE = 1600;
-const JPEG_QUALITY = 0.85;
-
-async function downscale(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("encode failed"))), "image/jpeg", JPEG_QUALITY),
-  );
-}
+import { prepare } from "../photo-prep";
 
 const uploadErrors: Record<number, string> = {
   413: "That photo is still too large after shrinking.",
@@ -43,7 +28,7 @@ export function LandingPhoto({ photo }: { photo: PhotoId | null }) {
   async function upload(file: File) {
     let body: Blob;
     try {
-      body = await downscale(file);
+      body = (await prepare(file)).photo;
     } catch {
       return setError("Couldn't read that image.");
     }
@@ -61,7 +46,7 @@ export function LandingPhoto({ photo }: { photo: PhotoId | null }) {
         <input
           ref={picker}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
           hidden
           onChange={(e) => {
             const file = e.currentTarget.files?.[0];
@@ -75,7 +60,7 @@ export function LandingPhoto({ photo }: { photo: PhotoId | null }) {
           </button>
         )}
       </div>
-      <p class="muted hint">Shown on the join page. Shrunk to {MAX_EDGE} px JPEG before upload.</p>
+      <p class="muted hint">Shown on the join page. Shrunk to a small JPEG before upload.</p>
       {error && (
         <p class="error" role="alert">
           {error}
