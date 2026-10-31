@@ -81,6 +81,15 @@ async function uploadContest(ctx: Ctx): Promise<Response> {
   return (uploadResponses[result.status] as (r: ContestUpload) => Response)(result);
 }
 
+async function adminPhoto(ctx: Ctx, store: (upload: PhotoUpload) => Promise<PhotoId>): Promise<Response> {
+  if (!(await isAdmin(ctx))) return notFound();
+  const mime = parsePhotoMime(ctx.req.headers.get("Content-Type"));
+  if (!mime) return status(415);
+  const bytes = await readBody(ctx.req, PHOTO_MAX_BYTES);
+  if (!bytes) return status(413);
+  return Response.json({ id: await store({ mime, bytes }) } satisfies PhotoUploadResponse);
+}
+
 async function socket(ctx: Ctx, role: SocketRole): Promise<Response> {
   if (ctx.req.headers.get("Upgrade")?.toLowerCase() !== "websocket") return status(426);
   if (!sameOrigin(ctx.req)) return status(403);
@@ -146,15 +155,7 @@ export const routes: Route[] = [
 
   route("GET", "/ws/admin", async (ctx) => ((await isAdmin(ctx)) ? socket(ctx, { role: "admin" }) : notFound())),
 
-  route("PUT", "/api/admin/landing-photo", async (ctx) => {
-    if (!(await isAdmin(ctx))) return notFound();
-    const mime = parsePhotoMime(ctx.req.headers.get("Content-Type"));
-    if (!mime) return status(415);
-    const bytes = await readBody(ctx.req, PHOTO_MAX_BYTES);
-    if (!bytes) return status(413);
-    const id = await party(ctx.env).setLandingPhoto({ mime, bytes });
-    return Response.json({ id } satisfies PhotoUploadResponse);
-  }),
+  route("PUT", "/api/admin/landing-photo", (ctx) => adminPhoto(ctx, (upload) => party(ctx.env).setLandingPhoto(upload))),
 
   route("DELETE", "/api/admin/landing-photo", async (ctx) => {
     if (!(await isAdmin(ctx))) return notFound();
@@ -163,6 +164,8 @@ export const routes: Route[] = [
   }),
 
   route("POST", CONTEST_UPLOAD_PATH, uploadContest),
+
+  route("PUT", "/api/admin/question-photo", (ctx) => adminPhoto(ctx, (upload) => party(ctx.env).addQuestionPhoto(upload))),
 
   route("GET", "/photos/:id", async (ctx) => {
     const admin = await isAdmin(ctx);
