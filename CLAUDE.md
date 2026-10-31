@@ -9,7 +9,7 @@ TypeScript on Cloudflare Workers with static assets, one Durable Object (`Party`
 - `src/worker/`: the Worker and the Durable Object. `routes.ts` is the route table. `auth.ts` signs the `pid` and `admin` cookies. `party.ts` is the Durable Object, `players.ts` and `photo-store.ts` its tables, `schema.ts` its migrations (append a step, never edit one).
 - `src/shared/`: types used on both sides. `model.ts` has the branded ids and parsers. `protocol.ts` has the WebSocket messages.
 - `src/client/`: three pages, one per HTML entry (`neutral.html`, `guest.html`, `admin.html`). `live.ts` is the reconnecting WebSocket.
-- `test/`: Worker tests in the Workers runtime. `test/client/` drives `live.ts` with fake timers and a stub WebSocket. `e2e/`: the Playwright smoke test and the PR media script.
+- `test/`: Worker tests in the Workers runtime. `test/client/` drives `live.ts` with fake timers and a stub WebSocket. `e2e/`: the Playwright smoke and network tests, the PR media script, and the party rehearsal in `e2e/rehearsal/`.
 
 Photos are blobs in the Durable Object's SQLite, one row per version, at most about 2 MB each. There is no R2. Serve them only through `/photos/<id>`, which checks the cookie and sends an immutable cache header.
 
@@ -20,12 +20,34 @@ Photos are blobs in the Durable Object's SQLite, one row per version, at most ab
 npm run dev              # Vite dev server; secrets come from .dev.vars (see .dev.vars.example)
 npm run typecheck        # wrangler types --check, then tsc
 npm test                 # Worker tests (vitest)
-npm run test:e2e         # Playwright smoke test against a fresh build
+npm run test:e2e         # Playwright smoke and network tests against a fresh build
 npm run media            # screenshots and videos into artifacts/
+npm run rehearse -- --base-url <url>   # 20 phones on mixed networks; JOIN_SECRET and ADMIN_SECRET from the environment
 .nexus/check             # what a PR must pass: install, typecheck, test, test:e2e
 ```
 
-Set `WRANGLER_SEND_METRICS=false`. Never deploy; everything runs locally under miniflare. Open `/admin/<ADMIN_SECRET>` to get the admin cookie, and `/j/<JOIN_SECRET>` to join.
+Set `WRANGLER_SEND_METRICS=false`. Never deploy from a pylon; everything runs locally under miniflare. Open `/admin/<ADMIN_SECRET>` to get the admin cookie, and `/j/<JOIN_SECRET>` to join.
+
+To prove a guest or admin behaviour in a real browser, use the `verify-dilara-bparty` skill in `.claude/skills/`. It launches an isolated instance, has a recipe per feature, and explains the network tests and the rehearsal. A feature thread adds its feature file to `features/` and its rehearsal steps to `e2e/rehearsal/steps/`.
+
+## Staging
+
+`env.staging` in `wrangler.jsonc` is the Worker `dilara-bparty-staging` on workers.dev, with no custom domain and its own Durable Object storage and secrets. Only the person's Mac deploys it. Its secrets live in the macOS Keychain under service `dilara-bparty-staging`, accounts `JOIN_SECRET` and `ADMIN_SECRET`.
+
+```sh
+# once: create the secrets
+for name in JOIN_SECRET ADMIN_SECRET; do
+  security add-generic-password -U -s dilara-bparty-staging -a "$name" -w "$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')"
+done
+# deploy (after npx wrangler login), then rehearse
+export JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)"
+export ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)"
+CLOUDFLARE_ENV=staging npx vite build && npx wrangler deploy --secrets-file <(printf 'JOIN_SECRET=%s\nADMIN_SECRET=%s\n' "$JOIN_SECRET" "$ADMIN_SECRET")
+npx playwright install chromium webkit
+npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>.workers.dev [--browser webkit]
+```
+
+Build and deploy in one command. `wrangler deploy` ships whatever the last `vite build` wrote to `dist/`, and a build without `CLOUDFLARE_ENV=staging` targets the party domain.
 
 ## Conventions
 
