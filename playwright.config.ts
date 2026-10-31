@@ -7,7 +7,7 @@ const systemChromium = existsSync(chromium.executablePath()) ? undefined : ["/us
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: false,
-  workers: 1,
+  workers: 4,
   reporter: "list",
   use: {
     baseURL: `http://127.0.0.1:${port}`,
@@ -16,6 +16,7 @@ export default defineConfig({
   },
   projects: [
     { name: "smoke", testMatch: "smoke.spec.ts" },
+    { name: "network", testMatch: "network.spec.ts", dependencies: ["smoke"], fullyParallel: true },
     { name: "media", testMatch: "media.spec.ts" },
   ],
   webServer: {
