@@ -7,8 +7,9 @@ export type PlayerId = Brand<string, "PlayerId">;
 export type PlayerName = Brand<string, "PlayerName">;
 export type NameKey = Brand<string, "NameKey">;
 export type PhotoId = Brand<string, "PhotoId">;
+export type QuestionId = Brand<string, "QuestionId">;
 
-export type PhotoKind = "landing" | "contest" | "thumb";
+export type PhotoKind = "landing" | "contest" | "thumb" | "question";
 export const PHOTO_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export type PhotoMime = (typeof PHOTO_MIMES)[number];
 
@@ -29,6 +30,10 @@ export type UploadKey = Brand<string, "UploadKey">;
 
 export function parseUploadKey(raw: unknown): UploadKey | null {
   return typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as UploadKey) : null;
+}
+
+export function parseQuestionId(raw: unknown): QuestionId | null {
+  return typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as QuestionId) : null;
 }
 
 export function parsePhotoMime(raw: string | null): PhotoMime | null {
