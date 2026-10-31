@@ -21,10 +21,15 @@ import { Players, type JoinResult, type Roster } from "./players";
 import { migrate } from "./schema";
 
 export type SocketRole = { role: "guest"; playerId: PlayerId } | { role: "admin" };
+type SocketTag = SocketRole & { openedAt: number };
 
 export const SOCKET_ROLE_HEADER = "X-Party-Socket";
 
 const LANDING_PHOTO = "landing_photo";
+
+// Phones ping every 5 s (src/client/live.ts). Checking every 4 s marks a silent phone offline within 15 s.
+const SILENT_AFTER_MS = 11_000;
+const CHECK_EVERY_MS = 4_000;
 
 const adminNameErrors: Record<NameError, string> = {
   empty: "Name can't be empty.",
@@ -144,13 +149,32 @@ export class Party extends DurableObject<Env> {
     return tally(this.contest.snapshot(), this.players.roster());
   }
 
-  override fetch(request: Request): Response {
+  override async fetch(request: Request): Promise<Response> {
     const role = JSON.parse(request.headers.get(SOCKET_ROLE_HEADER)!) as SocketRole;
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment(role);
+    server.serializeAttachment({ ...role, openedAt: Date.now() } satisfies SocketTag);
     this.broadcast();
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + CHECK_EVERY_MS);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  override async alarm(): Promise<void> {
+    const now = Date.now();
+    const sockets = this.openSockets();
+    const silent = sockets.filter((ws) => now - this.lastHeard(ws) > SILENT_AFTER_MS);
+    for (const ws of silent) ws.close(4008, "silent");
+    if (silent.length > 0) this.broadcast();
+    if (sockets.length > silent.length) await this.ctx.storage.setAlarm(now + CHECK_EVERY_MS);
+  }
+
+  private lastHeard(ws: WebSocket): number {
+    const { openedAt } = ws.deserializeAttachment() as SocketTag;
+    return Math.max(openedAt, this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0);
+  }
+
+  private openSockets(): WebSocket[] {
+    return this.ctx.getWebSockets().filter((ws) => ws.readyState === WebSocket.OPEN);
   }
 
   override webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
@@ -180,16 +204,16 @@ export class Party extends DurableObject<Env> {
 
   override webSocketClose(ws: WebSocket): void {
     ws.close(1000);
-    this.broadcast(ws);
+    this.broadcast();
   }
 
-  override webSocketError(ws: WebSocket): void {
-    this.broadcast(ws);
+  override webSocketError(): void {
+    this.broadcast();
   }
 
-  private broadcast(closing?: WebSocket): void {
+  private broadcast(): void {
     const roster = this.players.roster();
-    const sockets = this.ctx.getWebSockets().filter((ws) => ws !== closing);
+    const sockets = this.openSockets();
     const roles = sockets.map((ws) => ws.deserializeAttachment() as SocketRole);
     const online = new Set(roles.flatMap((r) => (r.role === "guest" ? (roster.rootOf(r.playerId)?.id ?? []) : [])));
     const contest = this.contest.snapshot();
