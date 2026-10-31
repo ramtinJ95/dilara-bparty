@@ -85,6 +85,11 @@ export class TestSocket<S> {
     return !newer && this.seen !== undefined && accept(this.seen) ? this.seen : this.state(accept);
   }
 
+  latest(): S | undefined {
+    const queued = this.inbox.findLast((m) => m.t === "state");
+    return queued?.t === "state" ? queued.state : this.seen;
+  }
+
   send(cmd: AdminCmd | GuestCmd): void {
     this.ws.send(JSON.stringify(cmd));
   }

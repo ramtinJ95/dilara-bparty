@@ -1,5 +1,5 @@
 import type { PlayerId, QuestionId } from "../../src/shared/model";
-import type { AdminState, GuestState } from "../../src/shared/protocol";
+import type { AdminState, GuestCmd, GuestState } from "../../src/shared/protocol";
 import type { AdminStage, ChoiceBody, GuestQuiz, NumberBody, Phase, QuestionBody, QuizStep } from "../../src/shared/quiz";
 import { connectAdmin, connectGuest, joinedCookie, type TestSocket } from "./worker";
 
@@ -64,13 +64,18 @@ export async function view<P extends GuestQuiz["phase"]>(phone: Phone, phase: P)
   return quiz as Extract<GuestQuiz, { phase: P }>;
 }
 
+export async function answerCmd(phone: Phone, q: QuestionId, pick: number, ms = 0): Promise<GuestCmd> {
+  const quiz = phone.socket.latest()?.quiz ?? (await phone.socket.state()).quiz;
+  return { t: "answer", q, pick, ms, run: "unlockedAt" in quiz ? quiz.unlockedAt : 0 };
+}
+
 export async function answer(phone: Phone, q: QuestionId, pick: number, ms = 0): Promise<void> {
-  phone.socket.send({ t: "answer", q, pick, ms });
+  phone.socket.send(await answerCmd(phone, q, pick, ms));
   await phone.socket.state((s) => "question" in s.quiz && s.quiz.question.id === q && s.quiz.pick !== null);
 }
 
 export async function refused(phone: Phone, q: QuestionId, pick: number, ms = 0): Promise<string> {
-  phone.socket.send({ t: "answer", q, pick, ms });
+  phone.socket.send(await answerCmd(phone, q, pick, ms));
   const msg = await phone.socket.next((m) => m.t === "error");
   return msg.t === "error" ? msg.message : "";
 }

@@ -5,6 +5,7 @@ import type { AdminCmd, AdminState } from "../src/shared/protocol";
 import { PHOTO_MAX_BYTES } from "../src/worker/photo-store";
 import {
   answer,
+  answerCmd,
   choice,
   closeAll,
   host,
@@ -203,7 +204,7 @@ describe("quiz flow", () => {
 
     await answer(astrid!, q, 0);
     expect((await admin.state((s) => s.quiz.stage.phase === "open" && s.quiz.stage.answered === 1)).quiz.stage.phase).toBe("open");
-    olle!.socket.send({ t: "answer", q, pick: 2, ms: 0 });
+    olle!.socket.send(await answerCmd(olle!, q, 2));
     expect(await stage(admin, "closed")).toMatchObject({ answered: 2, expected: 2 });
     closeAll(admin, astrid!.socket, olle!.socket);
   });
@@ -263,7 +264,7 @@ describe("quiz flow", () => {
     await evictAllDurableObjects();
 
     await answer(astrid!, q, 1);
-    astrid!.socket.send({ t: "answer", q, pick: 0, ms: 0 });
+    astrid!.socket.send(await answerCmd(astrid!, q, 0));
     expect((await astrid!.socket.state()).quiz).toMatchObject({ phase: "open", pick: 1 });
     await answer(olle!, q, 0);
     await stage(admin, "closed");
@@ -313,6 +314,24 @@ describe("quiz flow", () => {
     const after = await admin.current();
     expect(after.quiz).toMatchObject({ played: [], next: q, winners: [] });
     expect(after.quiz.board.map((r) => r.score)).toEqual([0]);
+    closeAll(admin, astrid.socket);
+  });
+
+  it("refuses an answer sent before a reset when it arrives after the same question restarts", async () => {
+    const admin = await host(choice());
+    const astrid = await phone("Astrid");
+    await step(admin, "unlock", "lobby");
+    const q = await start(admin);
+    const sentBeforeReset = await answerCmd(astrid, q, 1);
+
+    await step(admin, "reset", "locked");
+    await step(admin, "unlock", "lobby");
+    expect(await start(admin)).toBe(q);
+    astrid.socket.send(sentBeforeReset);
+    expect(await astrid.socket.next((m) => m.t === "error")).toEqual({ t: "error", message: "Svaret kom för sent." });
+
+    await answer(astrid, q, 0);
+    expect((await view(astrid, "closed")).pick).toBe(0);
     closeAll(admin, astrid.socket);
   });
 });

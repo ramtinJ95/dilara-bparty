@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdminState } from "../src/shared/protocol";
-import { answer, choice, closeAll, host, number, phone, phones, refused, revealPoints, stage, start, step, view, type Admin, type Phone } from "./support/quiz";
+import { answer, answerCmd, choice, closeAll, host, number, phone, phones, refused, revealPoints, stage, start, step, view, type Admin, type Phone } from "./support/quiz";
 import { elapse, fireAlarm, joinedCookie } from "./support/worker";
 
 async function round(admin: Admin, play: (q: Parameters<typeof answer>[1]) => Promise<void>, everyoneAnswers = true): Promise<void> {
@@ -194,7 +194,7 @@ describe("board", () => {
     await answer(again, q, 1);
     admin.send({ t: "merge", from: again.id, into: astrid.id });
     await astrid.socket.state((s) => s.quiz.phase === "open" && s.quiz.pick === 1);
-    astrid.socket.send({ t: "answer", q, pick: 0, ms: 0 });
+    astrid.socket.send(await answerCmd(astrid, q, 0));
     expect((await astrid.socket.state()).quiz).toMatchObject({ phase: "open", pick: 1 });
     await elapse(22_000);
     await fireAlarm();

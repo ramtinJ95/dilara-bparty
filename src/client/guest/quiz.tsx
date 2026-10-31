@@ -106,7 +106,7 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
   const locked = pick !== null || timeUp;
   const answer = (value: number) => {
     if (locked) return;
-    const cmd = { t: "answer", q: q.id, pick: value, ms: elapsedMs(clock) } as const;
+    const cmd = { t: "answer", q: q.id, pick: value, ms: elapsedMs(clock), run: quiz.unlockedAt } as const;
     holdAnswer(clock, cmd);
     setHeld(cmd);
     if (live) send(cmd);

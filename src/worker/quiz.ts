@@ -51,7 +51,7 @@ export class Quiz {
   }
 
   private readonly steps: { [K in QuizStep]: { to: Phase; run?: (now: number) => string | void } } = {
-    unlock: { to: "lobby", run: (now) => this.kv.put(UNLOCKED_KEY, now) },
+    unlock: { to: "lobby", run: (now) => this.kv.put(UNLOCKED_KEY, Math.max(now, (this.kv.get<number>(UNLOCKED_KEY) ?? 0) + 1)) },
     start: { to: "open", run: (now) => this.startNext(now) },
     reveal: { to: "reveal", run: () => this.writePoints() },
     leaderboard: { to: "leaderboard" },
@@ -99,9 +99,11 @@ export class Quiz {
     return null;
   }
 
-  answer(player: PlayerId, { q, pick, ms }: GuestCmdOf<"answer">, now: number, roster: Roster): string | null {
+  answer(player: PlayerId, { q, pick, ms, run }: GuestCmdOf<"answer">, now: number, roster: Roster): string | null {
     const stage = this.stage();
-    if (stage.phase !== "open" || stage.round.question_id !== q || now > closesAt(stage.round)) return LATE;
+    // A reset replays the same question ids, so the run tells an answer sent before a reset from one sent after it.
+    const stale = run !== this.kv.get<number>(UNLOCKED_KEY);
+    if (stage.phase !== "open" || stage.round.question_id !== q || stale || now > closesAt(stage.round)) return LATE;
     if (!accepts(this.question(q), pick)) return INVALID;
     const { round } = stage;
     // Rows stay under the id that wrote them, so a merged player's earlier answer and first delivery live under another id.
@@ -212,7 +214,6 @@ export class Quiz {
 
   private clear(): void {
     this.sql.exec("DELETE FROM answers; DELETE FROM deliveries; DELETE FROM rounds;");
-    this.kv.delete(UNLOCKED_KEY);
   }
 
   private due(round: RoundRow, roster: Roster, online: ReadonlySet<PlayerId>, now: number): boolean {

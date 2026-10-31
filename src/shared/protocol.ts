@@ -54,7 +54,7 @@ export type GuestCmd =
   | { t: "vote"; photo: PhotoId }
   | { t: "unvote"; photo: PhotoId }
   | { t: "remove"; photo: PhotoId }
-  | { t: "answer"; q: QuestionId; pick: number; ms: number };
+  | { t: "answer"; q: QuestionId; pick: number; ms: number; run: number };
 export type GuestCmdOf<K extends GuestCmd["t"]> = Extract<GuestCmd, { t: K }>;
 
 export const PING = "ping";
@@ -115,7 +115,7 @@ const guestCmdParsers: Parsers<GuestCmd> = {
   remove: onPhoto("remove"),
   answer: (m) => {
     const q = parseQuestionId(m.q);
-    return q && finite(m.pick) && finite(m.ms) ? { t: "answer", q, pick: m.pick, ms: m.ms } : null;
+    return q && finite(m.pick) && finite(m.ms) && finite(m.run) ? { t: "answer", q, pick: m.pick, ms: m.ms, run: m.run } : null;
   },
 };
 
