@@ -85,6 +85,7 @@ This kills only the process group that `start` created (npx, vite and workerd), 
 | `scripts/journeys/join-by-link.ts` | `node .claude/skills/verify-dilara-bparty/scripts/journeys/join-by-link.ts <base-url> [evidence-dir]` |
 | `scripts/verify.ts` | imported by journeys: `import { openVerify, readSecrets } from "../verify.ts"` |
 | Network tests | `npm run test:e2e` (builds the Worker, serves it on port 4317 with test secrets) |
+| Staging deploy (Mac) | `scripts/deploy-staging.sh [--dry-run]` |
 | Party rehearsal | `JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium\|webkit] [--guests 20] [--out <dir>]` |
 
 ## Party rehearsal
@@ -124,20 +125,24 @@ for name in JOIN_SECRET ADMIN_SECRET; do
 done
 ```
 
-Deploy (`npx wrangler login` first). The build must set `CLOUDFLARE_ENV=staging` in the same command as the deploy, because `wrangler deploy` uses whatever the last build wrote to `dist/`:
+Deploy with the script (`npx wrangler login` first; add `--dry-run` to stop before the upload):
 
 ```sh
-export JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)"
-export ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)"
-CLOUDFLARE_ENV=staging npx vite build && npx wrangler deploy --secrets-file <(printf 'JOIN_SECRET=%s\nADMIN_SECRET=%s\n' "$JOIN_SECRET" "$ADMIN_SECRET")
+scripts/deploy-staging.sh
 ```
 
-The deploy prints the URL, `https://dilara-bparty-staging.<account-subdomain>.workers.dev`. Then rehearse in the same shell:
+It builds with `CLOUDFLARE_ENV=staging` and the secrets unset, because the Vite plugin copies dev values into `dist/<env>/.dev.vars` for `vite preview`. They come from `.dev.vars.staging` or else `.dev.vars`, plus any required secret in the environment. The script keeps an empty `.dev.vars.staging` and refuses to deploy if any `.dev.vars` is under `dist/`. It passes the Keychain values to `wrangler deploy --secrets-file` in a temporary mode-600 JSON file that a trap deletes. Don't pass them by process substitution: macOS fails with `"/dev/fd/12" is not valid`. Never export the secrets before a build.
+
+The deploy prints the URL, `https://dilara-bparty-staging.<account-subdomain>.workers.dev`. Then rehearse, with the secrets in that command's environment only:
 
 ```sh
 npx playwright install chromium webkit
-npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>.workers.dev
-npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>.workers.dev --browser webkit
+export STAGING=https://dilara-bparty-staging.<account-subdomain>.workers.dev
+for browser in chromium webkit; do
+  JOIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a JOIN_SECRET -w)" \
+  ADMIN_SECRET="$(security find-generic-password -s dilara-bparty-staging -a ADMIN_SECRET -w)" \
+  npm run rehearse -- --base-url "$STAGING" --browser "$browser"
+done
 ```
 
 Staging keeps its players between runs. The rehearsal tags names per run and counts only its own guests, so old players do no harm. To start clean, delete the Worker with `npx wrangler delete --name dilara-bparty-staging` and deploy again. Then check in the Cloudflare dashboard that its Durable Object namespace went with it, because this was not tried.
