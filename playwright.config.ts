@@ -1,7 +1,7 @@
 import { chromium, defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
 
-const port = 4317;
+const port = Number(process.env.E2E_PORT ?? 4317);
 const systemChromium = existsSync(chromium.executablePath()) ? undefined : ["/usr/bin/chromium", "/usr/bin/chromium-browser"].find(existsSync);
 
 export default defineConfig({
