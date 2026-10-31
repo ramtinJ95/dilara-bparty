@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { CONTEST_UPLOAD_PATH, type JoinResponse } from "../../src/shared/api";
-import type { AdminCmd, AdminState, GuestCmd, GuestState, ServerMsg } from "../../src/shared/protocol";
+import { PING, PONG, type AdminCmd, type AdminState, type GuestCmd, type GuestState, type ServerMsg } from "../../src/shared/protocol";
 
 export const ORIGIN = "https://party.test";
 export const { JOIN_SECRET, ADMIN_SECRET } = env;
@@ -47,6 +47,7 @@ export class TestSocket<S> {
   constructor(readonly ws: WebSocket) {
     ws.accept();
     ws.addEventListener("message", (e) => {
+      if (e.data === PONG) return;
       this.inbox.push(JSON.parse(e.data as string));
       this.waiter?.();
     });
@@ -56,8 +57,8 @@ export class TestSocket<S> {
     });
   }
 
-  async next(accept: (msg: ServerMsg<S>) => boolean = () => true): Promise<ServerMsg<S>> {
-    const deadline = Date.now() + 2000;
+  async next(accept: (msg: ServerMsg<S>) => boolean = () => true, waitMs = 2000): Promise<ServerMsg<S>> {
+    const deadline = Date.now() + waitMs;
     for (;;) {
       const i = this.inbox.findIndex(accept);
       if (i >= 0) return this.inbox.splice(0, i + 1).at(-1)!;
@@ -69,13 +70,17 @@ export class TestSocket<S> {
     }
   }
 
-  async state(accept: (state: S) => boolean = () => true): Promise<S> {
-    const msg = await this.next((m) => m.t === "state" && accept(m.state));
+  async state(accept: (state: S) => boolean = () => true, waitMs?: number): Promise<S> {
+    const msg = await this.next((m) => m.t === "state" && accept(m.state), waitMs);
     return (msg as { t: "state"; state: S }).state;
   }
 
   send(cmd: AdminCmd | GuestCmd): void {
     this.ws.send(JSON.stringify(cmd));
+  }
+
+  ping(): void {
+    this.ws.send(PING);
   }
 
   close(): void {

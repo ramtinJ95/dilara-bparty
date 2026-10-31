@@ -59,12 +59,20 @@ Free plan allowances per day, compared with a padded estimate for one party
 | Resource | Free per day | Party estimate |
 |---|---|---|
 | Worker requests | 100,000 | 1,000 to 2,000 |
-| Durable Object requests (a WebSocket connect is 1; 20 incoming messages count as 1) | 100,000 | about 200 |
+| Durable Object requests (a WebSocket connect is 1; 20 incoming messages count as 1; an alarm is 1) | 100,000 | about 5,000 (see below) |
 | Durable Object duration | 13,000 GB-s | under 1,350 GB-s, even if it never hibernates |
-| SQLite rows written | 100,000 | a few hundred |
+| SQLite rows written | 100,000 | about 3,000, almost all alarms |
 | SQLite rows read | 5,000,000 | a few thousand |
 | SQLite storage | 5 GB total | under 100 MB, almost all photos |
 | Static asset requests | unlimited | |
+
+Most Durable Object requests come from noticing dead connections. Each open
+phone pings every 5 s, which the Durable Object answers with an auto-response
+without waking up: 20 phones for 3 hours is 43,200 pings, or 2,160 requests at
+the 20:1 rate. While anyone is connected, an alarm every 4 s closes sockets that
+stopped pinging: 2,700 alarms, each one request and one row written. The docs
+apply the 20:1 rate "for compute requests billing-only", so if the Free plan's
+daily limit counts every ping in full, the party uses about 46,000 of 100,000.
 
 Photos fit in the same allowances. Twenty guests uploading a few 300 KB photos
 each, plus thumbnails and every replaced version, is under 100 MB of the 5 GB,

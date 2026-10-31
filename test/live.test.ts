@@ -135,3 +135,26 @@ describe("admin commands", () => {
     admin.close();
   });
 });
+
+describe("silent sockets", () => {
+  it("shows a phone that stops pinging as offline within 15 s and keeps one that pings", { timeout: 20_000 }, async () => {
+    const admin = await connectAdmin();
+    const quiet = await connectGuest(await joinedCookie("Tyst"));
+    const chatty = await connectGuest(await joinedCookie("Pratig"));
+    await admin.state((s) => player(s, "Tyst")?.online === true && player(s, "Pratig")?.online === true);
+
+    const started = Date.now();
+    const pinger = setInterval(() => (admin.ping(), chatty.ping()), 5_000);
+    try {
+      const after = await admin.state((s) => player(s, "Tyst")?.online === false, 16_000);
+      expect(Date.now() - started).toBeLessThan(15_000);
+      expect(player(after, "Pratig")?.online).toBe(true);
+      expect(quiet.closed).toBe(true);
+      expect(chatty.closed).toBe(false);
+    } finally {
+      clearInterval(pinger);
+    }
+    chatty.close();
+    admin.close();
+  });
+});
