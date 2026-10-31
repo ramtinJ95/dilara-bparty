@@ -35,6 +35,29 @@ const migrations = [
   );
   CREATE INDEX votes_voter ON votes(voter);
   CREATE INDEX votes_photo ON votes(photo);`,
+  `CREATE TABLE questions (id TEXT PRIMARY KEY, position INTEGER NOT NULL, body TEXT NOT NULL);
+  CREATE TABLE rounds (
+    question_id TEXT PRIMARY KEY,
+    n INTEGER NOT NULL UNIQUE,
+    started_at INTEGER NOT NULL,
+    deadline INTEGER NOT NULL,
+    revealed INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE answers (
+    question_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    pick REAL NOT NULL,
+    ms INTEGER NOT NULL,
+    points INTEGER NULL,
+    answered_at INTEGER NOT NULL,
+    PRIMARY KEY (question_id, player_id)
+  );
+  CREATE TABLE deliveries (
+    question_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    sent_at INTEGER NOT NULL,
+    PRIMARY KEY (question_id, player_id)
+  );`,
 ];
 
 const VERSION_KEY = "schema_version";
