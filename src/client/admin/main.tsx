@@ -1,10 +1,11 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { formatJoinCode } from "../../shared/join-code";
-import type { AdminState } from "../../shared/protocol";
+import type { AdminCmd, AdminState } from "../../shared/protocol";
 import { useLive } from "../live";
 import "../theme.css";
 import "./admin.css";
+import { Contest } from "./contest";
 import { LandingPhoto } from "./landing-photo";
 import { Players } from "./players";
 import { Qr } from "./qr";
@@ -19,6 +20,7 @@ function Admin() {
   }, [error]);
 
   const live = status.kind === "open";
+  const sendCmd = (cmd: AdminCmd) => void send(JSON.stringify(cmd));
   const joinUrl = state ? `${location.origin}/j/${state.join.secret}` : "";
 
   return (
@@ -42,9 +44,10 @@ function Admin() {
             <p class="url muted">{joinUrl}</p>
           </section>
           <div class="side">
-            <Players players={state.players} send={(cmd) => send(JSON.stringify(cmd))} live={live} />
+            <Players players={state.players} send={sendCmd} live={live} />
             <LandingPhoto photo={state.landingPhoto} />
           </div>
+          <Contest contest={state.contest} send={sendCmd} live={live} />
         </div>
       )}
     </div>
