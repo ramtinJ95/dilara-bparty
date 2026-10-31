@@ -22,9 +22,13 @@ network is exposed.
   WebSocket open to it, so it can push the next question and the leaderboard to
   everyone at once. Use the WebSocket Hibernation API so it sleeps between
   messages.
-- **Host view on the laptop**: shows the QR code and short join code while people
-  join, then runs the game (current question, countdown, leaderboard). Phones
-  mainly show answer buttons, which keeps them fast on weak mobile data.
+- **R2 bucket for photos**: contest photos and question photos are stored in
+  R2, with their keys in the Durable Object's database. The bucket is private.
+  Phones load photos through a Worker route that checks the join cookie and
+  streams the object from R2, so a photo link is useless without having joined.
+- **Admin view on the laptop** (also usable on a phone): shows the QR code and
+  short join code, and controls the game. There is no shared game screen; each
+  phone shows the full quiz and photo contest. See [design.md](design.md).
 
 ## Joining and access
 
@@ -57,6 +61,13 @@ Free plan allowances per day, compared with a padded estimate for one party
 | SQLite storage | 5 GB total | under 1 MB |
 | Static asset requests | unlimited | |
 
+R2 for photos, compared with the same party: its free tier is 10 GB-month of
+storage, 1 million Class A (write) and 10 million Class B (read) operations per
+month, with free egress. Twenty guests uploading a few 300 KB photos each is
+well under 100 MB and a few thousand operations. Unlike Workers, R2 bills past
+its free tier rather than failing, and enabling it may ask for a payment method;
+check when setting up.
+
 Unknown: the docs don't state a maximum number of WebSockets per Durable
 Object. Twenty is far below anything that should matter, but test with real
 phones before the day.
@@ -64,9 +75,8 @@ phones before the day.
 ## Privacy: public repo, private content
 
 The repo is public. The quiz questions, answers and any photos of Dilara must
-**not** be committed. How the content gets into the app (for example, a
-git-ignored content file that's deployed with the Worker, or entered through the
-host view) is still to be decided, but the rule is fixed.
+**not** be committed. Questions and photos are entered through the admin view
+and stored in Cloudflare, never in the repo.
 
 ## On the day and after
 
@@ -74,8 +84,9 @@ host view) is still to be decided, but the rule is fixed.
   works.
 - During: the game refuses new joins after a set end time, and the host view can
   end it at any time.
-- After: remove the `party.handmadeoasis.com` custom domain or delete the
-  Worker, and wipe the Durable Object's stored data.
+- After: download the photos, remove the `party.handmadeoasis.com` custom
+  domain or delete the Worker, wipe the Durable Object's stored data, and empty
+  and delete the R2 bucket.
 
 ## Risks
 
@@ -97,4 +108,5 @@ in.
 - [Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
 - [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
 - [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+- [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
 - [Gating static assets with a Worker](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)
