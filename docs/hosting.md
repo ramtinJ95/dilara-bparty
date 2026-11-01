@@ -59,20 +59,91 @@ Free plan allowances per day, compared with a padded estimate for one party
 | Resource | Free per day | Party estimate |
 |---|---|---|
 | Worker requests | 100,000 | 1,000 to 2,000 |
-| Durable Object requests (a WebSocket connect is 1; 20 incoming messages count as 1; an alarm is 1) | 100,000 | about 5,000 (see below) |
+| Durable Object requests (see [the budget](#durable-object-request-budget)) | 100,000, shared with staging | under 12,500 in the worst case |
 | Durable Object duration | 13,000 GB-s | under 1,350 GB-s, even if it never hibernates |
-| SQLite rows written | 100,000 | about 3,000, almost all alarms |
+| SQLite rows written | 100,000 | about 3,000, mostly alarms |
 | SQLite rows read | 5,000,000 | a few thousand |
 | SQLite storage | 5 GB total | under 100 MB, almost all photos |
 | Static asset requests | unlimited | |
 
-Most Durable Object requests come from noticing dead connections. Each open
-phone pings every 5 s, which the Durable Object answers with an auto-response
-without waking up: 20 phones for 3 hours is 43,200 pings, or 2,160 requests at
-the 20:1 rate. While anyone is connected, an alarm every 4 s closes sockets that
-stopped pinging: 2,700 alarms, each one request and one row written. The docs
-apply the 20:1 rate "for compute requests billing-only", so if the Free plan's
-daily limit counts every ping in full, the party uses about 46,000 of 100,000.
+### Durable Object request budget
+
+Durable Object requests are the allowance the party can actually run out of,
+and the limit covers the whole Cloudflare account, staging included. Past it,
+every connect and command fails until 00:00 UTC. Count every incoming message
+in full: the docs apply the 20:1 WebSocket ratio "for compute requests
+billing-only" and don't say whether the Free plan's daily limit uses it.
+
+So phones never ping. Incoming messages are billed and outgoing ones are not,
+so the server keeps connections alive instead: while anyone is connected, an
+alarm sends every open socket a tiny tick, one request for all of them. The
+server owns a mode and sends it with every snapshot, so every phone switches
+together:
+
+- **Fast**, while the quiz is open: a tick every 4 s, and a phone that hears
+  nothing for 11 s reconnects.
+- **Slow**, the rest of the day: a tick every 30 s, and a phone reconnects
+  after 70 s of silence.
+
+In both modes a phone checks its socket when the guest looks or acts. Coming
+back to the page or online reconnects at once if the socket is past its
+silence limit. Otherwise, in slow mode, that and switching tabs or starting an
+upload send one ping, at most every 15 s, which the Durable Object answers with
+a pong without waking up. A vote, an answer or any other command is its own
+check, since the server always answers it. No reply within 5 s, and the phone
+reconnects. So a phone whose socket died outside the quiz recovers as soon as
+the guest opens the app, and the host announces the quiz out loud, so guests
+reopening the app is how a phone with a dead socket gets the unlock popup.
+
+**Why not tick every 4 s all day: batteries.** After any traffic, a phone's
+cellular radio stays in its high-power state for a tail of about 10 to 20 s
+before it goes idle, and that tail costs about as much as the transfer itself
+(Huang et al., MobiSys 2012). A tick every 4 s never lets the radio idle; a
+tick every 30 s lets it idle most of the time. During the quiz the screen is on
+and the guest is playing, so the radio cost is small next to the screen.
+
+The tick also keeps idle connections open. Cloudflare closes a WebSocket with
+no data in either direction for a while; its docs don't give the time, and
+reports put it at 100 s. Some mobile carriers drop idle TCP connections after
+less than 10 minutes. 30 s is well inside both.
+
+The cost: the server can't tell that a phone has gone silent. A Durable Object
+can't send WebSocket protocol pings, which browsers would answer on their own
+and Cloudflare doesn't bill, and anything a phone sends to prove it is alive
+is a billed request. A phone in a tunnel or a locked phone with its socket
+still open shows online in the admin view until its connection fails, which
+can take minutes. Its own phone recovers on its own once the network is back.
+
+Worst case for the party day: 25 phones and the admin laptop in the foreground
+for 8 hours, the quiz open for 1 hour, every message counted in full.
+
+| What | Count | Requests |
+|---|---|---|
+| Fast ticks: one alarm every 4 s for 1 hour | 900 | 900 |
+| Slow ticks: one alarm every 30 s for 7 hours | 840 | 840 |
+| Pings from phones on a schedule | none | 0 |
+| Checks when the guest looks or acts, outside the quiz: 100 per socket | 26 × 100 | 2,600 |
+| WebSocket connects: 50 per socket | 26 × 50 | 1,300 |
+| Page loads that ask the Durable Object (`/j/…`; `/app` doesn't): 20 per phone | 25 × 20 | 500 |
+| Joins, with retries | 50 | 50 |
+| Contest uploads: 10 per phone | 250 | 250 |
+| Photo views (`/photos/…`), cached on the phone: 100 per phone | 2,500 | 2,500 |
+| Votes and vote moves: 20 per phone | 500 | 500 |
+| Quiz answers: 20 questions | 25 × 20 | 500 |
+| Question photo views (`/photos/…`), revalidated on every view: 4 per question | 25 × 20 × 4 | 2,000 |
+| Question closes, from the shared alarm | 20 | 20 |
+| Quiz and finale steps, question edits by the host | 200 | 200 |
+| Other admin commands and photo uploads | 300 | 300 |
+| **Total** | | **12,460** |
+
+That is well under half of 30,000, our own cap. A quiz that is never ended
+costs 5,460 more alarms, for 17,920. The ticks don't grow with the number of phones,
+so more guests cost only their checks, connects and actions. Each alarm also
+writes one SQLite row, under 2,000 of the 100,000 rows a day.
+
+**Never run the rehearsal against staging on the party day.** Staging shares the
+account's allowance, and a rehearsal spends requests on joins, reconnects and
+commands that the party may need.
 
 Photos fit in the same allowances. Twenty guests uploading a few 300 KB photos
 each, plus thumbnails and every replaced version, is under 100 MB of the 5 GB,
@@ -119,4 +190,9 @@ in.
 - [Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
 - [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
 - [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+- [Durable Objects WebSockets reference](https://developers.cloudflare.com/durable-objects/reference/websockets/): the runtime answers incoming protocol pings; workerd's [`WebSocket`](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/web-socket.h) has no method to send one
+- Huang et al., A Close Examination of Performance and Power Characteristics of 4G LTE Networks (MobiSys 2012), summarised in [these lecture slides](https://people.iith.ac.in/fc5260/slides/lecture-3.pdf): the radio's high-power tail after a transfer
+- [Cloudflare WebSockets: idle timeout](https://developers.cloudflare.com/network/websockets/#idle-timeout)
+- Reports of a 100 s WebSocket idle timeout behind Cloudflare: [oasislabs/e2e-tests#49](https://github.com/oasislabs/e2e-tests/issues/49), [Linux Containers forum](https://discuss.linuxcontainers.org/t/incus-behind-cloudflare-closing-down-due-to-cf-timeout/19696)
+- [Wang et al., An Untold Story of Middleboxes in Cellular Networks (SIGCOMM 2011)](https://web.eecs.umich.edu/~zmao/Papers/netpiculet.pdf): carriers with idle TCP timeouts under 10 minutes
 - [Gating static assets with a Worker](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)

@@ -50,6 +50,8 @@ npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>
 
 `scripts/deploy-staging.sh` builds with `CLOUDFLARE_ENV=staging` and the secrets unset, then deploys. The Vite plugin copies dev values into `dist/<env>/.dev.vars` for `vite preview`, from `.dev.vars.staging` or else `.dev.vars`, plus any required secret in the environment. So the script keeps an empty `.dev.vars.staging` and refuses to deploy if any `.dev.vars` is under `dist/`. It passes the Keychain values in a temporary mode-600 JSON file that a trap deletes. Process substitution (`<(…)`) fails on macOS with `"/dev/fd/12" is not valid`. Never export the secrets before a build.
 
+Never rehearse against staging on the party day: it shares the account's Durable Object request allowance with the party (see [docs/hosting.md](docs/hosting.md#durable-object-request-budget)).
+
 ## Conventions
 
 - Parse external input (bodies, cookies, path params, WebSocket messages) at the boundary into the types in `src/shared/model.ts`, then trust the types.
