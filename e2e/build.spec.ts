@@ -12,5 +12,5 @@ test("the design lab is absent from the production build", async ({ request }) =
   expect(built.filter((f) => /lab/i.test(f.replace(/^dist\/dilara_bparty\//, "")))).toEqual([]);
   expect(built.filter((f) => /\.(woff2?|ttf|otf)$/.test(f))).toEqual([]);
   expect(built.filter((f) => readFileSync(f).includes(LAB_MARKER))).toEqual([]);
-  for (const path of ["/lab/", "/lab/aurora", "/src/lab/index.html"]) expect((await request.get(path)).status(), path).toBe(404);
+  for (const path of ["/lab/", "/lab/brutal", "/src/lab/index.html"]) expect((await request.get(path)).status(), path).toBe(404);
 });

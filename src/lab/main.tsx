@@ -181,7 +181,7 @@ function Index({ go }: { go: (path: string) => void }) {
   return (
     <main class="lab-index">
       <h1>Design lab</h1>
-      <p>Ten directions for the guest app. Each one shows the same five screens with the same data. Use ← and → to move between directions, 1–5 to pick a screen, 0 for all five and R to replay.</p>
+      <p>Nine directions for the guest app: three families, each as the original and two variations. Each one shows the same five screens with the same data. Use ← and → to move between directions, 1–5 to pick a screen, 0 for all five and R to replay.</p>
       <ol class="lab-list">
         {DIRECTIONS.map((d, i) => (
           <li key={d.id}>

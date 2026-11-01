@@ -6,7 +6,7 @@ import { DIRECTIONS } from "../src/lab/directions.ts";
 import { chromiumLaunchOptions } from "./drive.ts";
 
 // Screenshots and motion clips of the design lab, from a running `npm run dev`:
-//   node e2e/lab-media.ts --base-url http://127.0.0.1:5173 [--only aurora,pearl] [--out artifacts/lab]
+//   node e2e/lab-media.ts --base-url http://127.0.0.1:5173 [--only brutal,luxe] [--out artifacts/lab]
 const { values } = parseArgs({ options: { "base-url": { type: "string", default: "http://127.0.0.1:5173" }, only: { type: "string" }, out: { type: "string", default: "artifacts/lab" } } });
 const base = values["base-url"];
 const out = values.out;

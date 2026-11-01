@@ -1,14 +1,13 @@
 export const DIRECTIONS = [
-  { id: "aurora", name: "Aurora glass", idea: "A pale icy-sky aurora drifting over white snow, with frosted glass cards." },
-  { id: "pearl", name: "Holographic pearl", idea: "Light pearl surfaces with iridescent foil and chrome headline type." },
-  { id: "chrome", name: "Y2K chrome bubble", idea: "Inflated silver lettering and glossy bubble buttons, straight out of 2001." },
-  { id: "clay", name: "Soft 3D ice clay", idea: "Chunky, squishy claymorphism in pastel ice colours." },
-  { id: "brutal", name: "Playful neo-brutalist", idea: "Thick outlines, flat bold blocks and offset shadows in an icy palette." },
-  { id: "luxe", name: "Editorial luxe", idea: "A big display serif in silver and white, lots of space, refined motion." },
-  { id: "gameshow", name: "Ice game show", idea: "A bright game-show stage on light ice: big bold answer tiles, glow and energy." },
-  { id: "crystal", name: "Crystal facets", idea: "Geometric diamond facets, sparkle particles and prismatic light." },
-  { id: "storybook", name: "Modern storybook", idea: "Illustrated, rounded and soft, with small magical details." },
-  { id: "bento", name: "Maximal bento", idea: "A high-energy bento grid of tiles, stickers and badges." },
+  { id: "brutal", name: "Neo-brutalist · original", idea: "Thick outlines, flat bold blocks and offset shadows in an icy palette." },
+  { id: "brutal-ice", name: "Neo-brutalist · Ice block", idea: "Chunky frozen-block cards with snow caps, and icicles dripping off the thick outlines." },
+  { id: "brutal-stickers", name: "Neo-brutalist · Princess stickers", idea: "Thick-outlined crown, castle, wand and snowflake stickers, tiara badges and silver offset shadows." },
+  { id: "storybook", name: "Storybook · original", idea: "Illustrated, rounded and soft, with small magical details." },
+  { id: "storybook-globe", name: "Storybook · Snow globe", idea: "Fairy-tale book pages with a castle backdrop, and the photo inside a snow globe." },
+  { id: "storybook-papercut", name: "Storybook · Paper-cut", idea: "A layered paper-cut winter forest and castle with depth, and paper snowflakes." },
+  { id: "luxe", name: "Editorial luxe · original", idea: "A big display serif in silver and white, lots of space, refined motion." },
+  { id: "luxe-couture", name: "Editorial luxe · Ice palace couture", idea: "Silver foil, chandelier sparkle, a script name and a tiara monogram." },
+  { id: "luxe-ballet", name: "Editorial luxe · Winter ballet", idea: "Pale ice, satin ribbons, pearls and graceful motion." },
 ] as const;
 
 export type DirectionMeta = (typeof DIRECTIONS)[number];
