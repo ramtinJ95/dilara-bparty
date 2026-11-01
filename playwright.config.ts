@@ -17,7 +17,8 @@ export default defineConfig({
   },
   projects: [
     { name: "smoke", testMatch: "smoke.spec.ts" },
-    // Two at a time, and after dev so its dev server is gone: each test runs several browsers, and a 4 GB pylon runs out of memory otherwise.
+    // Each network test drives several browsers. On the 4 GB pylon, with the Nexus web dev service running, two of the four tests timed out
+    // at four at a time and all passed at two. It waits for dev, so the dev server that test starts is stopped first.
     { name: "network", testMatch: "network.spec.ts", dependencies: ["smoke", "dev"], fullyParallel: true, workers: 2 },
     { name: "media", testMatch: "media.spec.ts" },
     // test:e2e otherwise drives only a build, where Vite's dev-only paths never reach the Worker. dev.spec.ts starts its server.
