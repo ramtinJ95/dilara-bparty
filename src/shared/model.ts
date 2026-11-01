@@ -18,23 +18,17 @@ export const VOTES_PER_GUEST = 3;
 
 const RANDOM_ID = /^[A-Za-z0-9_-]{22}$/;
 
-export function parsePlayerId(raw: unknown): PlayerId | null {
-  return typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as PlayerId) : null;
-}
+const parseRandomId =
+  <T extends string>() =>
+  (raw: unknown): T | null =>
+    typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as T) : null;
 
-export function parsePhotoId(raw: unknown): PhotoId | null {
-  return typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as PhotoId) : null;
-}
+export const parsePlayerId = parseRandomId<PlayerId>();
+export const parsePhotoId = parseRandomId<PhotoId>();
+export const parseQuestionId = parseRandomId<QuestionId>();
 
 export type UploadKey = Brand<string, "UploadKey">;
-
-export function parseUploadKey(raw: unknown): UploadKey | null {
-  return typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as UploadKey) : null;
-}
-
-export function parseQuestionId(raw: unknown): QuestionId | null {
-  return typeof raw === "string" && RANDOM_ID.test(raw) ? (raw as QuestionId) : null;
-}
+export const parseUploadKey = parseRandomId<UploadKey>();
 
 export function parsePhotoMime(raw: string | null): PhotoMime | null {
   const mime = raw?.split(";")[0]?.trim().toLowerCase();
