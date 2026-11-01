@@ -51,11 +51,10 @@ const adminCommands: AdminHandlers = {
     return parsed.ok ? players.rename(id, parsed.value) : adminNameErrors[parsed.error];
   },
   merge: ({ players, contest }, { from, into }) => {
-    const source = players.resolve(from);
-    const target = players.resolve(into);
-    const error = players.merge(from, into);
-    if (!error) contest.merge(source!.id, target!.id);
-    return error;
+    const merged = players.merge(from, into);
+    if (!merged.ok) return merged.error;
+    contest.merge(merged.value.from, merged.value.into);
+    return null;
   },
   uploads: ({ contest }, { open }) => (contest.setOpen("uploads", open), null),
   voting: ({ contest }, { open }) => (contest.setOpen("voting", open), null),

@@ -1,4 +1,4 @@
-import { nameKey, type PlayerId, type PlayerName } from "../shared/model";
+import { nameKey, type PlayerId, type PlayerName, type Result } from "../shared/model";
 import { newPlayerId } from "./auth";
 
 export type Player = { id: PlayerId; name: string; createdAt: number };
@@ -43,13 +43,13 @@ export class Players {
     return null;
   }
 
-  merge(from: PlayerId, into: PlayerId): string | null {
+  merge(from: PlayerId, into: PlayerId): Result<{ from: PlayerId; into: PlayerId }, string> {
     const source = this.resolve(from);
     const target = this.resolve(into);
-    if (!source || !target) return "That player no longer exists.";
-    if (source.id === target.id) return "Those are already the same player.";
+    if (!source || !target) return { ok: false, error: "That player no longer exists." };
+    if (source.id === target.id) return { ok: false, error: "Those are already the same player." };
     this.sql.exec("UPDATE players SET merged_into = ? WHERE id = ? OR merged_into = ?", target.id, source.id, source.id);
-    return null;
+    return { ok: true, value: { from: source.id, into: target.id } };
   }
 
   roster(): Roster {
