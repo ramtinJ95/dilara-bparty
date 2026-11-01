@@ -1,12 +1,10 @@
 import { useRef, useState } from "preact/hooks";
-import type { PhotoUploadResponse } from "../../shared/api";
 import type { QuestionId } from "../../shared/model";
 import type { AdminCmd } from "../../shared/protocol";
 import { OPTION_MAX, OPTIONS, SECONDS, TEXT_MAX, type Question, type QuestionBody, type QuestionKind } from "../../shared/quiz";
 import { LETTERS } from "../answers";
 import { photoUrl } from "../api";
-import { prepare } from "../photo-prep";
-import { uploadErrors } from "./landing-photo";
+import { putAdminPhoto } from "./photo-upload";
 import { blankDraft, draftOf, parseDraft, removeOption, type ChoiceDraft, type Draft } from "./question-draft";
 
 type Mode = { kind: "idle" } | { kind: "edit"; id: QuestionId | null; start: Draft } | { kind: "delete"; id: QuestionId };
@@ -144,18 +142,10 @@ function Editor({ start, live, onSave, onCancel }: EditorProps) {
   async function upload(file: File) {
     setUploading(true);
     setUploadError(null);
-    try {
-      const body = await prepare(file).then((p) => p.photo, () => null);
-      if (!body) return setUploadError("Couldn't read that image.");
-      const res = await fetch("/api/admin/question-photo", { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body });
-      if (!res.ok) return setUploadError(uploadErrors[res.status] ?? `Upload failed (HTTP ${res.status}).`);
-      const { id } = (await res.json()) as PhotoUploadResponse;
-      set({ photo: id });
-    } catch {
-      setUploadError("Network error. Try again.");
-    } finally {
-      setUploading(false);
-    }
+    const result = await putAdminPhoto("/api/admin/question-photo", file);
+    if (result.ok) set({ photo: result.value });
+    else setUploadError(result.error);
+    setUploading(false);
   }
 
   return (
