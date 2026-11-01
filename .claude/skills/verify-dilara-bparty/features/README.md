@@ -33,11 +33,11 @@ Each feature file starts with an H1 title and one paragraph about the user-visib
 
 - [Join the party](./join.md) covers joining by QR link and by typed code, name validation, and wrong links that show nothing.
 - [Är det du? reclaim](./reclaim.md) covers a guest who lost their cookie getting their identity back by name.
-- [Guest shell and tabs](./guest-shell.md) covers the greeting, the live guest count, the three tabs and the reconnect pill.
+- [Guest shell and tabs](./guest-shell.md) covers the greeting, the live guest count, the three tabs, the quiz dot, the reconnect pill and leaving after a wipe.
 - [Admin player list](./admin-players.md) covers the live roster, rename and merge.
 - [Landing photo](./landing-photo.md) covers uploading, replacing and removing the photo on the join page.
 - [Photo contest](./photo-contest.md) covers uploading with retry, voting, the hall of fame, and the admin's tally and toggles.
 - [Gated photo route](./photo-route.md) covers who can fetch `/photos/<id>` and its cache header.
 - [Live quiz](./quiz.md) covers the question editor, the unlock popup, playing, closing, revealing and scoring questions, the leaderboard, late joins, reconnects and the end.
 - [Finale and end of the party](./finale.md) covers the suspense page, the photo and quiz reveals, photo ties, reconnects during the finale, ending the party and the wipe.
-- [Reconnect on bad networks](./reconnect.md) covers slow profiles, drops, frozen tabs and catching up to the current state.
+- [Reconnect on bad networks](./reconnect.md) covers slow profiles, clean and silent drops, the fast and slow heartbeat, frozen tabs and catching up to the current state.

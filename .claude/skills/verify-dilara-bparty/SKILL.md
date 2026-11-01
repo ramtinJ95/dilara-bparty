@@ -22,6 +22,8 @@ node .claude/skills/verify-dilara-bparty/scripts/instance.ts start
 - `.dev.vars` must exist. On a pylon, `.nexus/resume` creates it. Elsewhere, copy `.dev.vars.example` and fill both values.
 - Each instance starts empty, so the party has no players and no landing photo.
 - Several instances can run side by side on different ports.
+- `start --build` builds the Worker and serves it with `vite preview` instead, still with in-memory state and the `.dev.vars` secrets. Use it to measure page loads, and while the dev server is broken: on main, `vite dev` serves blank admin and guest pages, because `/.vite/deps/…` reaches the Worker and 404s ([issue #11](https://github.com/ramtinJ95/dilara-bparty/issues/11)). Doctor fails on that.
+- A built instance serves whatever is in `dist/`. `npm test`, `npm run test:e2e`, `.nexus/check` and another `start --build` all rebuild it, and the running instance then serves an admin page whose script 404s. Doctor fails on that too. Don't run them while you drive a built instance, or stop and start it again afterwards.
 
 The project also runs the `web` service from `.nexus/services.yaml` (`nexus services ensure --json` prints its port and preview URL). That is the person's preview, and its state persists in `.wrangler/state`. Don't drive mutations there: players you create stay in their admin list.
 
@@ -33,17 +35,18 @@ Run this first, and again whenever something looks off. It only reads.
 node .claude/skills/verify-dilara-bparty/scripts/instance.ts doctor "$BASE_URL"
 ```
 
-It checks the following: the neutral page answers with `X-Robots-Tag: noindex`, `JOIN_SECRET` opens the join page, `ADMIN_SECRET` gives the admin cookie, Chromium exists for Playwright, and ffmpeg exists. It also says whether this script started the instance, and whether the target is a Vite dev server or a built Worker. Any `FAIL` line means stop and fix that first. A 404 on the join page almost always means the secrets in your environment belong to another instance.
+It checks the following: the neutral page answers with `X-Robots-Tag: noindex`, `JOIN_SECRET` opens the join page, `ADMIN_SECRET` gives the admin cookie, every script the admin page loads answers 200 (on the dev server, also the entry's imports), Chromium exists for Playwright, and ffmpeg exists. It also says whether this script started the instance, and whether the target is a Vite dev server or a built Worker. Any `FAIL` line means stop and fix that first. A 404 on the join page almost always means the secrets in your environment belong to another instance.
 
 ## Drive
 
 The harness is Playwright as a library, run with `node` (Node 22.18 or later strips the types). Use these building blocks instead of writing your own:
 
 - `scripts/verify.ts` exports `openVerify(baseUrl, evidenceDir)`. It returns `phone(profile?)` at 390x844, `laptop()` at 1440x900, `evidence(page, name)` and `close()`. It launches Debian's `/usr/bin/chromium` when Playwright's own Chromium is missing, as on the pylon.
-- `e2e/drive.ts` has the stable handles: `openAdmin`, `joinByLink`, `joinByCode`, `renameFromAdmin`, `greeting`, `onlineDot`, `adminRow`, `reconnecting`, `guestsHere`, and for the quiz `addQuestion`, `fillQuestion`, `answer` and `unlockPopup`.
+- `e2e/drive.ts` has the stable handles: `openAdmin`, `joinByLink`, `joinByCode`, `renameFromAdmin`, `greeting`, `onlineDot`, `adminRow`, `reconnecting`, `guestsHere`, `setFastHeartbeat(admin, on)`, and for the quiz `addQuestion`, `fillQuestion`, `answer` and `unlockPopup`.
+- `e2e/placeholder.ts` draws placeholder photos: `placeholder(page, LOOKS.snow)` returns a PNG buffer, and `pngFile(name, buffer)` wraps it for `setInputFiles`.
 - `e2e/phone-network.ts` puts a phone on a network profile: `good`, `slow-4g`, `bad-3g` (400 ms, 400 kbps) or `flaky`. The returned `Line` can `cut("clean" | "silent")`, `restore()`, and, on Chromium, `lifecycle.freeze()` and `resume()`.
 
-A journey is a short script in `scripts/journeys/`. `join-by-link.ts` is the reference one. Copy it for a new journey:
+A journey is a short script in `scripts/journeys/`. `join-by-link.ts` is the reference one. `quiz-finale.ts` plays a whole party on three phones, from the photo tie through the wipe. `heartbeat.ts` times silent-drop recovery with the fast heartbeat on and off. `admin-tools.ts` covers the landing photo, the photo route, rename, merge and reclaim. Copy one for a new journey:
 
 ```sh
 node .claude/skills/verify-dilara-bparty/scripts/journeys/join-by-link.ts "$BASE_URL"
@@ -55,7 +58,8 @@ Network facts to know before you write a network journey. They were measured in 
 - CDP network emulation slows HTTP but not WebSocket frames. `shapeNetwork` adds the latency to the party socket itself.
 - `setOffline` does not close an open WebSocket. Only `Line.cut` ends the live connection.
 - A frozen page keeps its socket, so the server still counts it online.
-- A silent outage (`cut("silent")`) is noticed only by the phone: after 11 s without a tick while the fast heartbeat is on (the quiz), after 70 s otherwise. Turn the fast heartbeat on in the admin header to test quiz-time recovery.
+- The server ticks every socket: every 4 s with the fast heartbeat, every 30 s with the slow one. Unlocking the quiz turns the fast heartbeat on, and `End quiz` or `Reset quiz` turns it off. The admin header shows `Fast heartbeat on` or `off`, and its `Turn on` and `Turn off` buttons override it (`setFastHeartbeat`).
+- A silent outage (`cut("silent")`) is noticed only by the phone: after 11 s without a tick with the fast heartbeat, after 70 s with the slow one. With the slow heartbeat, a tab change, a photo pick, the page becoming visible or the browser's `online` event also sends one ping (at most every 15 s), and no reply within 5 s means reconnect. `Line.restore()` fires `online`, so a slow-heartbeat phone recovers about 5 s after it. Only replies to the phone's own socket count.
 
 For checks that must run on every PR, add a test to `e2e/network.spec.ts` or `e2e/smoke.spec.ts` instead of a journey. `.nexus/check` runs both through `npm run test:e2e`.
 
@@ -82,38 +86,47 @@ This kills only the process group that `start` created (npx, vite and workerd), 
 | Helper | Run it as |
 |---|---|
 | `scripts/instance.ts` | `node .claude/skills/verify-dilara-bparty/scripts/instance.ts start [port]`, `… doctor <base-url>`, `… stop <port>\|--all` |
-| `scripts/journeys/join-by-link.ts` | `node .claude/skills/verify-dilara-bparty/scripts/journeys/join-by-link.ts <base-url> [evidence-dir]` |
+| `scripts/instance.ts start --build` | the same, on a built Worker served by `vite preview` |
+| `scripts/journeys/<journey>.ts` | `node .claude/skills/verify-dilara-bparty/scripts/journeys/<journey>.ts <base-url> [evidence-dir]`, for `join-by-link`, `quiz-finale`, `heartbeat` and `admin-tools`. Each needs a fresh instance, because it asserts exact counts. |
 | `scripts/verify.ts` | imported by journeys: `import { openVerify, readSecrets } from "../verify.ts"` |
 | Network tests | `npm run test:e2e` (builds the Worker, serves it on port 4317 with test secrets) |
 | Staging deploy (Mac) | `scripts/deploy-staging.sh [--dry-run]` |
-| Party rehearsal | `JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium\|webkit] [--guests 20] [--out <dir>]` |
+| Party rehearsal | `JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium\|webkit] [--guests 20] [--out <dir>] [--force]` |
 
 ## Party rehearsal
 
-`npm run rehearse` runs about 20 phones in separate browser contexts plus one admin laptop against any deployment. Each phone gets a placeholder name tagged with the run, a device (iPhone 15 or Pixel 7) and a network profile (good, slow 4G, bad 3G, flaky). The steps then join everyone by link or code, lock and unlock phones, drop flaky phones cleanly and silently, rejoin two phones that lost their cookie by name, upload contest photos (one phone offline, one cut mid-send), vote for known photos, replace a voted photo into the hall of fame, and close and reopen voting. After each step, a probe guest arrives and leaves, and every phone must show the count change. That proves each phone is live, not just showing a stale screen. The admin view must show each change.
+`npm run rehearse` runs about 20 phones in separate browser contexts plus one admin laptop against any deployment. Each phone gets a placeholder name tagged with the run, a device (iPhone 15 or Pixel 7) and a network profile (good, slow 4G, bad 3G, flaky). The steps then join everyone by link or code, lock and unlock phones, drop flaky phones cleanly and silently with the fast heartbeat on, rejoin two phones that lost their cookie by name, upload contest photos (one phone offline, one cut mid-send), vote for known photos, replace a voted photo into the hall of fame, and close and reopen voting. They play a photo question and a closest-number question (popup, late join, drops after answering, early and deadline closes, reveal, leaderboard, end), then run the finale (suspense page, photo and quiz reveals with each winner congratulated, a drop during a reveal), end the party, let a cookieless guest back in by name, reopen and end it again, and wipe it. After each step, a probe guest arrives and leaves, and every phone must show the count change. That proves each phone is live, not just showing a stale screen. The admin view must show each change.
 
-It writes `report.md`, `report.html`, `report.png`, `report.json`, `rehearsal.gif` (the admin's player list and three phones) and screenshots of failures to the folder it prints. It exits 1 on any failed check. Its timings include CPU contention from every phone running on one machine, and a dev server target inflates page loads (the report notes it).
+Before it starts, it refuses a target that holds quiz questions, a landing photo or contest photos, and names what it found, because the run ends by wiping the party. It reads them from the admin socket's first snapshot. `--force` overrides this and the party-day rule in [Staging](#staging).
+
+It writes `report.md`, `report.html`, `report.png`, `report.json`, `rehearsal.gif` (the admin's player list and three phones) and screenshots of failures, numbered in the order they failed, to the folder it prints. It exits 1 on any failed check. Its timings include CPU contention from every phone running on one machine, and a dev server target inflates page loads (the report notes it).
 
 ```sh
 set -a; . ./.dev.vars; set +a
 npm run rehearse -- --base-url "$BASE_URL"                     # local, chromium
-npm run rehearse -- --base-url "$BASE_URL" --guests 8          # quicker
+npm run rehearse -- --base-url "$BASE_URL" --guests 6          # quicker, and what fits on the pylon
 ```
 
-`--browser webkit` uses Playwright's WebKit with the same device profiles. WebKit has no CDP, so a phone there gets route-based HTTP latency without a bandwidth cap, and a locked phone only loses its socket (no page freeze). The report notes this. Playwright's WebKit download is blocked on the pylon, so run WebKit on the Mac.
+`--browser webkit` uses Playwright's WebKit with the same device profiles. WebKit has no CDP, so a phone there gets route-based HTTP latency without a bandwidth cap, and a locked phone only loses its socket (no page freeze). The report notes this. Run WebKit on the Mac. On the pylon, `npx playwright install webkit` downloads it and `sudo npx playwright install-deps webkit` adds its libraries, but it drops the `Secure` admin and guest cookies on `http://127.0.0.1` and `http://localhost`, and even behind a local TLS proxy its pages stall on clicks and screenshots once a few are open.
+
+The pylon has 4 GB and no swap. With the `web` service running, 8 phones were enough for the kernel to kill Chromium mid-rehearsal, and the report then shows timeouts with no failure screenshots. Use `--guests 6` there, run nothing else at the same time, and check `sudo dmesg | grep -i 'killed process'` before you believe a failed run.
 
 ### Adding steps for a feature
 
-The steps are in `e2e/rehearsal/steps/`. `index.ts` holds the run order. `presence.ts` holds join, lock, drop, rejoin and the final `settle`. `photos.ts` holds upload, vote and hall-of-fame, and is the example to follow. For the quiz:
+The steps are in `e2e/rehearsal/steps/`. `index.ts` holds the run order: presence, photos, quiz, finale, then `settle`. `presence.ts` holds join, lock, drop, rejoin and the final `settle`. `photos.ts` holds upload, vote and hall-of-fame, and is the example to follow. `quiz.ts` holds the quiz rounds, and `finale.ts` the reveals, the end of the party and the wipe. For a new feature:
 
-1. Write `e2e/rehearsal/steps/quiz.ts` that exports `Step[]`. A `Step` is `{ id, title, run(r) }` from `e2e/rehearsal/rehearsal.ts`.
-2. Add them to `steps` in `index.ts`, after `photoSteps` and before `settle`.
+1. Write `e2e/rehearsal/steps/<feature>.ts` that exports `Step[]`. A `Step` is `{ id, title, run(r) }` from `e2e/rehearsal/rehearsal.ts`.
+2. Add them to `steps` in `index.ts`, before `settle`. The finale wipes the party, so a step that needs players, photos or questions goes before `finaleSteps`.
 3. In `run`, drive the admin with `r.admin` and the phones with `r.guests` (each has `page`, `line`, `profile` and the current `name`). Record outcomes with `r.check(label, fn, page)`, per-phone durations with `r.time(kind, guest, fn)` (the report groups these by network profile), and observations with `r.note(text)`.
 4. Leave every guest online and current at the end of the step.
 
-Quiz rounds belong there, with speed fairness checks: start a question while some phones are on `bad-3g` or mid-`cut`, and use `r.time` to compare when each profile saw the question and when its answer was accepted. Derive expected scores from a table of who answered what, as `photos.ts` does for votes.
+Derive expected results from a table of who did what, as `photos.ts` does for votes and `quiz.ts` for picks and guesses, and use `r.time` to compare network profiles.
 
 ## Staging
+
+**The party is on Saturday 2026-11-07. No rehearsal and no other load against staging or production on 2026-11-07, counted as the UTC day.** Staging shares the Cloudflare account's free daily Durable Object allowance with production, and the allowance resets at 00:00 UTC. `npm run rehearse` refuses any base URL other than localhost, `*.localhost`, `[::1]` or 127.x on that date unless you pass `--force`, so a rehearsal against a local instance still runs. Don't pass `--force` against a deployed Worker that day.
+
+**Rehearse against production only before the host has entered real content:** questions, the landing photo or guests' photos. The rehearsal ends by wiping the party, so it refuses a target that holds any of them. Don't pass `--force` to get past that on production.
 
 Staging is the Worker `dilara-bparty-staging` on workers.dev (`env.staging` in `wrangler.jsonc`). It has no custom domain, and its own Durable Object storage and secrets, so a rehearsal never touches party data. Only the person's Mac deploys it; the pylon has no Cloudflare account.
 

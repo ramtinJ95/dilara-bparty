@@ -5,8 +5,9 @@ A guest opens the join link from the QR code, or types the short code on the bar
 ## Sub-features
 
 - `join-link` opens the landing page from `/j/<secret>` and joins with a name.
-- `join-code` turns the typed code into the join link, ignoring case and spaces.
-- `join-name-rules` rejects an empty name (button disabled), names over 30 characters (input stops) and control characters (alert).
+- `join-code` turns the typed code into the join link, ignoring case, spaces and hyphens.
+- `join-name-rules` rejects an empty or blank name (button disabled), names over 30 characters (input stops) and control characters (alert).
+- `join-closed` refuses a new name after the host ends the party with `Kalaset är slut. Tack för att du var med!` (see [finale.md](./finale.md)). An existing name can still reclaim.
 - `join-cookie` sends a joined guest who opens the link again straight to `/app`.
 - `join-neutral` keeps `/`, wrong links and `/guest.html` free of party content.
 

@@ -8,7 +8,7 @@ Each guest has one contest photo, uploaded from Mitt foto, and can replace or re
 - `contest-upload-retry` shows `Ingen kontakt just nu. Bilden skickas så fort nätet är tillbaka.` when offline, and sends it again when the network returns, with the same key, so the admin still lists one version.
 - `contest-vote` gives a vote with `Ge en röst` and takes it back with `Ta tillbaka en röst`; `3 av 3 röster kvar` counts down, and the uploader sees `Din bild har 1 röst`.
 - `contest-replace` asks before replacing a photo with votes (`Byter du bild flyttar den här till Hall of fame…`), then moves the old photo to `Hall of fame` with its votes.
-- `contest-remove` asks before removing a photo with votes, and the votes go back to the voters.
+- `contest-remove` asks before removing a photo with votes (`Tar du bort bilden går rösten tillbaka till den som röstade.`), and the votes go back to the voters.
 - `contest-admin-toggles` opens and closes uploads and voting. Phones show `Uppladdningen är stängd.` and `Röstningen är stängd.`
 - `contest-admin-tally` ranks photos by votes with `hall of fame` and `tie` badges. `Every version` lists each entrant's versions with `Hide` and `Unhide`. `Download all (zip, n)` saves everything.
 
@@ -30,7 +30,7 @@ Preconditions:
 - **Own photo.** The uploader's own tile shows `Din bild` and no vote buttons.
 - **Replace into the hall of fame.** On the voted uploader, click `Byt bild`, read the confirmation, then click `Välj ny bild` inside `page.waitForEvent("filechooser")` and set a new file. The phone shows `Din tidigare bild är kvar i Hall of fame och kan fortfarande vinna.` Every phone's Galleri shows the `Hall of fame` heading. The entrant has 2 versions, and a tally row with the `hall of fame` badge.
 - **Close voting.** On the laptop, click `Close voting`. Every phone's Galleri shows `Röstningen är stängd.` Click `Open voting` to restore it.
-- **Hide.** Click `Hide` on a version. The photo leaves every Galleri, and its votes return to the voters.
+- **Hide.** Click `Hide` on a version. The photo leaves every Galleri, and its votes return to the voters. The uploader's Mitt foto shows `Kalasvärden har gömt bilden från galleriet. Byt gärna till en annan.`
 - **Proof.** `evidence()` on Mitt foto before and after the upload, on Galleri after the vote, and on the laptop's tally and versions.
 - **At scale.** The rehearsal's `upload`, `vote` and `hall-of-fame` steps in `e2e/rehearsal/steps/photos.ts` do all of this on 20 phones.
 
@@ -41,3 +41,4 @@ Preconditions:
 - An upload already in flight may keep going through `line.cut`, because Chromium's offline emulation doesn't always stop a request it has started. Cut before the upload to test the retry reliably.
 - On staging, photos from earlier rehearsals stay in the gallery. Assert on photos you uploaded in this run.
 - The file input accepts `image/*`, and the phone always re-encodes to JPEG, so the stored type is `image/jpeg`.
+- Opening the finale closes voting for good (see [finale.md](./finale.md)).
