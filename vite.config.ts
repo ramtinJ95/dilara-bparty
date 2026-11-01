@@ -1,10 +1,27 @@
+import { readFile } from "node:fs/promises";
 import { cloudflare } from "@cloudflare/vite-plugin";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 const viteDevPaths = ["!/@*", "!/src/*", "!/node_modules/*", "!/.vite/*"];
 
+// The design lab lives only on the dev server. It is no build input, so `vite build` never sees it.
+// The Cloudflare plugin leaves Vite no HTML middleware, so the lab answers its own page before the Worker sees the request.
+const designLab: Plugin = {
+  name: "design-lab",
+  apply: "serve",
+  configureServer(server) {
+    server.middlewares.use(async (req, res, next) => {
+      if (!req.url || !/^\/lab(\/|\?|$)/.test(req.url)) return next();
+      const html = await readFile("src/lab/index.html", "utf8");
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(await server.transformIndexHtml(req.url, html));
+    });
+  },
+};
+
 export default defineConfig(({ command, isPreview }) => ({
   plugins: [
+    designLab,
     cloudflare({
       config: command === "serve" && !isPreview ? { assets: { run_worker_first: viteDevPaths } } : undefined,
       persistState: process.env.PARTY_EPHEMERAL_STATE !== "1",

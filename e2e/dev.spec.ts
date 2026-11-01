@@ -59,3 +59,11 @@ test("the dev server renders the admin and guest pages", async ({ page }) => {
   await page.goto(`/j/${join}`);
   await expect(page.getByRole("heading", { name: "Dilara fyller 3!" })).toBeVisible();
 });
+
+test("the dev server serves the design lab", async ({ page }) => {
+  await page.goto("/lab/");
+  await expect(page.getByRole("link", { name: /Aurora glass/ })).toBeVisible();
+  await expect(page.locator(".lab-list a")).toHaveCount(10);
+  await page.goto("/lab/aurora");
+  await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
+});

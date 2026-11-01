@@ -16,6 +16,7 @@ export default defineConfig({
   },
   projects: [
     { name: "smoke", testMatch: "smoke.spec.ts" },
+    { name: "build", testMatch: "build.spec.ts" },
     // Each network test drives several browsers. On the 4 GB pylon, with the Nexus web dev service running, two of the four tests timed out
     // at four at a time and all passed at two. It waits for dev, so the dev server that test starts is stopped first.
     { name: "network", testMatch: "network.spec.ts", dependencies: ["smoke", "dev"], fullyParallel: true, workers: 2 },
