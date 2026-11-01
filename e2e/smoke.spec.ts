@@ -151,6 +151,8 @@ test("the host runs a question; a guest on another tab is called in, answers, an
   await expect(kim.getByRole("dialog")).toHaveCount(0);
   await kim.getByRole("button", { name: "Quiz", exact: true }).click();
 
+  // The tally and the early close count online guests, and a guest from an earlier test can stay online a while after its context closed.
+  await expect(admin.getByRole("region", { name: / · 2 online$/ })).toBeVisible({ timeout: 15_000 });
   await admin.getByRole("button", { name: "Start question 1" }).click();
   await expect(kim.getByText("Fråga 1 av 2")).toBeVisible();
   await expect(kim.locator(".q-photo")).toBeVisible();
