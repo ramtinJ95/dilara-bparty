@@ -1,4 +1,4 @@
-import { env, reset } from "cloudflare:test";
+import { reset } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import type { PhotoId, PlayerId } from "../src/shared/model";
 import type { AdminState, GuestCmd, GuestContest, GuestState } from "../src/shared/protocol";
@@ -317,7 +317,7 @@ describe("admin hide", () => {
 });
 
 describe("tally", () => {
-  it("ranks in-gallery photos by votes with ties sharing a rank, for the admin and over RPC", async () => {
+  it("ranks in-gallery photos by votes with ties sharing a rank, for the admin", async () => {
     const [astrid, olle, testgast, sixten] = await Promise.all(["Astrid", "Olle", "Testgäst", "Sixten"].map(guest));
     const ids: PhotoId[] = [];
     for (const g of [astrid!, olle!, testgast!, sixten!]) ids.push(await upload(g));
@@ -339,7 +339,6 @@ describe("tally", () => {
       ["Sixten", 0, 4],
     ]);
     expect(tally[0]).toMatchObject({ player: astrid!.id, photo: a, fame: false });
-    expect(await env.PARTY.getByName("party").tally()).toEqual(tally);
   });
 });
 

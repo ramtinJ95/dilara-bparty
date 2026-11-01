@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { VOTES_PER_GUEST } from "../../shared/model";
 import type { GalleryPhoto, GuestCmd, GuestContest } from "../../shared/protocol";
+import { photoUrl } from "../api";
 import { GalleryIcon, Snowflake } from "../icons";
 
 type Vote = { canVote: boolean; send: (cmd: GuestCmd) => void; votesLeft: number };
@@ -21,7 +22,7 @@ function Card({ photo, vote, view }: { photo: GalleryPhoto; vote: Vote; view: (p
   return (
     <li class={photo.mine > 0 ? "tile voted" : "tile"}>
       <button class="thumb" type="button" aria-label={photo.own ? "Visa din bild" : "Visa bilden"} onClick={() => view(photo)}>
-        <img src={`/photos/${photo.thumb}`} alt="" loading="lazy" />
+        <img src={photoUrl(photo.thumb)} alt="" loading="lazy" />
       </button>
       {photo.own ? (
         <p class="own">Din bild</p>
@@ -51,7 +52,7 @@ function Lightbox({ photo, close }: { photo: GalleryPhoto; close: () => void }) 
   }, [close]);
   return (
     <div class="lightbox" role="dialog" aria-modal="true" aria-label="Bild i stort format" onClick={close}>
-      <img src={`/photos/${photo.id}`} alt="" style={{ backgroundImage: `url(/photos/${photo.thumb})` }} />
+      <img src={photoUrl(photo.id)} alt="" style={{ backgroundImage: `url(${photoUrl(photo.thumb)})` }} />
       <button class="btn secondary" type="button" onClick={close}>
         Stäng
       </button>
@@ -66,7 +67,6 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
   const vote: Vote = { canVote: live && contest.voting, send, votesLeft: contest.votesLeft };
   const current = contest.gallery.filter((p) => !p.fame);
   const fame = contest.gallery.filter((p) => p.fame);
-  const view = (p: GalleryPhoto) => setOpen(p);
 
   return (
     <section class="gallery" aria-labelledby="panel-title">
@@ -93,7 +93,7 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
       ) : (
         <ul class="grid">
           {current.map((p) => (
-            <Card key={p.id} photo={p} vote={vote} view={view} />
+            <Card key={p.id} photo={p} vote={vote} view={setOpen} />
           ))}
         </ul>
       )}
@@ -103,7 +103,7 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
           <p class="fame-text">Utbytta bilder som fick röster. De är kvar och kan fortfarande vinna.</p>
           <ul class="grid">
             {fame.map((p) => (
-              <Card key={p.id} photo={p} vote={vote} view={view} />
+              <Card key={p.id} photo={p} vote={vote} view={setOpen} />
             ))}
           </ul>
         </>

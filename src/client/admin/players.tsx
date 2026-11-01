@@ -1,10 +1,9 @@
 import { useState } from "preact/hooks";
 import type { PlayerId } from "../../shared/model";
 import type { AdminCmd, AdminPlayer } from "../../shared/protocol";
+import { clockTime } from "./format";
 
 type Mode = { kind: "idle" } | { kind: "rename"; id: PlayerId; draft: string } | { kind: "merge"; from: PlayerId; into: PlayerId | null };
-
-const joinedAt = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 export function Players({ players, send, live }: { players: AdminPlayer[]; send: (cmd: AdminCmd) => void; live: boolean }) {
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
@@ -50,7 +49,7 @@ export function Players({ players, send, live }: { players: AdminPlayer[]; send:
             ) : (
               <>
                 <span class="name">{p.name}</span>
-                <span class="muted when">joined {joinedAt(p.createdAt)}</span>
+                <span class="muted when">joined {clockTime(p.createdAt)}</span>
                 <span class="actions">
                   <button class="link" type="button" onClick={() => setMode({ kind: "rename", id: p.id, draft: p.name })}>
                     Rename

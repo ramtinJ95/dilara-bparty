@@ -74,8 +74,13 @@ export class Contest {
     );
   }
 
-  entry(id: PhotoId): Entry | undefined {
-    const [row] = this.sql.exec<EntryRow>(`${ENTRY_SELECT} WHERE e.photo = ? OR e.thumb = ?`, id, id).toArray();
+  entry(photo: PhotoId): Entry | undefined {
+    const [row] = this.sql.exec<EntryRow>(`${ENTRY_SELECT} WHERE e.photo = ?`, photo).toArray();
+    return row && toEntry(row);
+  }
+
+  entryWith(photoOrThumb: PhotoId): Entry | undefined {
+    const [row] = this.sql.exec<EntryRow>(`${ENTRY_SELECT} WHERE e.photo = ? OR e.thumb = ?`, photoOrThumb, photoOrThumb).toArray();
     return row && toEntry(row);
   }
 
@@ -96,7 +101,7 @@ export class Contest {
   vote(voter: PlayerId, photo: PhotoId): string | null {
     if (!this.isOpen("voting")) return "Röstningen är stängd.";
     const entry = this.entry(photo);
-    if (!entry?.inGallery || entry.photo !== photo) return "Den bilden finns inte i galleriet längre.";
+    if (!entry?.inGallery) return "Den bilden finns inte i galleriet längre.";
     if (entry.owner === voter) return "Du kan inte rösta på din egen bild.";
     const [used] = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM votes WHERE voter = ?", voter).toArray();
     if (used!.n >= VOTES_PER_GUEST) return "Du har inga röster kvar.";
@@ -117,7 +122,7 @@ export class Contest {
   remove(owner: PlayerId, photo: PhotoId): string | null {
     if (!this.isOpen("uploads")) return "Uppladdningen är stängd.";
     const entry = this.entry(photo);
-    if (entry?.photo !== photo || entry.owner !== owner || entry.status !== "current") return "Bilden är redan borttagen.";
+    if (entry?.owner !== owner || entry.status !== "current") return "Bilden är redan borttagen.";
     this.sql.exec("UPDATE entries SET status = 'removed' WHERE photo = ?", photo);
     this.sql.exec("DELETE FROM votes WHERE photo = ?", photo);
     return null;
@@ -125,7 +130,7 @@ export class Contest {
 
   hide(photo: PhotoId, hidden: boolean): string | null {
     const entry = this.entry(photo);
-    if (entry?.photo !== photo) return "That photo isn't in the contest.";
+    if (!entry) return "That photo isn't in the contest.";
     this.sql.exec("UPDATE entries SET hidden = ? WHERE photo = ?", hidden ? 1 : 0, photo);
     if (hidden) this.sql.exec("DELETE FROM votes WHERE photo = ?", photo);
     return null;

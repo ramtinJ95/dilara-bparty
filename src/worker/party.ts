@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { parsePlayerName, type NameError, type PhotoId, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
+import { parsePlayerName, PLAYER_NAME_MAX, type NameError, type PhotoId, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
 import {
   HEARTBEATS,
   parseAdminCmd,
@@ -15,7 +15,6 @@ import {
   type GuestState,
   type Heartbeat,
   type ServerMsg,
-  type TallyRow,
 } from "../shared/protocol";
 import type { AdminQuiz, QuizStep } from "../shared/quiz";
 import { joinCode } from "./auth";
@@ -36,7 +35,7 @@ const LIVE_MODE = "live_mode";
 const adminNameErrors: Record<NameError, string> = {
   empty: "Name can't be empty.",
   "control-chars": "Name contains characters that can't be used.",
-  "too-long": "Name is too long (max 30 characters).",
+  "too-long": `Name is too long (max ${PLAYER_NAME_MAX} characters).`,
 };
 
 type Tables = { players: Players; contest: Contest; quiz: Quiz; finale: Finale; setLiveMode: (on: boolean) => void };
@@ -52,11 +51,10 @@ const adminCommands: AdminHandlers = {
     return parsed.ok ? players.rename(id, parsed.value) : adminNameErrors[parsed.error];
   },
   merge: ({ players, contest }, { from, into }) => {
-    const source = players.resolve(from);
-    const target = players.resolve(into);
-    const error = players.merge(from, into);
-    if (!error) contest.merge(source!.id, target!.id);
-    return error;
+    const merged = players.merge(from, into);
+    if (!merged.ok) return merged.error;
+    contest.merge(merged.value.from, merged.value.into);
+    return null;
   },
   uploads: ({ contest }, { open }) => (contest.setOpen("uploads", open), null),
   voting: ({ contest }, { open }) => (contest.setOpen("voting", open), null),
@@ -162,7 +160,7 @@ export class Party extends DurableObject<Env> {
 
   guestPhoto(viewer: PlayerId, id: PhotoId): StoredPhoto | null {
     if (this.finale.revealedPhoto(id)) return this.photos.get(id);
-    const entry = this.contest.entry(id);
+    const entry = this.contest.entryWith(id);
     if (!entry) return this.sharedPhoto(id);
     const player = this.players.resolve(viewer);
     return player && guestMaySee(entry, player.id) ? this.photos.get(id) : null;
@@ -191,10 +189,6 @@ export class Party extends DurableObject<Env> {
     this.broadcast();
     await this.schedule();
     return null;
-  }
-
-  tally(): TallyRow[] {
-    return tally(this.contest.snapshot(), this.players.roster());
   }
 
   // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.

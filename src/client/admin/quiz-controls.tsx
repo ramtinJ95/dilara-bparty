@@ -3,6 +3,7 @@ import type { AdminCmd } from "../../shared/protocol";
 import { QUIZ_STEPS, stepAllowed, type AdminQuiz, type BoardRow, type Phase, type Question, type QuizStep, type RoundResult } from "../../shared/quiz";
 import { LETTERS } from "../answers";
 import { useSecondsLeft } from "../clock";
+import { plural } from "./format";
 
 const PHASE_LABEL: Record<Phase, string> = {
   locked: "Locked",
@@ -25,7 +26,6 @@ const STEP_LABEL: Record<QuizStep, (quiz: AdminQuiz) => string> = {
   reset: () => "Reset quiz",
 };
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 const CONFIRM: Partial<Record<QuizStep, (quiz: AdminQuiz) => string | null>> = {
   reset: () => "Reset the quiz? Every answer and score is wiped. The questions stay.",

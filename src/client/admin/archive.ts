@@ -1,5 +1,6 @@
 import type { PhotoId } from "../../shared/model";
 import type { AdminEntrant, AdminVersion } from "../../shared/protocol";
+import { photoUrl } from "../api";
 import { zipStore, type ZipEntry } from "./zip";
 
 export type Badge = "current" | "replaced" | "removed" | "fame";
@@ -47,7 +48,7 @@ export function archiveFiles(entrants: AdminEntrant[]): ArchiveFile[] {
 export async function buildArchive(files: ArchiveFile[], onProgress: (done: number) => void): Promise<Blob> {
   const entries: ZipEntry[] = [];
   for (const file of files) {
-    const res = await fetch(`/photos/${file.id}`);
+    const res = await fetch(photoUrl(file.id));
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${file.stem}`);
     const ext = EXTENSIONS[res.headers.get("Content-Type") ?? ""] ?? "jpg";
     entries.push({ name: `${file.stem}.${ext}`, data: new Uint8Array(await res.arrayBuffer()), modified: new Date(file.createdAt) });

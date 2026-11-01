@@ -1,5 +1,6 @@
 import { useRef, useState } from "preact/hooks";
 import type { GuestCmd, GuestContest, MyPhoto as Mine } from "../../shared/protocol";
+import { photoUrl } from "../api";
 import { CameraIcon, Snowflake, Sparkle } from "../icons";
 import type { Progress, Uploader, Uploading } from "./use-upload";
 
@@ -101,7 +102,7 @@ const VoteCount = ({ votes }: { votes: number }) => <p class="vote-count">{votes
 function PhotoFrame({ mine }: { mine: Mine }) {
   return (
     <div class="photo-frame">
-      <img src={`/photos/${mine.id}`} alt="Din bild" style={{ backgroundImage: `url(/photos/${mine.thumb})` }} />
+      <img src={photoUrl(mine.id)} alt="Din bild" style={{ backgroundImage: `url(${photoUrl(mine.thumb)})` }} />
       <Sparkle class="sparkle a" />
       <Sparkle class="sparkle b" />
     </div>

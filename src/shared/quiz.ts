@@ -49,7 +49,7 @@ export type GuestQuiz =
   | ({ phase: "leaderboard"; top: BoardRow[]; you: BoardRow | null } & Round)
   | ({ phase: "ended" } & Unlocked);
 
-type Tally = { q: QuestionId; n: number; answered: number; expected: number };
+export type Tally = { q: QuestionId; n: number; answered: number; expected: number };
 
 export type AdminStage =
   | { phase: "locked" | "lobby" | "ended" }

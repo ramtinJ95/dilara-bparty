@@ -14,6 +14,7 @@ import {
   type QuestionBody,
   type QuizStep,
   type RoundResult,
+  type Tally,
 } from "../shared/quiz";
 import { newQuestionId } from "./auth";
 import type { Roster } from "./players";
@@ -258,7 +259,7 @@ type Current = {
   endsInMs: number;
   question: GuestQuestion;
   mine: Map<PlayerId, Counted>;
-  tally: { q: QuestionId; n: number; answered: number; expected: number };
+  tally: Tally;
   result: RoundResult;
   board: BoardRow[];
   rows: Map<PlayerId, BoardRow>;

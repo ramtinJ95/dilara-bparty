@@ -80,8 +80,9 @@ alarm sends every open socket a tiny tick, one request for all of them. The
 server owns a mode and sends it with every snapshot, so every phone switches
 together:
 
-- **Fast**, while the quiz is open: a tick every 4 s, and a phone that hears
-  nothing for 11 s reconnects.
+- **Fast**, from unlock until the quiz ends or is reset, or while the admin
+  turns it on: a tick every 4 s, and a phone that hears nothing for 11 s
+  reconnects.
 - **Slow**, the rest of the day: a tick every 30 s, and a phone reconnects
   after 70 s of silence.
 

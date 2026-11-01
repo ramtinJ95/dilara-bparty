@@ -41,7 +41,7 @@ export type AdminState = {
 export type Heartbeat = "fast" | "slow";
 
 // Phones never ping. The server's alarm sends every socket a tick, one request for all of them since outgoing messages are free,
-// and a phone that hears nothing for silentMs reconnects. Fast while the quiz is open; slow the rest of the day, so the radio can idle.
+// and a phone that hears nothing for silentMs reconnects. Fast from unlock until the quiz ends or is reset, or while the admin turns it on; slow the rest of the day, so the radio can idle.
 export const HEARTBEATS: Record<Heartbeat, { tickMs: number; silentMs: number }> = {
   fast: { tickMs: 4_000, silentMs: 11_000 },
   slow: { tickMs: 30_000, silentMs: 70_000 },
