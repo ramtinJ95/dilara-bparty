@@ -22,7 +22,7 @@ npm run typecheck        # wrangler types --check, then tsc
 npm test                 # Worker tests (vitest)
 npm run test:e2e         # Playwright smoke and network tests against a fresh build
 npm run media            # screenshots and videos into artifacts/
-npm run rehearse -- --base-url <url>   # 20 phones on mixed networks; JOIN_SECRET and ADMIN_SECRET from the environment
+npm run rehearse -- --base-url <url>   # 20 phones on mixed networks; JOIN_SECRET and ADMIN_SECRET from the environment; refuses on the party day and on a party with content
 .nexus/check             # what a PR must pass: install, typecheck, test, test:e2e
 ```
 
@@ -50,7 +50,9 @@ npm run rehearse -- --base-url https://dilara-bparty-staging.<account-subdomain>
 
 `scripts/deploy-staging.sh` builds with `CLOUDFLARE_ENV=staging` and the secrets unset, then deploys. The Vite plugin copies dev values into `dist/<env>/.dev.vars` for `vite preview`, from `.dev.vars.staging` or else `.dev.vars`, plus any required secret in the environment. So the script keeps an empty `.dev.vars.staging` and refuses to deploy if any `.dev.vars` is under `dist/`. It passes the Keychain values in a temporary mode-600 JSON file that a trap deletes. Process substitution (`<(…)`) fails on macOS with `"/dev/fd/12" is not valid`. Never export the secrets before a build.
 
-Never rehearse against staging on the party day: it shares the account's Durable Object request allowance with the party (see [docs/hosting.md](docs/hosting.md#durable-object-request-budget)).
+The party is on Saturday 2026-11-07. Hard rule: no rehearsal and no other load against staging or production on 2026-11-07, counted as the UTC day. Staging shares the Cloudflare account's free daily Durable Object allowance with production, and that allowance resets at 00:00 UTC (see [docs/hosting.md](docs/hosting.md#durable-object-request-budget)). `npm run rehearse` refuses any non-local base URL on that date unless you pass `--force`.
+
+Rehearse against production only before the host has entered real content. The rehearsal ends with the finale's wipe, so it refuses a target that holds quiz questions, a landing photo or contest photos unless you pass `--force`.
 
 ## Conventions
 
