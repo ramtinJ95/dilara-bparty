@@ -1,39 +1,32 @@
 import { useRef, useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
 import { photoUrl } from "../api";
-import { prepare } from "../photo-prep";
-
-export const uploadErrors: Record<number, string> = {
-  413: "That photo is still too large after shrinking.",
-  415: "Use a JPEG, PNG or WebP photo.",
-};
+import { putAdminPhoto } from "./photo-upload";
 
 export function LandingPhoto({ photo }: { photo: PhotoId | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
 
-  async function request(init: RequestInit) {
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    const result = await putAdminPhoto("/api/admin/landing-photo", file);
+    if (!result.ok) setError(result.error);
+    setBusy(false);
+  }
+
+  async function remove() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/landing-photo", init);
-      if (!res.ok) setError(uploadErrors[res.status] ?? `Failed (HTTP ${res.status}).`);
+      const res = await fetch("/api/admin/landing-photo", { method: "DELETE" });
+      if (!res.ok) setError(`Failed (HTTP ${res.status}).`);
     } catch {
       setError("Network error. Try again.");
     } finally {
       setBusy(false);
     }
-  }
-
-  async function upload(file: File) {
-    let body: Blob;
-    try {
-      body = (await prepare(file)).photo;
-    } catch {
-      return setError("Couldn't read that image.");
-    }
-    await request({ method: "PUT", headers: { "Content-Type": "image/jpeg" }, body });
   }
 
   return (
@@ -56,7 +49,7 @@ export function LandingPhoto({ photo }: { photo: PhotoId | null }) {
           }}
         />
         {photo && (
-          <button class="btn small secondary" type="button" disabled={busy} onClick={() => void request({ method: "DELETE" })}>
+          <button class="btn small secondary" type="button" disabled={busy} onClick={() => void remove()}>
             Remove
           </button>
         )}
