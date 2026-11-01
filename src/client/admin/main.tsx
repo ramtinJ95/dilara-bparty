@@ -16,7 +16,7 @@ import { QuizControls } from "./quiz-controls";
 
 function Admin() {
   const [error, setError] = useState<string | null>(null);
-  const { state, status, send } = useLive<AdminState>("/ws/admin", (msg) => msg.t === "error" && setError(msg.message));
+  const { state, heartbeat, status, send } = useLive<AdminState>("/ws/admin", (msg) => msg.t === "error" && setError(msg.message));
   useEffect(() => {
     if (!error) return;
     const timer = setTimeout(() => setError(null), 6000);
@@ -33,6 +33,14 @@ function Admin() {
     <div class="admin">
       <header>
         <h1>Party admin</h1>
+        {heartbeat && (
+          <div class="toggle" title="For the quiz: the server ticks every 4 s instead of 30 s, so phones reconnect within about 11 s instead of 70 s.">
+            <span class={heartbeat === "fast" ? "state open" : "state"}>Fast heartbeat {heartbeat === "fast" ? "on" : "off"}</span>
+            <button class={heartbeat === "fast" ? "btn small secondary" : "btn small"} type="button" disabled={!live} onClick={() => sendCmd({ t: "liveMode", on: heartbeat !== "fast" })}>
+              {heartbeat === "fast" ? "Turn off" : "Turn on"}
+            </button>
+          </div>
+        )}
         <span class={live ? "status on" : "status"}>{live ? "Live" : state ? "Reconnecting…" : "Connecting…"}</span>
       </header>
       {error && (

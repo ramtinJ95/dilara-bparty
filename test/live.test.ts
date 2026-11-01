@@ -1,7 +1,7 @@
-import { evictAllDurableObjects, reset } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
-import type { AdminState } from "../src/shared/protocol";
-import { call, connectAdmin, connectGuest, JOIN_SECRET, joinedCookie, ORIGIN, whoAmI } from "./support/worker";
+import { env, evictAllDurableObjects, reset, runDurableObjectAlarm } from "cloudflare:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { AdminState, Heartbeat } from "../src/shared/protocol";
+import { call, connectAdmin, connectGuest, JOIN_SECRET, joinedCookie, ORIGIN, whoAmI, type TestSocket } from "./support/worker";
 
 const player = (state: AdminState, name: string) => state.players.find((p) => p.name === name);
 
@@ -136,25 +136,77 @@ describe("admin commands", () => {
   });
 });
 
-describe("silent sockets", () => {
-  it("shows a phone that stops pinging as offline within 15 s and keeps one that pings", { timeout: 20_000 }, async () => {
-    const admin = await connectAdmin();
-    const quiet = await connectGuest(await joinedCookie("Tyst"));
-    const chatty = await connectGuest(await joinedCookie("Pratig"));
-    await admin.state((s) => player(s, "Tyst")?.online === true && player(s, "Pratig")?.online === true);
+const heartbeat = (socket: TestSocket<unknown>, want: Heartbeat) => socket.next((m) => m.t === "state" && m.heartbeat === want);
 
-    const started = Date.now();
-    const pinger = setInterval(() => (admin.ping(), chatty.ping()), 5_000);
-    try {
-      const after = await admin.state((s) => player(s, "Tyst")?.online === false, 16_000);
-      expect(Date.now() - started).toBeLessThan(15_000);
-      expect(player(after, "Pratig")?.online).toBe(true);
-      expect(quiet.closed).toBe(true);
-      expect(chatty.closed).toBe(false);
-    } finally {
-      clearInterval(pinger);
-    }
-    chatty.close();
+describe("tick", () => {
+  afterEach(() => void vi.useRealTimers());
+
+  const runAlarm = () => runDurableObjectAlarm(env.PARTY.getByName("party"));
+
+  it("ticks every 30 s outside the quiz and every 4 s once live mode is on", { timeout: 15_000 }, async () => {
+    const guest = await connectGuest(await joinedCookie("Tick"));
+    await guest.state();
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    expect(guest.ticks, "no tick within 5 s in slow mode").toBe(0);
+
+    const admin = await connectAdmin();
+    admin.send({ t: "liveMode", on: true });
+    await heartbeat(guest, "fast");
+    await expect.poll(() => guest.ticks, { timeout: 5_000 }).toBeGreaterThan(0);
+    guest.close();
     admin.close();
+  });
+
+  it("gives a phone that connects during the quiz the fast heartbeat, and every phone the slow one when it ends", async () => {
+    const admin = await connectAdmin();
+    expect(await admin.next()).toMatchObject({ t: "state", heartbeat: "slow" });
+    admin.send({ t: "liveMode", on: true });
+    await heartbeat(admin, "fast");
+
+    const guest = await connectGuest(await joinedCookie("Sen"));
+    expect(await guest.next()).toMatchObject({ t: "state", heartbeat: "fast" });
+
+    admin.send({ t: "liveMode", on: false });
+    await heartbeat(guest, "slow");
+    guest.close();
+    admin.close();
+  });
+
+  it("answers a phone's check ping with a pong, not a tick", async () => {
+    const guest = await connectGuest(await joinedCookie("Koll"));
+    await guest.state();
+    guest.ws.send("ping");
+    await expect.poll(() => guest.pongs).toBe(1);
+    expect(guest.ticks).toBe(0);
+    guest.close();
+  });
+
+  it("goes to every open socket on each alarm and stops when nobody is connected", async () => {
+    const admin = await connectAdmin();
+    const guest = await connectGuest(await joinedCookie("Astrid"));
+    await guest.state();
+    expect(await runAlarm()).toBe(true);
+    expect(await runAlarm()).toBe(true);
+    await expect.poll(() => [admin.ticks, guest.ticks]).toEqual([2, 2]);
+
+    admin.close();
+    guest.close();
+    await expect.poll(() => admin.closed && guest.closed).toBe(true);
+    await runAlarm();
+    expect(await runAlarm(), "no alarm is left once the last socket closed").toBe(false);
+  });
+
+  it("leaves a phone that sends nothing connected and online", async () => {
+    const quiet = await connectGuest(await joinedCookie("Tyst"));
+    await quiet.state();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 60_000);
+    await runAlarm();
+    await expect.poll(() => quiet.ticks).toBe(1);
+    expect(quiet.closed).toBe(false);
+    const admin = await connectAdmin();
+    expect((await admin.state()).players).toEqual([expect.objectContaining({ name: "Tyst", online: true })]);
+    admin.close();
+    quiet.close();
   });
 });

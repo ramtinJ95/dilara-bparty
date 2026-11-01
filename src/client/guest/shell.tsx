@@ -91,10 +91,12 @@ function useResendHeld(state: GuestState | null, live: boolean, send: (cmd: Gues
 export function Shell() {
   const [tab, select] = useHashTab();
   const [toast, showToast] = useToast();
-  const { state, status, send } = useLive<GuestState>("/ws", (msg) =>
+  const { state, status, send, check } = useLive<GuestState>("/ws", (msg) =>
     msg.t === "gone" ? location.replace("/") : msg.t === "error" && showToast(msg.message),
   );
-  const upload = useUploader(state?.contest.mine?.id ?? null);
+  const uploader = useUploader(state?.contest.mine?.id ?? null);
+  const upload = { ...uploader, pick: (file: File) => (check(), uploader.pick(file)) };
+  const choose = (t: Tab) => (check(), select(t));
   const live = status.kind === "open";
   const pill = live ? null : state ? "Återansluter…" : "Ansluter…";
   const sendCmd = (cmd: GuestCmd) => send(JSON.stringify(cmd)) || (showToast("Ingen kontakt just nu. Försök igen."), false);
@@ -134,7 +136,7 @@ export function Shell() {
       </header>
       <main>
         {state && (
-          <tab.Panel state={state} live={live} send={sendCmd} upload={upload} go={(id) => select(TABS.find((t) => t.id === id)!)} deadline={deadline} />
+          <tab.Panel state={state} live={live} send={sendCmd} upload={upload} go={(id) => choose(TABS.find((t) => t.id === id)!)} deadline={deadline} />
         )}
       </main>
       {toast && (
@@ -146,7 +148,7 @@ export function Shell() {
         {TABS.map((t) => {
           const Icon = t.id === "quiz" && unlocked ? QuizIcon : t.Icon;
           return (
-            <button key={t.id} type="button" aria-current={t.id === tab.id ? "page" : undefined} onClick={() => select(t)}>
+            <button key={t.id} type="button" aria-current={t.id === tab.id ? "page" : undefined} onClick={() => choose(t)}>
               <Icon />
               {t.label}
               {t.id === "quiz" && waitingForYou && <span class="tab-dot" aria-label="En fråga väntar" />}

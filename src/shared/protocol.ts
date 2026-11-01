@@ -38,7 +38,16 @@ export type AdminState = {
   finale: AdminFinale;
 };
 
-export type ServerMsg<S> = { t: "state"; state: S } | { t: "error"; message: string } | { t: "gone" };
+export type Heartbeat = "fast" | "slow";
+
+// Phones never ping. The server's alarm sends every socket a tick, one request for all of them since outgoing messages are free,
+// and a phone that hears nothing for silentMs reconnects. Fast while the quiz is open; slow the rest of the day, so the radio can idle.
+export const HEARTBEATS: Record<Heartbeat, { tickMs: number; silentMs: number }> = {
+  fast: { tickMs: 4_000, silentMs: 11_000 },
+  slow: { tickMs: 30_000, silentMs: 70_000 },
+};
+
+export type ServerMsg<S> = { t: "state"; state: S; heartbeat: Heartbeat } | { t: "error"; message: string } | { t: "gone" };
 
 export type AdminCmd =
   | { t: "rename"; id: PlayerId; name: string }
@@ -52,7 +61,8 @@ export type AdminCmd =
   | { t: "quiz"; step: QuizStep }
   | { t: "finale"; step: FinaleStep }
   | { t: "pick-photo"; photo: PhotoId }
-  | { t: "joins"; open: boolean };
+  | { t: "joins"; open: boolean }
+  | { t: "liveMode"; on: boolean };
 export type AdminCmdOf<K extends AdminCmd["t"]> = Extract<AdminCmd, { t: K }>;
 
 export type GuestCmd =
@@ -62,6 +72,9 @@ export type GuestCmd =
   | { t: "answer"; q: QuestionId; pick: number; ms: number; run: number };
 export type GuestCmdOf<K extends GuestCmd["t"]> = Extract<GuestCmd, { t: K }>;
 
+export const TICK = "tick";
+// A phone checking its socket sends a ping, and the Durable Object answers with a pong without waking up.
+// The pong is not a tick, so the phone can tell a reply to its own ping from the server's steady ticks.
 export const PING = "ping";
 export const PONG = "pong";
 
@@ -118,6 +131,7 @@ const adminCmdParsers: Parsers<AdminCmd> = {
   },
   joins: toggle("joins"),
   quiz: (m) => (typeof m.step === "string" && Object.hasOwn(QUIZ_STEPS, m.step) ? { t: "quiz", step: m.step as QuizStep } : null),
+  liveMode: (m) => (typeof m.on === "boolean" ? { t: "liveMode", on: m.on } : null),
 };
 
 const guestCmdParsers: Parsers<GuestCmd> = {

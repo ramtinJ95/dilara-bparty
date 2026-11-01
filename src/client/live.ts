@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { PING, PONG, type ServerMsg } from "../shared/protocol";
+import { HEARTBEATS, PING, PONG, TICK, type Heartbeat, type ServerMsg } from "../shared/protocol";
 
 export type LiveStatus = { kind: "connecting" } | { kind: "open" } | { kind: "waiting"; retryAt: number };
 export type SideMsg<S> = Exclude<ServerMsg<S>, { t: "state" }>;
 
-const PING_EVERY_MS = 5_000;
-const SILENCE_LIMIT_MS = 11_000;
 const BACKOFF_FIRST_MS = 500;
 const BACKOFF_MAX_MS = 10_000;
 const STABLE_AFTER_MS = 10_000;
+// The server always answers a command or a check ping, so a reply must come within 5 s. Ticks don't count as a reply:
+// they keep coming even when the phone's own messages no longer get through.
+// In slow mode the phone checks its socket when the guest looks or acts, at most every 15 s.
+const REPLY_WITHIN_MS = 5_000;
+const PROBE_GAP_MS = 15_000;
 
 type Handlers<S> = { onMessage: (msg: ServerMsg<S>) => void; onStatus: (status: LiveStatus) => void };
-export type Live = { send: (data: string) => boolean; stop: () => void };
+export type Live = { send: (data: string) => boolean; check: () => void; stop: () => void };
 
 function socketUrl(path: string): string {
   const url = new URL(path, location.href);
@@ -25,8 +28,12 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   let failures = 0;
   let openedAt = 0;
   let lastHeard = 0;
+  let lastProbe = 0;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
+  let deferredCheck: ReturnType<typeof setTimeout> | undefined;
+  let replyTimer: ReturnType<typeof setTimeout> | undefined;
+  let heartbeat: Heartbeat = "fast";
 
   const enter = (next: LiveStatus) => {
     status = next;
@@ -36,7 +43,16 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   const heard = () => {
     lastHeard = Date.now();
     clearTimeout(silenceTimer);
-    silenceTimer = setTimeout(retryLater, SILENCE_LIMIT_MS);
+    silenceTimer = setTimeout(retryLater, HEARTBEATS[heartbeat].silentMs);
+  };
+
+  const expectReply = () => {
+    replyTimer ??= setTimeout(retryLater, REPLY_WITHIN_MS);
+  };
+
+  const replied = () => {
+    clearTimeout(replyTimer);
+    replyTimer = undefined;
   };
 
   const drop = () => {
@@ -49,7 +65,10 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   function open() {
     clearTimeout(retryTimer);
     drop();
+    replied();
     enter({ kind: "connecting" });
+    // Fast until this socket's first snapshot says otherwise, so a stalled connect mid-quiz never waits out the slow limit.
+    heartbeat = "fast";
     const ws = new WebSocket(socketUrl(path));
     socket = ws;
     heard();
@@ -59,8 +78,11 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
       enter({ kind: "open" });
     };
     ws.onmessage = (event: MessageEvent<string>) => {
+      const msg = event.data === TICK || event.data === PONG ? null : (JSON.parse(event.data) as ServerMsg<S>);
+      if (msg?.t === "state") heartbeat = msg.heartbeat;
+      if (event.data !== TICK) replied();
       heard();
-      if (event.data !== PONG) onMessage(JSON.parse(event.data) as ServerMsg<S>);
+      if (msg) onMessage(msg);
     };
     ws.onclose = retryLater;
   }
@@ -69,20 +91,28 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     if (openedAt && Date.now() - openedAt >= STABLE_AFTER_MS) failures = 0;
     openedAt = 0;
     drop();
+    replied();
     clearTimeout(silenceTimer);
     const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** failures++) * (0.5 + Math.random() / 2);
     enter({ kind: "waiting", retryAt: Date.now() + delay });
     retryTimer = setTimeout(open, delay);
   }
 
-  const wake = () => {
-    const stale = status.kind === "open" && Date.now() - lastHeard > SILENCE_LIMIT_MS;
-    if (status.kind === "waiting" || stale) open();
+  const check = () => {
+    clearTimeout(deferredCheck);
+    if (status.kind === "waiting") return open();
+    if (status.kind !== "open" || !socket) return;
+    if (Date.now() - lastHeard > HEARTBEATS[heartbeat].silentMs) return open();
+    if (heartbeat === "fast") return;
+    const wait = lastProbe + PROBE_GAP_MS - Date.now();
+    if (wait > 0) return void (deferredCheck = setTimeout(check, wait));
+    lastProbe = Date.now();
+    socket.send(PING);
+    expectReply();
   };
-  const onVisibility = () => document.visibilityState === "visible" && wake();
-  const pinger = setInterval(() => status.kind === "open" && socket?.send(PING), PING_EVERY_MS);
+  const onVisibility = () => document.visibilityState === "visible" && check();
 
-  addEventListener("online", wake);
+  addEventListener("online", check);
   document.addEventListener("visibilitychange", onVisibility);
   open();
 
@@ -90,13 +120,16 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     send: (data) => {
       if (status.kind !== "open" || !socket) return false;
       socket.send(data);
+      expectReply();
       return true;
     },
+    check,
     stop: () => {
-      clearInterval(pinger);
+      clearTimeout(deferredCheck);
       clearTimeout(retryTimer);
       clearTimeout(silenceTimer);
-      removeEventListener("online", wake);
+      replied();
+      removeEventListener("online", check);
       document.removeEventListener("visibilitychange", onVisibility);
       drop();
     },
@@ -104,7 +137,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
 }
 
 export function useLive<S>(path: string, onSide: (msg: SideMsg<S>) => void) {
-  const [state, setState] = useState<S | null>(null);
+  const [state, setState] = useState<{ state: S; heartbeat: Heartbeat } | null>(null);
   const [status, setStatus] = useState<LiveStatus>({ kind: "connecting" });
   const live = useRef<Live | null>(null);
   const side = useRef(onSide);
@@ -112,11 +145,17 @@ export function useLive<S>(path: string, onSide: (msg: SideMsg<S>) => void) {
 
   useEffect(() => {
     live.current = connectLive<S>(path, {
-      onMessage: (msg) => (msg.t === "state" ? setState(msg.state) : side.current(msg)),
+      onMessage: (msg) => (msg.t === "state" ? setState({ state: msg.state, heartbeat: msg.heartbeat }) : side.current(msg)),
       onStatus: setStatus,
     });
     return () => live.current?.stop();
   }, [path]);
 
-  return { state, status, send: (data: string) => live.current?.send(data) ?? false };
+  return {
+    state: state?.state ?? null,
+    heartbeat: state?.heartbeat ?? null,
+    status,
+    send: (data: string) => live.current?.send(data) ?? false,
+    check: () => live.current?.check(),
+  };
 }

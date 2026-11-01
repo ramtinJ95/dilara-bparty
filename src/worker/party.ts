@@ -1,20 +1,23 @@
 import { DurableObject } from "cloudflare:workers";
 import { parsePlayerName, type NameError, type PhotoId, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
 import {
+  HEARTBEATS,
   parseAdminCmd,
   parseGuestCmd,
   PING,
   PONG,
+  TICK,
   type AdminCmd,
   type AdminCmdOf,
   type AdminState,
   type GuestCmd,
   type GuestCmdOf,
   type GuestState,
+  type Heartbeat,
   type ServerMsg,
   type TallyRow,
 } from "../shared/protocol";
-import type { AdminQuiz } from "../shared/quiz";
+import type { AdminQuiz, QuizStep } from "../shared/quiz";
 import { joinCode } from "./auth";
 import { Finale } from "./finale";
 import { adminContest, Contest, guestContest, guestMaySee, tally, type ContestSnapshot, type UploadResult } from "./contest";
@@ -24,15 +27,11 @@ import { Quiz } from "./quiz";
 import { migrate } from "./schema";
 
 export type SocketRole = { role: "guest"; playerId: PlayerId } | { role: "admin" };
-type SocketTag = SocketRole & { openedAt: number };
 
 export const SOCKET_ROLE_HEADER = "X-Party-Socket";
 
 const LANDING_PHOTO = "landing_photo";
-
-// Phones ping every 5 s (src/client/live.ts). Checking every 4 s marks a silent phone offline within 15 s.
-const SILENT_AFTER_MS = 11_000;
-const CHECK_EVERY_MS = 4_000;
+const LIVE_MODE = "live_mode";
 
 const adminNameErrors: Record<NameError, string> = {
   empty: "Name can't be empty.",
@@ -40,7 +39,10 @@ const adminNameErrors: Record<NameError, string> = {
   "too-long": "Name is too long (max 30 characters).",
 };
 
-type Tables = { players: Players; contest: Contest; quiz: Quiz; finale: Finale };
+type Tables = { players: Players; contest: Contest; quiz: Quiz; finale: Finale; setLiveMode: (on: boolean) => void };
+
+// The fast heartbeat runs from unlock until the quiz ends or is reset; the admin toggle can still override it.
+const liveModeAfter: Partial<Record<QuizStep, boolean>> = { unlock: true, end: false, reset: false };
 
 type AdminHandlers = { [K in AdminCmd["t"]]: (tables: Tables, cmd: AdminCmdOf<K>) => string | null };
 
@@ -62,7 +64,13 @@ const adminCommands: AdminHandlers = {
   "save-question": ({ quiz }, { id, body }) => quiz.save(id, body),
   "delete-question": ({ quiz }, { id }) => quiz.remove(id),
   "move-question": ({ quiz }, { id, to }) => quiz.move(id, to),
-  quiz: ({ quiz, finale }, { step }) => (finale.stage() === "off" ? quiz.step(step, Date.now()) : "The finale has started, so the quiz can't change."),
+  quiz: ({ quiz, finale, setLiveMode }, { step }) => {
+    if (finale.stage() !== "off") return "The finale has started, so the quiz can't change.";
+    const error = quiz.step(step, Date.now());
+    const live = liveModeAfter[step];
+    if (!error && live !== undefined) setLiveMode(live);
+    return error;
+  },
   finale: ({ finale, quiz, contest, players }, { step }) => {
     const roster = players.roster();
     return finale.step(step, {
@@ -73,6 +81,7 @@ const adminCommands: AdminHandlers = {
   },
   "pick-photo": ({ finale, contest, players }, { photo }) => finale.pick(photo, tally(contest.snapshot(), players.roster())),
   joins: ({ finale }, { open }) => (finale.setJoins(open), null),
+  liveMode: ({ setLiveMode }, { on }) => (setLiveMode(on), null),
 };
 
 type GuestHandlers = { [K in GuestCmd["t"]]: (tables: Tables, player: PlayerId, cmd: GuestCmdOf<K>) => string | null };
@@ -188,30 +197,41 @@ export class Party extends DurableObject<Env> {
     return tally(this.contest.snapshot(), this.players.roster());
   }
 
+  // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.
+  private setLiveMode(on: boolean): void {
+    if (on === (this.heartbeat() === "fast")) return;
+    if (on) this.ctx.storage.sql.exec("INSERT INTO settings (key, value) VALUES (?, 'on')", LIVE_MODE);
+    else this.ctx.storage.sql.exec("DELETE FROM settings WHERE key = ?", LIVE_MODE);
+  }
+
+  private heartbeat(): Heartbeat {
+    return this.ctx.storage.sql.exec("SELECT 1 FROM settings WHERE key = ?", LIVE_MODE).toArray().length > 0 ? "fast" : "slow";
+  }
+
   override async fetch(request: Request): Promise<Response> {
     const role = JSON.parse(request.headers.get(SOCKET_ROLE_HEADER)!) as SocketRole;
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ ...role, openedAt: Date.now() } satisfies SocketTag);
+    server.serializeAttachment(role);
     this.broadcast();
     await this.schedule();
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  // The tick lets phones notice a silent socket, and keeps idle connections open through Cloudflare's idle timeout and mobile NATs.
   override async alarm(): Promise<void> {
     const now = Date.now();
     const sockets = this.openSockets();
-    const silent = sockets.filter((ws) => now - this.lastHeard(ws) > SILENT_AFTER_MS);
-    for (const ws of silent) ws.close(4008, "silent");
-    const due = (this.quiz.wakeAt() ?? Infinity) <= now;
-    if (silent.length > 0 || due) this.broadcast();
+    for (const ws of sockets) ws.send(TICK);
+    if ((this.quiz.wakeAt() ?? Infinity) <= now) this.broadcast();
     const next = this.nextWake(now);
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
-  // The Durable Object has one alarm, shared by the liveness check and the open question's close.
+  // The Durable Object has one alarm, shared by the tick and the open question's close.
   private nextWake(now: number): number | null {
-    const wanted = [this.openSockets().length > 0 ? now + CHECK_EVERY_MS : null, this.quiz.wakeAt()].filter((t) => t !== null);
+    const tick = this.openSockets().length > 0 ? now + HEARTBEATS[this.heartbeat()].tickMs : null;
+    const wanted = [tick, this.quiz.wakeAt()].filter((t) => t !== null);
     return wanted.length > 0 ? Math.min(...wanted) : null;
   }
 
@@ -220,11 +240,6 @@ export class Party extends DurableObject<Env> {
     if (next === null) return;
     const current = await this.ctx.storage.getAlarm();
     if (current === null || current > next) await this.ctx.storage.setAlarm(next);
-  }
-
-  private lastHeard(ws: WebSocket): number {
-    const { openedAt } = ws.deserializeAttachment() as SocketTag;
-    return Math.max(openedAt, this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0);
   }
 
   private openSockets(): WebSocket[] {
@@ -257,7 +272,7 @@ export class Party extends DurableObject<Env> {
   }
 
   private tables(): Tables {
-    return { players: this.players, contest: this.contest, quiz: this.quiz, finale: this.finale };
+    return { players: this.players, contest: this.contest, quiz: this.quiz, finale: this.finale, setLiveMode: (on) => this.setLiveMode(on) };
   }
 
   override webSocketClose(ws: WebSocket): void {
@@ -278,9 +293,10 @@ export class Party extends DurableObject<Env> {
     const quiz = this.quiz.publish(roster, online, Date.now());
     const finale = this.finale.guest(roster);
     const admin = this.adminState(roster, online, contest, quiz.admin);
+    const heartbeat = this.heartbeat();
     sockets.forEach((ws, i) => {
       const role = roles[i]!;
-      if (role.role === "admin") return send(ws, { t: "state", state: admin });
+      if (role.role === "admin") return send(ws, { t: "state", state: admin, heartbeat });
       const you = roster.rootOf(role.playerId);
       if (!you) {
         send(ws, { t: "gone" });
@@ -293,7 +309,7 @@ export class Party extends DurableObject<Env> {
         quiz: quiz.guest(you.id),
         finale,
       };
-      send(ws, { t: "state", state });
+      send(ws, { t: "state", state, heartbeat });
     });
   }
 
