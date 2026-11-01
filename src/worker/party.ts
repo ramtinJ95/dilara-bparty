@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { parsePlayerName, type NameError, type PhotoId, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
+import { parsePlayerName, PLAYER_NAME_MAX, type NameError, type PhotoId, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
 import {
   HEARTBEATS,
   parseAdminCmd,
@@ -35,7 +35,7 @@ const LIVE_MODE = "live_mode";
 const adminNameErrors: Record<NameError, string> = {
   empty: "Name can't be empty.",
   "control-chars": "Name contains characters that can't be used.",
-  "too-long": "Name is too long (max 30 characters).",
+  "too-long": `Name is too long (max ${PLAYER_NAME_MAX} characters).`,
 };
 
 type Tables = { players: Players; contest: Contest; quiz: Quiz; finale: Finale; setLiveMode: (on: boolean) => void };

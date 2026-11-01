@@ -1,5 +1,5 @@
 import { CONTEST_UPLOAD_PATH, UPLOAD_FIELDS, type CodeResponse, type JoinResponse, type PhotoUploadResponse } from "../shared/api";
-import { parsePhotoId, parsePhotoMime, parsePlayerName, parseUploadKey, type NameError, type PhotoId, type PhotoKind } from "../shared/model";
+import { parsePhotoId, parsePhotoMime, parsePlayerName, parseUploadKey, PLAYER_NAME_MAX, type NameError, type PhotoId, type PhotoKind } from "../shared/model";
 import { adminCookieValue, isAdminCookie, joinCodeMatches, pidCookieValue, playerFromCookie, secretMatches } from "./auth";
 import { notFound, readBody, readCookie, readJson, redirect, sameOrigin, setCookie, status } from "./http";
 import { SOCKET_ROLE_HEADER, type ContestUpload, type SocketRole } from "./party";
@@ -11,7 +11,7 @@ type Route = { method: string; pattern: URLPattern; handler: (ctx: Ctx) => Promi
 const guestNameErrors: Record<NameError, string> = {
   empty: "Skriv ditt namn först.",
   "control-chars": "Namnet innehåller tecken som inte fungerar.",
-  "too-long": "Namnet får vara högst 30 tecken.",
+  "too-long": `Namnet får vara högst ${PLAYER_NAME_MAX} tecken.`,
 };
 
 const party = (env: Env) => env.PARTY.getByName("party");
