@@ -156,22 +156,23 @@ export class Party extends DurableObject<Env> {
     return this.photos.put({ ...upload, kind: "question", owner: null });
   }
 
-  photo(id: PhotoId): StoredPhoto | null {
-    return this.photos.get(id);
+  photo(id: PhotoId, cached: boolean): StoredPhoto | null {
+    return this.photos.get(id, !cached);
   }
 
-  guestPhoto(viewer: PlayerId, id: PhotoId): StoredPhoto | null {
-    if (this.finale.revealedPhoto(id)) return this.photos.get(id);
+  guestPhoto(viewer: PlayerId, id: PhotoId, cached: boolean): StoredPhoto | null {
+    if (this.finale.revealedPhoto(id)) return this.photos.get(id, !cached);
     const entry = this.contest.entryWith(id);
-    if (!entry) return this.sharedPhoto(id);
+    if (!entry) return this.sharedPhoto(id, cached);
     const player = this.players.resolve(viewer);
-    return player && guestMaySee(entry, player.id) ? this.photos.get(id) : null;
+    return player && guestMaySee(entry, player.id) ? this.photos.get(id, !cached) : null;
   }
 
-  private sharedPhoto(id: PhotoId): StoredPhoto | null {
-    const photo = this.photos.get(id);
-    if (photo?.kind === "landing") return photo;
-    return photo?.kind === "question" && this.quiz.photoStarted(id) ? photo : null;
+  private sharedPhoto(id: PhotoId, cached: boolean): StoredPhoto | null {
+    const photo = this.photos.get(id, false);
+    const shared = photo?.kind === "landing" || (photo?.kind === "question" && this.quiz.photoStarted(id));
+    if (!shared) return null;
+    return cached ? photo : this.photos.get(id, true);
   }
 
   uploadContest(playerId: PlayerId, key: UploadKey, photo: PhotoUpload, thumb: PhotoUpload): ContestUpload {

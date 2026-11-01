@@ -40,11 +40,30 @@ describe("/photos/<id>", () => {
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
   });
 
+  it("answers a request carrying the ETag with an empty 304, for a guest and the admin", async () => {
+    const id = await landingPhoto();
+    for (const cookie of [await joinedCookie("Astrid"), await adminCookie()]) {
+      const res = await call(`/photos/${id}`, { cookie, headers: { "If-None-Match": `"${id}"` } });
+      expect(res.status).toBe(304);
+      expect(res.headers.get("ETag")).toBe(`"${id}"`);
+      expect(res.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable");
+      expect(await res.text()).toBe("");
+    }
+  });
+
   it("answers an unknown or malformed id with 404", async () => {
     const cookie = await joinedCookie("Astrid");
     for (const id of [unknownId, "not-an-id", "..%2Fsettings"]) {
       expect((await call(`/photos/${id}`, { cookie })).status, id).toBe(404);
+      expect((await call(`/photos/${id}`, { cookie, headers: { "If-None-Match": `"${id}"` } })).status, id).toBe(404);
     }
+  });
+
+  it("leaves the blob in the Durable Object when the viewer already holds the photo", async () => {
+    const id = await landingPhoto();
+    const stub = env.PARTY.getByName("party");
+    expect(await stub.photo(id, true)).toEqual({ kind: "landing", mime: "image/png", bytes: null });
+    expect(new Uint8Array((await stub.photo(id, false))!.bytes!)).toEqual(bytes);
   });
 });
 
@@ -55,6 +74,14 @@ describe("/j/<secret>/photos/<id>", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable");
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
+  });
+
+  it("answers a request carrying the ETag with an empty 304", async () => {
+    const id = await landingPhoto();
+    const res = await call(`/j/${JOIN_SECRET}/photos/${id}`, { headers: { "If-None-Match": `"${id}"` } });
+    expect(res.status).toBe(304);
+    expect(res.headers.get("ETag")).toBe(`"${id}"`);
+    expect(await res.text()).toBe("");
   });
 
   it("refuses a wrong secret and an unknown id", async () => {
@@ -71,5 +98,8 @@ describe("/j/<secret>/photos/<id>", () => {
     expect((await call(`/j/${JOIN_SECRET}/photos/${id}`)).status).toBe(404);
     expect((await call(`/photos/${id}`, { cookie: await joinedCookie("Astrid") })).status).toBe(404);
     expect((await call(`/photos/${id}`, { cookie: await adminCookie() })).status).toBe(200);
+    const cached = { headers: { "If-None-Match": `"${id}"` } };
+    expect((await call(`/j/${JOIN_SECRET}/photos/${id}`, cached)).status).toBe(404);
+    expect((await call(`/photos/${id}`, { ...cached, cookie: await joinedCookie("Bertil") })).status).toBe(404);
   });
 });

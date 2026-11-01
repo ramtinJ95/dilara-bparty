@@ -372,6 +372,8 @@ describe("question photos", () => {
     const { id: first } = (await (await uploadQuestionPhoto(bytes)).json()) as { id: string };
     const admin = await host(choice({ photo: first as PhotoId }));
     const astrid = await phone("Astrid");
+    const guessed = { cookie: astrid.cookie, headers: { "If-None-Match": `"${first}"` } };
+    expect((await call(`/photos/${first}`, guessed)).status).toBe(404);
     await step(admin, "unlock", "lobby");
     await start(admin);
 

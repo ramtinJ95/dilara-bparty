@@ -43,10 +43,14 @@ const IMMUTABLE = "private, max-age=31536000, immutable";
 // A guest may see a question photo only while its question has started in this run, so every view asks again.
 const photoCaching: Record<PhotoKind, string> = { landing: IMMUTABLE, contest: IMMUTABLE, thumb: IMMUTABLE, question: "private, no-cache" };
 
-function photoResponse(req: Request, id: PhotoId, photo: StoredPhoto | null): Response {
+const etag = (id: PhotoId) => `"${id}"`;
+
+const clientHas = (req: Request, id: PhotoId) => req.headers.get("If-None-Match") === etag(id);
+
+function photoResponse(id: PhotoId, photo: StoredPhoto | null): Response {
   if (!photo) return notFound();
-  const headers = { "Cache-Control": photoCaching[photo.kind], ETag: `"${id}"` };
-  if (req.headers.get("If-None-Match") === headers.ETag) return new Response(null, { status: 304, headers });
+  const headers = { "Cache-Control": photoCaching[photo.kind], ETag: etag(id) };
+  if (photo.bytes === null) return new Response(null, { status: 304, headers });
   return new Response(photo.bytes, { headers: { ...headers, "Content-Type": photo.mime } });
 }
 
@@ -134,8 +138,8 @@ export const routes: Route[] = [
   route("GET", "/j/:secret/photos/:id", async (ctx) => {
     const id = parsePhotoId(ctx.params.id);
     if (!joinSecretMatches(ctx, ctx.params.secret) || !id) return notFound();
-    const photo = await party(ctx.env).photo(id);
-    return photoResponse(ctx.req, id, photo?.kind === "landing" ? photo : null);
+    const photo = await party(ctx.env).photo(id, clientHas(ctx.req, id));
+    return photoResponse(id, photo?.kind === "landing" ? photo : null);
   }),
 
   route("POST", "/api/join", async (ctx) => {
@@ -188,7 +192,8 @@ export const routes: Route[] = [
     if (!admin && !viewer) return status(401);
     const id = parsePhotoId(ctx.params.id);
     if (!id) return notFound();
-    return photoResponse(ctx.req, id, await (viewer ? party(ctx.env).guestPhoto(viewer, id) : party(ctx.env).photo(id)));
+    const cached = clientHas(ctx.req, id);
+    return photoResponse(id, await (viewer ? party(ctx.env).guestPhoto(viewer, id, cached) : party(ctx.env).photo(id, cached)));
   }),
 ];
 
