@@ -47,7 +47,8 @@ export const HEARTBEATS: Record<Heartbeat, { tickMs: number; silentMs: number }>
   slow: { tickMs: 30_000, silentMs: 70_000 },
 };
 
-export type ServerMsg<S> = { t: "state"; state: S; heartbeat: Heartbeat } | { t: "error"; message: string } | { t: "gone" };
+// ack and error go only to the socket whose command they answer; state goes to everyone.
+export type ServerMsg<S> = { t: "state"; state: S; heartbeat: Heartbeat } | { t: "error"; message: string } | { t: "ack" } | { t: "gone" };
 
 export type AdminCmd =
   | { t: "rename"; id: PlayerId; name: string }

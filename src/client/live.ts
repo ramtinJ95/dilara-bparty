@@ -2,18 +2,19 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { HEARTBEATS, PING, PONG, TICK, type Heartbeat, type ServerMsg } from "../shared/protocol";
 
 export type LiveStatus = { kind: "connecting" } | { kind: "open" } | { kind: "waiting"; retryAt: number };
-export type SideMsg<S> = Exclude<ServerMsg<S>, { t: "state" }>;
+type Delivered<S> = Exclude<ServerMsg<S>, { t: "ack" }>;
+export type SideMsg<S> = Exclude<Delivered<S>, { t: "state" }>;
 
 const BACKOFF_FIRST_MS = 500;
 const BACKOFF_MAX_MS = 10_000;
 const STABLE_AFTER_MS = 10_000;
-// The server always answers a command or a check ping, so a reply must come within 5 s. Ticks don't count as a reply:
-// they keep coming even when the phone's own messages no longer get through.
+// The server answers each command with an ack or an error, and each check ping with a pong, to this socket alone.
+// Each must come within 5 s. Ticks and state broadcasts don't count: they keep coming when the phone's own messages don't get through.
 // In slow mode the phone checks its socket when the guest looks or acts, at most every 15 s.
 const REPLY_WITHIN_MS = 5_000;
 const PROBE_GAP_MS = 15_000;
 
-type Handlers<S> = { onMessage: (msg: ServerMsg<S>) => void; onStatus: (status: LiveStatus) => void };
+type Handlers<S> = { onMessage: (msg: Delivered<S>) => void; onStatus: (status: LiveStatus) => void };
 export type Live = { send: (data: string) => boolean; check: () => void; stop: () => void };
 
 function socketUrl(path: string): string {
@@ -33,6 +34,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
   let deferredCheck: ReturnType<typeof setTimeout> | undefined;
   let replyTimer: ReturnType<typeof setTimeout> | undefined;
+  let pending = 0;
   let heartbeat: Heartbeat = "fast";
 
   const enter = (next: LiveStatus) => {
@@ -46,13 +48,24 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     silenceTimer = setTimeout(retryLater, HEARTBEATS[heartbeat].silentMs);
   };
 
+  const awaitReply = () => {
+    clearTimeout(replyTimer);
+    replyTimer = pending > 0 ? setTimeout(retryLater, REPLY_WITHIN_MS) : undefined;
+  };
+
   const expectReply = () => {
-    replyTimer ??= setTimeout(retryLater, REPLY_WITHIN_MS);
+    pending++;
+    if (pending === 1) awaitReply();
   };
 
   const replied = () => {
-    clearTimeout(replyTimer);
-    replyTimer = undefined;
+    pending = Math.max(0, pending - 1);
+    awaitReply();
+  };
+
+  const forgetReplies = () => {
+    pending = 0;
+    awaitReply();
   };
 
   const drop = () => {
@@ -65,7 +78,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
   function open() {
     clearTimeout(retryTimer);
     drop();
-    replied();
+    forgetReplies();
     enter({ kind: "connecting" });
     // Fast until this socket's first snapshot says otherwise, so a stalled connect mid-quiz never waits out the slow limit.
     heartbeat = "fast";
@@ -80,9 +93,9 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     ws.onmessage = (event: MessageEvent<string>) => {
       const msg = event.data === TICK || event.data === PONG ? null : (JSON.parse(event.data) as ServerMsg<S>);
       if (msg?.t === "state") heartbeat = msg.heartbeat;
-      if (event.data !== TICK) replied();
+      if (event.data === PONG || msg?.t === "ack" || msg?.t === "error") replied();
       heard();
-      if (msg) onMessage(msg);
+      if (msg && msg.t !== "ack") onMessage(msg);
     };
     ws.onclose = retryLater;
   }
@@ -91,7 +104,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     if (openedAt && Date.now() - openedAt >= STABLE_AFTER_MS) failures = 0;
     openedAt = 0;
     drop();
-    replied();
+    forgetReplies();
     clearTimeout(silenceTimer);
     const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** failures++) * (0.5 + Math.random() / 2);
     enter({ kind: "waiting", retryAt: Date.now() + delay });
@@ -128,7 +141,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
       clearTimeout(deferredCheck);
       clearTimeout(retryTimer);
       clearTimeout(silenceTimer);
-      replied();
+      forgetReplies();
       removeEventListener("online", check);
       document.removeEventListener("visibilitychange", onVisibility);
       drop();
