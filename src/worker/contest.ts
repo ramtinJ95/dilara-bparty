@@ -2,6 +2,7 @@ import { VOTES_PER_GUEST, type PhotoId, type PlayerId, type UploadKey } from "..
 import type { AdminContest, EntryStatus, GuestContest, TallyRow } from "../shared/protocol";
 import type { PhotoStore, PhotoUpload } from "./photo-store";
 import type { Roster } from "./players";
+import { readSettings, type Settings } from "./settings";
 
 export type Entry = {
   photo: PhotoId;
@@ -61,9 +62,8 @@ export class Contest {
     private readonly photos: PhotoStore,
   ) {}
 
-  isOpen(setting: Setting): boolean {
-    const [row] = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", SETTINGS[setting]).toArray();
-    return row?.value !== "0";
+  isOpen(setting: Setting, settings: Settings = readSettings(this.sql)): boolean {
+    return settings.get(SETTINGS[setting]) !== "0";
   }
 
   setOpen(setting: Setting, open: boolean): void {
@@ -150,7 +150,7 @@ export class Contest {
     );
   }
 
-  snapshot(): ContestSnapshot {
+  snapshot(settings: Settings = readSettings(this.sql)): ContestSnapshot {
     const entries = this.sql.exec<EntryRow>(`${ENTRY_SELECT} ORDER BY e.created_at, e.rowid`).toArray().map(toEntry);
     const ballots = new Map<PlayerId, Map<PhotoId, number>>();
     const rows = this.sql.exec<{ voter: PlayerId; photo: PhotoId; n: number }>(
@@ -160,7 +160,7 @@ export class Contest {
       const ballot = ballots.get(voter) ?? new Map<PhotoId, number>();
       ballots.set(voter, ballot.set(photo, n));
     }
-    return { uploads: this.isOpen("uploads"), voting: this.isOpen("voting"), entries, ballots };
+    return { uploads: this.isOpen("uploads", settings), voting: this.isOpen("voting", settings), entries, ballots };
   }
 }
 
