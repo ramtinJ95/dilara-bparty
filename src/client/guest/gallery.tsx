@@ -67,7 +67,6 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
   const vote: Vote = { canVote: live && contest.voting, send, votesLeft: contest.votesLeft };
   const current = contest.gallery.filter((p) => !p.fame);
   const fame = contest.gallery.filter((p) => p.fame);
-  const view = (p: GalleryPhoto) => setOpen(p);
 
   return (
     <section class="gallery" aria-labelledby="panel-title">
@@ -94,7 +93,7 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
       ) : (
         <ul class="grid">
           {current.map((p) => (
-            <Card key={p.id} photo={p} vote={vote} view={view} />
+            <Card key={p.id} photo={p} vote={vote} view={setOpen} />
           ))}
         </ul>
       )}
@@ -104,7 +103,7 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
           <p class="fame-text">Utbytta bilder som fick röster. De är kvar och kan fortfarande vinna.</p>
           <ul class="grid">
             {fame.map((p) => (
-              <Card key={p.id} photo={p} vote={vote} view={view} />
+              <Card key={p.id} photo={p} vote={vote} view={setOpen} />
             ))}
           </ul>
         </>

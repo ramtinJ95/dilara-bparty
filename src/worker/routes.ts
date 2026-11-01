@@ -24,9 +24,9 @@ const adminOnly = (handler: Route["handler"]): Route["handler"] => async (ctx) =
 
 const joinSecretMatches = (ctx: Ctx, given: unknown) => typeof given === "string" && secretMatches(given, ctx.env.JOIN_SECRET);
 
-type Entry = "neutral" | "guest" | "admin";
+type Page = "neutral" | "guest" | "admin";
 
-async function entry({ req, env }: Ctx, name: Entry, landingPhoto?: PhotoId | null): Promise<Response> {
+async function entry({ req, env }: Ctx, name: Page, landingPhoto?: PhotoId | null): Promise<Response> {
   const asset = await env.ASSETS.fetch(new URL(`/${name}.html`, req.url));
   const res = new Response(asset.body, asset);
   res.headers.set("Cache-Control", "no-store");
