@@ -16,6 +16,7 @@ import {
   type Heartbeat,
   type ServerMsg,
 } from "../shared/protocol";
+import type { GuestFinale } from "../shared/finale";
 import type { AdminQuiz, QuizStep } from "../shared/quiz";
 import { joinCode } from "./auth";
 import { Finale } from "./finale";
@@ -24,6 +25,7 @@ import { PhotoStore, type PhotoUpload, type StoredPhoto } from "./photo-store";
 import { Players, type JoinResult, type Roster } from "./players";
 import { Quiz } from "./quiz";
 import { migrate } from "./schema";
+import { readSettings, type Settings } from "./settings";
 
 export type SocketRole = { role: "guest"; playerId: PlayerId } | { role: "admin" };
 
@@ -82,13 +84,15 @@ const adminCommands: AdminHandlers = {
   liveMode: ({ setLiveMode }, { on }) => (setLiveMode(on), null),
 };
 
-type GuestHandlers = { [K in GuestCmd["t"]]: (tables: Tables, player: PlayerId, cmd: GuestCmdOf<K>) => string | null };
+type GuestTables = Tables & { roster: Roster };
+
+type GuestHandlers = { [K in GuestCmd["t"]]: (tables: GuestTables, player: PlayerId, cmd: GuestCmdOf<K>) => string | null };
 
 const guestCommands: GuestHandlers = {
   vote: ({ contest }, player, { photo }) => contest.vote(player, photo),
   unvote: ({ contest }, player, { photo }) => contest.unvote(player, photo),
   remove: ({ contest }, player, { photo }) => contest.remove(player, photo),
-  answer: ({ quiz, players }, player, cmd) => quiz.answer(player, cmd, Date.now(), players.roster()),
+  answer: ({ quiz, roster }, player, cmd) => quiz.answer(player, cmd, Date.now(), roster),
 };
 
 export type ContestUpload = UploadResult | { status: "no-player" };
@@ -129,9 +133,8 @@ export class Party extends DurableObject<Env> {
     return this.players.resolve(id) !== undefined;
   }
 
-  landingPhoto(): PhotoId | null {
-    const [row] = this.ctx.storage.sql.exec<{ value: PhotoId }>("SELECT value FROM settings WHERE key = ?", LANDING_PHOTO).toArray();
-    return row?.value ?? null;
+  landingPhoto(settings: Settings = readSettings(this.ctx.storage.sql)): PhotoId | null {
+    return (settings.get(LANDING_PHOTO) as PhotoId | undefined) ?? null;
   }
 
   setLandingPhoto(upload: PhotoUpload): PhotoId {
@@ -198,8 +201,8 @@ export class Party extends DurableObject<Env> {
     else this.ctx.storage.sql.exec("DELETE FROM settings WHERE key = ?", LIVE_MODE);
   }
 
-  private heartbeat(): Heartbeat {
-    return this.ctx.storage.sql.exec("SELECT 1 FROM settings WHERE key = ?", LIVE_MODE).toArray().length > 0 ? "fast" : "slow";
+  private heartbeat(settings: Settings = readSettings(this.ctx.storage.sql)): Heartbeat {
+    return settings.has(LIVE_MODE) ? "fast" : "slow";
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -215,22 +218,28 @@ export class Party extends DurableObject<Env> {
   // The tick lets phones notice a silent socket, and keeps idle connections open through Cloudflare's idle timeout and mobile NATs.
   override async alarm(): Promise<void> {
     const now = Date.now();
-    const sockets = this.openSockets();
+    let sockets = this.openSockets();
     for (const ws of sockets) ws.send(TICK);
-    if ((this.quiz.wakeAt() ?? Infinity) <= now) this.broadcast();
-    const next = this.nextWake(now);
+    let wakeAt = this.quiz.wakeAt();
+    // The broadcast may close the round and the sockets of guests who are gone, so both are read again after it.
+    if ((wakeAt ?? Infinity) <= now) {
+      this.broadcast();
+      sockets = this.openSockets();
+      wakeAt = this.quiz.wakeAt();
+    }
+    const next = this.nextWake(now, sockets.length > 0, wakeAt);
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
   // The Durable Object has one alarm, shared by the tick and the open question's close.
-  private nextWake(now: number): number | null {
-    const tick = this.openSockets().length > 0 ? now + HEARTBEATS[this.heartbeat()].tickMs : null;
-    const wanted = [tick, this.quiz.wakeAt()].filter((t) => t !== null);
+  private nextWake(now: number, connected: boolean, wakeAt: number | null): number | null {
+    const tick = connected ? now + HEARTBEATS[this.heartbeat()].tickMs : null;
+    const wanted = [tick, wakeAt].filter((t) => t !== null);
     return wanted.length > 0 ? Math.min(...wanted) : null;
   }
 
   private async schedule(): Promise<void> {
-    const next = this.nextWake(Date.now());
+    const next = this.nextWake(Date.now(), this.openSockets().length > 0, this.quiz.wakeAt());
     if (next === null) return;
     const current = await this.ctx.storage.getAlarm();
     if (current === null || current > next) await this.ctx.storage.setAlarm(next);
@@ -243,13 +252,15 @@ export class Party extends DurableObject<Env> {
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (typeof message !== "string") return;
     const role = ws.deserializeAttachment() as SocketRole;
+    // Guest commands never change the players, so one roster serves the command and its broadcast.
+    const guest = role.role === "guest" ? { player: role.playerId, roster: this.players.roster() } : null;
     const error = this.ctx.storage.transactionSync(() =>
-      role.role === "admin" ? this.adminCommand(message) : this.guestCommand(role.playerId, message),
+      guest ? this.guestCommand(guest.player, guest.roster, message) : this.adminCommand(message),
     );
     if (error) return send(ws, { t: "error", message: error });
-    this.broadcast();
+    this.broadcast(guest?.roster);
     send(ws, { t: "ack" });
-    if (role.role === "admin") await this.schedule();
+    if (!guest) await this.schedule();
   }
 
   private adminCommand(message: string): string | null {
@@ -258,12 +269,16 @@ export class Party extends DurableObject<Env> {
     return (adminCommands[cmd.t] as (tables: Tables, cmd: AdminCmd) => string | null)(this.tables(), cmd);
   }
 
-  private guestCommand(playerId: PlayerId, message: string): string | null {
+  private guestCommand(playerId: PlayerId, roster: Roster, message: string): string | null {
     const cmd = parseGuestCmd(message);
     if (!cmd) return "Det där gick inte, försök igen.";
-    const player = this.players.resolve(playerId);
+    const player = roster.rootOf(playerId);
     if (!player) return "Det där gick inte, försök igen.";
-    return (guestCommands[cmd.t] as (tables: Tables, player: PlayerId, cmd: GuestCmd) => string | null)(this.tables(), player.id, cmd);
+    return (guestCommands[cmd.t] as (tables: GuestTables, player: PlayerId, cmd: GuestCmd) => string | null)(
+      { ...this.tables(), roster },
+      player.id,
+      cmd,
+    );
   }
 
   private tables(): Tables {
@@ -279,16 +294,16 @@ export class Party extends DurableObject<Env> {
     this.broadcast();
   }
 
-  private broadcast(): void {
-    const roster = this.players.roster();
+  private broadcast(roster = this.players.roster()): void {
+    const settings = readSettings(this.ctx.storage.sql);
     const sockets = this.openSockets();
     const roles = sockets.map((ws) => ws.deserializeAttachment() as SocketRole);
     const online = new Set(roles.flatMap((r) => (r.role === "guest" ? (roster.rootOf(r.playerId)?.id ?? []) : [])));
-    const contest = this.contest.snapshot();
+    const contest = this.contest.snapshot(settings);
     const quiz = this.quiz.publish(roster, online, Date.now());
     const finale = this.finale.guest(roster);
-    const admin = this.adminState(roster, online, contest, quiz.admin);
-    const heartbeat = this.heartbeat();
+    const admin = this.adminState(roster, online, contest, quiz.admin, finale, settings);
+    const heartbeat = this.heartbeat(settings);
     sockets.forEach((ws, i) => {
       const role = roles[i]!;
       if (role.role === "admin") return send(ws, { t: "state", state: admin, heartbeat });
@@ -308,15 +323,22 @@ export class Party extends DurableObject<Env> {
     });
   }
 
-  private adminState(roster: Roster, online: Set<PlayerId>, snapshot: ContestSnapshot, quiz: AdminQuiz): AdminState {
+  private adminState(
+    roster: Roster,
+    online: Set<PlayerId>,
+    snapshot: ContestSnapshot,
+    quiz: AdminQuiz,
+    finale: GuestFinale,
+    settings: Settings,
+  ): AdminState {
     const contest = adminContest(snapshot, roster);
     return {
       players: roster.roots.map((p) => ({ ...p, online: online.has(p.id) })),
       join: { secret: this.env.JOIN_SECRET, code: this.code },
-      landingPhoto: this.landingPhoto(),
+      landingPhoto: this.landingPhoto(settings),
       contest,
       quiz,
-      finale: this.finale.admin(roster, contest.tally),
+      finale: this.finale.admin(finale, contest.tally),
     };
   }
 }

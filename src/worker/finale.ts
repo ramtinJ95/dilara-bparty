@@ -94,10 +94,10 @@ export class Finale {
     return views[this.stage()]();
   }
 
-  admin(roster: Roster, tally: TallyRow[]): AdminFinale {
+  admin(guest: GuestFinale, tally: TallyRow[]): AdminFinale {
     const top = leaders(tally);
     return {
-      ...this.guest(roster),
+      ...guest,
       tied: top.length > 1 ? top.map((r) => r.photo) : [],
       pick: this.kv.get<PhotoId>(PICK_KEY) ?? null,
       joins: this.joinsOpen(),
