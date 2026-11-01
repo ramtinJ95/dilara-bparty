@@ -11,7 +11,8 @@ export type PhotoWin = { photo: PhotoId; thumb: PhotoId; owner: PlayerId; name: 
 export type QuizWin = { id: PlayerId; name: string; score: number };
 
 export type GuestFinale =
-  | { stage: "off" | "suspense" }
+  | { stage: "off" }
+  | { stage: "suspense" }
   | { stage: "photo"; photo: PhotoWin | null }
   | { stage: "quiz"; photo: PhotoWin | null; quiz: QuizWin[] };
 

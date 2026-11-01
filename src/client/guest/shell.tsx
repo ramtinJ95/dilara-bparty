@@ -5,6 +5,7 @@ import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
 import { useLive } from "../live";
 import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
+import { Finale } from "./finale";
 import { GalleryPanel } from "./gallery";
 import { MyPhotoPanel } from "./my-photo";
 import { Quiz } from "./quiz";
@@ -105,6 +106,20 @@ export function Shell() {
   const deadline = useDeadline(state, quiz?.phase === "open" ? quiz.endsInMs : null);
   const unlock = useUnlockNotice(quiz && quiz.phase !== "locked" && quiz.phase !== "ended" ? quiz.unlockedAt : null, onQuizTab);
   const waitingForYou = quiz?.phase === "open" && quiz.pick === null && !onQuizTab;
+  const finale = state?.finale;
+
+  if (state && finale && finale.stage !== "off") {
+    return (
+      <div class="shell finale-shell">
+        {pill && (
+          <div class="pill" role="status">
+            {pill}
+          </div>
+        )}
+        <Finale finale={finale} you={state.you.id} />
+      </div>
+    );
+  }
 
   return (
     <div class="shell">
