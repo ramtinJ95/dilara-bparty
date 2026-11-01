@@ -10,6 +10,8 @@ export default defineConfig(({ command, isPreview }) => ({
       persistState: process.env.PARTY_EPHEMERAL_STATE !== "1",
     }),
   ],
+  // Outside node_modules, so `npm ci` in .nexus/check doesn't race the dev service writing its dependency cache.
+  cacheDir: ".vite",
   server: { allowedHosts: [".ts.net"] },
   build: { modulePreload: { polyfill: false } },
   environments: {
