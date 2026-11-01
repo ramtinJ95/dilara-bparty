@@ -25,11 +25,6 @@ import { adminCookie as adminCookieOf, alarmAt, call, connectAdmin, elapse, fire
 
 const texts = (s: AdminState) => s.quiz.questions.map((q) => q.text);
 
-async function adminError(admin: Admin): Promise<string> {
-  const msg = await admin.next((m) => m.t === "error");
-  return msg.t === "error" ? msg.message : "";
-}
-
 describe("questions", () => {
   it("adds, edits, reorders and deletes questions", async () => {
     const admin = await host(choice({ text: "Fråga A" }), number({ text: "Fråga B" }), choice({ text: "Fråga C" }));
@@ -57,7 +52,7 @@ describe("questions", () => {
     const admin = await host(choice());
     const missing = "AAAAAAAAAAAAAAAAAAAAAA" as QuestionId;
     admin.send({ t: "save-question", id: null, body: { ...choice(), options: ["Bara en"] } });
-    expect(await adminError(admin)).toBe("Unknown command.");
+    expect(await admin.error()).toBe("Unknown command.");
     const commands: AdminCmd[] = [
       { t: "save-question", id: missing, body: choice() },
       { t: "delete-question", id: missing },
@@ -65,7 +60,7 @@ describe("questions", () => {
     ];
     for (const cmd of commands) {
       admin.send(cmd);
-      expect(await adminError(admin), cmd.t).toBe("That question no longer exists.");
+      expect(await admin.error(), cmd.t).toBe("That question no longer exists.");
     }
     admin.close();
     const fresh = await connectAdmin();
@@ -81,9 +76,9 @@ describe("questions", () => {
 
     const played = "This question has already been played. Reset the quiz to change it.";
     admin.send({ t: "save-question", id: q, body: choice({ text: "Ändrad" }) });
-    expect(await adminError(admin)).toBe(played);
+    expect(await admin.error()).toBe(played);
     admin.send({ t: "delete-question", id: q });
-    expect(await adminError(admin)).toBe(played);
+    expect(await admin.error()).toBe(played);
 
     await step(admin, "reset", "locked");
     admin.send({ t: "save-question", id: q, body: choice({ text: "Ändrad" }) });
@@ -113,10 +108,10 @@ describe("quiz flow", () => {
   it("refuses steps the phase does not allow and a start with no questions left", async () => {
     const admin = await host(choice());
     admin.send({ t: "quiz", step: "start" });
-    expect(await adminError(admin)).toBe(`"start" isn't possible while the quiz is locked.`);
+    expect(await admin.error()).toBe(`"start" isn't possible while the quiz is locked.`);
     await step(admin, "unlock", "lobby");
     admin.send({ t: "quiz", step: "reveal" });
-    expect(await adminError(admin)).toBe(`"reveal" isn't possible while the quiz is lobby.`);
+    expect(await admin.error()).toBe(`"reveal" isn't possible while the quiz is lobby.`);
 
     await start(admin);
     await elapse(22_000);
@@ -124,7 +119,7 @@ describe("quiz flow", () => {
     await stage(admin, "closed");
     await step(admin, "reveal", "reveal");
     admin.send({ t: "quiz", step: "start" });
-    expect(await adminError(admin)).toBe("There are no more questions.");
+    expect(await admin.error()).toBe("There are no more questions.");
     expect((await step(admin, "end", "ended")).phase).toBe("ended");
     admin.close();
   });

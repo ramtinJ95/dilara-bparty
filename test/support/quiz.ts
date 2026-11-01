@@ -76,8 +76,7 @@ export async function answer(phone: Phone, q: QuestionId, pick: number, ms = 0):
 
 export async function refused(phone: Phone, q: QuestionId, pick: number, ms = 0): Promise<string> {
   phone.socket.send(await answerCmd(phone, q, pick, ms));
-  const msg = await phone.socket.next((m) => m.t === "error");
-  return msg.t === "error" ? msg.message : "";
+  return phone.socket.error();
 }
 
 export async function revealPoints(admin: Admin, all: Phone[]): Promise<Record<string, number>> {

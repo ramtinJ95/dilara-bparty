@@ -3,12 +3,11 @@ import type { GuestFinale } from "../src/shared/finale";
 import type { PhotoId } from "../src/shared/model";
 import type { AdminCmd, AdminState } from "../src/shared/protocol";
 import { answer, closeAll, host, number, phone, phones, start, step, type Admin, type Phone } from "./support/quiz";
-import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, uploadContest } from "./support/worker";
+import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, uploadContestAs } from "./support/worker";
 
 async function adminError(admin: Admin, cmd: AdminCmd): Promise<string> {
   admin.send(cmd);
-  const msg = await admin.next((m) => m.t === "error");
-  return msg.t === "error" ? msg.message : "";
+  return admin.error();
 }
 
 async function finale<S extends GuestFinale["stage"]>(p: Phone, stage: S): Promise<Extract<GuestFinale, { stage: S }>> {
@@ -17,13 +16,7 @@ async function finale<S extends GuestFinale["stage"]>(p: Phone, stage: S): Promi
 
 const adminAt = (admin: Admin, stage: GuestFinale["stage"]) => admin.current((s) => s.finale.stage === stage);
 
-async function upload(p: Phone): Promise<PhotoId> {
-  const res = await uploadContest(p.cookie);
-  expect(res.status).toBe(200);
-  const { id } = (await res.json()) as { id: PhotoId };
-  await p.socket.state((s) => s.contest.mine?.id === id);
-  return id;
-}
+const upload = async (p: Phone): Promise<PhotoId> => (await uploadContestAs(p)).id;
 
 async function vote(p: Phone, photo: PhotoId): Promise<void> {
   p.socket.send({ t: "vote", photo });

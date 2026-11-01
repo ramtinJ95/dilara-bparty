@@ -1,13 +1,12 @@
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { laptop, openAdmin as driveOpenAdmin, phone } from "./drive";
 import { secrets } from "./server";
 
-export const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
-export const laptop = { viewport: { width: 1440, height: 900 } };
+export { laptop, phone };
 
 export async function openAdmin(context: BrowserContext): Promise<Page> {
   const page = await context.newPage();
-  await page.goto(`/admin/${secrets.admin}`);
-  await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  await driveOpenAdmin(page, secrets.admin);
   return page;
 }
 

@@ -2,7 +2,7 @@ import { chromium, devices, webkit, type Browser, type BrowserContext, type Page
 import { execFileSync } from "node:child_process";
 import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { chromiumLaunchOptions, openAdmin } from "../drive.ts";
+import { chromiumLaunchOptions, laptop, openAdmin, redact } from "../drive.ts";
 import { shapeNetwork, type ProfileName } from "../phone-network.ts";
 import type { AdminState, ServerMsg } from "../../src/shared/protocol.ts";
 import { contentRefusal, existingContent, partyDayRefusal } from "./guards.ts";
@@ -15,10 +15,9 @@ const PROFILES: ProfileName[] = ["good", "slow-4g", "bad-3g", "flaky"];
 const DEVICES: DeviceName[] = ["iPhone 15", "Pixel 7"];
 // The GIF shows the first phone to lock (bad 3G), the first clean drop (flaky) and the first phone to lose its cookie (good).
 const FILMED = new Set([2, 3, 4]);
-const LAPTOP = { width: 1440, height: 900 };
 
 // The admin socket sends the full state as its first message, which is the only read the admin API has.
-export async function adminSnapshot(baseUrl: string, adminSecret: string, timeoutMs = 15_000): Promise<AdminState> {
+async function adminSnapshot(baseUrl: string, adminSecret: string): Promise<AdminState> {
   const login = await fetch(new URL(`/admin/${adminSecret}`, baseUrl), { redirect: "manual" });
   const cookie = login.headers.getSetCookie().find((c) => c.startsWith("admin="))?.split(";")[0];
   if (!cookie) throw new Error(`ADMIN_SECRET gave no admin cookie (HTTP ${login.status})`);
@@ -28,7 +27,7 @@ export async function adminSnapshot(baseUrl: string, adminSecret: string, timeou
   const ws = new WebSocket(url, { headers: { cookie, origin: new URL(baseUrl).origin } } as unknown as string[]);
   try {
     return await new Promise<AdminState>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("the admin socket sent no state")), timeoutMs);
+      const timer = setTimeout(() => reject(new Error("the admin socket sent no state")), 15_000);
       ws.onmessage = (e) => {
         const msg = JSON.parse(String(e.data)) as ServerMsg<AdminState>;
         if (msg.t === "state") (clearTimeout(timer), resolve(msg.state));
@@ -78,9 +77,7 @@ const notes: string[] = [];
 let currentStep = "setup";
 let failureShots = 0;
 const firstLine = (e: unknown) =>
-  (String(e instanceof Error ? e.message : e).replace(/\x1b\[[0-9;]*m/g, "").split("\n").find((l) => l.trim()) ?? "error")
-    .replaceAll(secrets.join, "<JOIN_SECRET>")
-    .replaceAll(secrets.admin, "<ADMIN_SECRET>");
+  redact(String(e instanceof Error ? e.message : e).replace(/\x1b\[[0-9;]*m/g, "").split("\n").find((l) => l.trim()) ?? "error", secrets);
 
 async function check(label: string, run: () => Promise<unknown>, evidence?: Page): Promise<boolean> {
   const start = Date.now();
@@ -99,7 +96,7 @@ async function check(label: string, run: () => Promise<unknown>, evidence?: Page
 }
 
 const browser = await launch(browserName);
-const adminContext = await browser.newContext({ baseURL: baseUrl, viewport: LAPTOP, recordVideo: { dir: videoDir, size: LAPTOP } });
+const adminContext = await browser.newContext({ baseURL: baseUrl, viewport: laptop.viewport, recordVideo: { dir: videoDir, size: laptop.viewport } });
 const admin = await adminContext.newPage();
 try {
   await openAdmin(admin, secrets.admin);

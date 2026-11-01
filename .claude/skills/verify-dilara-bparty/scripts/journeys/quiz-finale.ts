@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { expect, type Page } from "@playwright/test";
-import { addQuestion, answer, greeting, joinByLink, openAdmin, reconnecting, unlockPopup } from "../../../../../e2e/drive.ts";
+import { addQuestion, answer, greeting, heartbeatState, joinByLink, openAdmin, reconnecting, unlockPopup } from "../../../../../e2e/drive.ts";
 import { LOOKS, placeholder, pngFile } from "../../../../../e2e/placeholder.ts";
 import { openVerify, readSecrets, redact, repoRoot } from "../verify.ts";
 
@@ -24,7 +24,7 @@ try {
   const admin = await v.laptop();
   await admin.setViewportSize({ width: 1440, height: 2400 });
   await openAdmin(admin, secrets.admin);
-  const heartbeat = admin.locator("header .toggle .state");
+  const heartbeat = heartbeatState(admin);
   const phase = admin.locator(".quiz .phase");
   const finale = admin.locator(".finale");
   await expect(heartbeat).toHaveText("Fast heartbeat off");
