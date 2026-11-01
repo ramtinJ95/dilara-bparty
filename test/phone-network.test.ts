@@ -23,9 +23,9 @@ async function shapedLink(profile: ProfileName) {
   let open: ((ws: WebSocketRoute) => void) | undefined;
   const fakePage = { routeWebSocket: async (_: RegExp, handler: typeof open) => void (open = handler), route: async () => {} } as unknown as Page;
   const context = { browser: () => null, setOffline: async () => {} } as unknown as BrowserContext;
-  await shapeNetwork(context, fakePage, profile);
+  const line = await shapeNetwork(context, fakePage, profile);
   open!(Object.assign(page.route, { connectToServer: () => server.route }));
-  return { log, page: page.peer, server: server.peer, settled: () => new Promise((r) => setTimeout(r, profiles[profile].latencyMs * 3 + 50)) };
+  return { log, line, page: page.peer, server: server.peer, settled: () => new Promise((r) => setTimeout(r, profiles[profile].latencyMs * 3 + 50)) };
 }
 
 describe("a shaped party socket", () => {
@@ -35,6 +35,15 @@ describe("a shaped party socket", () => {
     link.server.close(4004, "gone");
     await link.settled();
     expect(link.log).toEqual(['page got {"t":"gone"}', "page closed 4004"]);
+  });
+
+  it.each(Object.keys(profiles) as ProfileName[])("on %s drops what was still draining when the line is cut", async (profile) => {
+    const link = await shapedLink(profile);
+    link.server.message('{"t":"gone"}');
+    link.server.close(4004, "gone");
+    await link.line.cut("silent");
+    await link.settled();
+    expect(link.log).toEqual([]);
   });
 
   it.each(Object.keys(profiles) as ProfileName[])("on %s delivers the phone's last frames before its close", async (profile) => {
