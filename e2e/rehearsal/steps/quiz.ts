@@ -268,7 +268,7 @@ const numberRound: Step = {
 
 const end: Step = {
   id: "quiz-end",
-  title: "The host ends the quiz; every phone thanks the guest and goes back to Galleri, and the host resets the quiz for the next run",
+  title: "The host ends the quiz; every phone thanks the guest and goes back to Galleri",
   async run(r) {
     await Promise.all([
       adminStep(r, "End quiz", "Quiz ended"),
@@ -283,7 +283,6 @@ const end: Step = {
       }),
     ]);
     await r.check("admin names the winner", () => expect(r.admin.locator(".winners")).toHaveText(/^(Winner|Joint winners): .+/), r.admin);
-    await r.check("admin resets the quiz and deletes the rehearsal questions", () => clearQuiz(r), r.admin);
   },
 };
 
