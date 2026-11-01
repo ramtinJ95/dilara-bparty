@@ -21,6 +21,7 @@ const numberGuess = (r: Rehearsal, g: Guest) => 1 + (indexOf(r, g) % 10);
 const silentInRound2 = (r: Rehearsal) => new Set(r.guests.filter((g) => g.profile === "slow-4g").slice(0, 2));
 
 const phaseOf = (r: Rehearsal) => r.admin.locator(".quiz .phase");
+const heartbeatOf = (r: Rehearsal) => r.admin.locator("header .toggle .state");
 const onQuestion = (page: Page, text: string, input: string) => Promise.all([
   expect(page.getByRole("heading", { name: text })).toBeVisible({ timeout: SEE_TIMEOUT }),
   expect(page.locator(input)).toBeVisible({ timeout: SEE_TIMEOUT }),
@@ -93,7 +94,7 @@ const setup: Step = {
 
 const unlock: Step = {
   id: "quiz-unlock",
-  title: "The host unlocks the quiz; phones on Galleri get the popup and tap through, phones on Quiz see the lobby",
+  title: "The host unlocks the quiz, which turns the fast heartbeat on; phones on Galleri get the popup and tap through, phones on Quiz see the lobby",
   async run(r) {
     await Promise.all([
       adminStep(r, "Unlock quiz", "Unlocked, waiting for the first question"),
@@ -115,6 +116,7 @@ const unlock: Step = {
             ),
       ),
     ]);
+    await r.check("unlocking turns the fast heartbeat on", () => expect(heartbeatOf(r)).toHaveText("Fast heartbeat on"), r.admin);
   },
 };
 
@@ -268,7 +270,7 @@ const numberRound: Step = {
 
 const end: Step = {
   id: "quiz-end",
-  title: "The host ends the quiz; every phone thanks the guest and goes back to Galleri",
+  title: "The host ends the quiz, which turns the fast heartbeat off; every phone thanks the guest and goes back to Galleri",
   async run(r) {
     await Promise.all([
       adminStep(r, "End quiz", "Quiz ended"),
@@ -283,6 +285,7 @@ const end: Step = {
       }),
     ]);
     await r.check("admin names the winner", () => expect(r.admin.locator(".winners")).toHaveText(/^(Winner|Joint winners): .+/), r.admin);
+    await r.check("ending the quiz turns the fast heartbeat off", () => expect(heartbeatOf(r)).toHaveText("Fast heartbeat off"), r.admin);
   },
 };
 
