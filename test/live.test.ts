@@ -110,6 +110,31 @@ describe("guest socket", () => {
   });
 });
 
+describe("acknowledgements", () => {
+  it("answers a command with an ack to the sender alone, after the state that reflects it", async () => {
+    const voter = await connectGuest(await joinedCookie("Astrid"));
+    const other = await connectGuest(await joinedCookie("Olle"));
+    await voter.state();
+    await other.state();
+    const admin = await connectAdmin();
+    admin.send({ t: "uploads", open: false });
+    const msgs = [await admin.next((m) => m.t === "state" && !m.state.contest.uploads), await admin.next()];
+    expect(msgs[1]).toEqual({ t: "ack" });
+    await other.state((s) => !s.contest.uploads);
+    await expect(other.next((m) => m.t === "ack", 300)).rejects.toThrow();
+    for (const s of [voter, other, admin]) s.close();
+  });
+
+  it("answers a refused command with an error and no ack", async () => {
+    const admin = await connectAdmin();
+    await admin.state();
+    admin.ws.send("nonsense");
+    expect(await admin.next((m) => m.t !== "state")).toEqual({ t: "error", message: "Unknown command." });
+    await expect(admin.next((m) => m.t === "ack", 300)).rejects.toThrow();
+    admin.close();
+  });
+});
+
 describe("admin commands", () => {
   it("reports a rename to a taken name as an error and changes nothing", async () => {
     const cookie = await joinedCookie("Astrid");

@@ -254,6 +254,7 @@ export class Party extends DurableObject<Env> {
     );
     if (error) return send(ws, { t: "error", message: error });
     this.broadcast();
+    send(ws, { t: "ack" });
     if (role.role === "admin") await this.schedule();
   }
 

@@ -90,8 +90,10 @@ back to the page or online reconnects at once if the socket is past its
 silence limit. Otherwise, in slow mode, that and switching tabs or starting an
 upload send one ping, at most every 15 s, which the Durable Object answers with
 a pong without waking up. A vote, an answer or any other command is its own
-check, since the server always answers it. No reply within 5 s, and the phone
-reconnects. So a phone whose socket died outside the quiz recovers as soon as
+check: the server answers it with an ack or an error, sent to that phone alone.
+No reply within 5 s, and the phone reconnects. Ticks and state broadcasts don't
+count, since they keep arriving when the phone's own messages don't get
+through. So a phone whose socket died outside the quiz recovers as soon as
 the guest opens the app, and the host announces the quiz out loud, so guests
 reopening the app is how a phone with a dead socket gets the unlock popup.
 

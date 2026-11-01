@@ -53,6 +53,8 @@ const dropAfter = (ms: number) => {
 
 const snapshot = (socket: FakeSocket, heartbeat: Heartbeat) => socket.onmessage!({ data: JSON.stringify({ t: "state", state: {}, heartbeat }) });
 
+const ack = JSON.stringify({ t: "ack" });
+
 const waitOutRetry = () => {
   const sockets = FakeSocket.all.length;
   vi.advanceTimersByTime(retryDelay() - 1);
@@ -136,6 +138,7 @@ describe("connectLive", () => {
     expect(live.send('{"t":"vote"}')).toBe(true);
     vi.advanceTimersByTime(1_000);
     snapshot(socket, "fast");
+    socket.onmessage!({ data: ack });
     vi.advanceTimersByTime(9_000);
     expect(socket.closed).toBe(false);
     socket.onmessage!({ data: "tick" });
@@ -271,6 +274,44 @@ describe("connectLive", () => {
     vi.advanceTimersByTime(4_000);
     socket.onmessage!({ data: "tick" });
     vi.advanceTimersByTime(999);
+    expect(socket.closed).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(socket.closed).toBe(true);
+  });
+
+  it("does not take another player's state broadcast as the answer to a command", () => {
+    const socket = FakeSocket.latest();
+    socket.onopen!();
+    snapshot(socket, "fast");
+    live.send('{"t":"answer"}');
+    vi.advanceTimersByTime(2_000);
+    snapshot(socket, "fast");
+    vi.advanceTimersByTime(2_999);
+    expect(socket.closed).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(socket.closed).toBe(true);
+  });
+
+  it("does not take a state broadcast as the answer to a check ping", () => {
+    const socket = FakeSocket.latest();
+    socket.onopen!();
+    snapshot(socket, "slow");
+    live.check();
+    vi.advanceTimersByTime(2_000);
+    snapshot(socket, "slow");
+    vi.advanceTimersByTime(3_000);
+    expect(socket.closed).toBe(true);
+  });
+
+  it("waits for a reply to every command, not just the first", () => {
+    const socket = FakeSocket.latest();
+    socket.onopen!();
+    snapshot(socket, "fast");
+    live.send('{"t":"vote"}');
+    live.send('{"t":"unvote"}');
+    vi.advanceTimersByTime(1_000);
+    socket.onmessage!({ data: ack });
+    vi.advanceTimersByTime(4_999);
     expect(socket.closed).toBe(false);
     vi.advanceTimersByTime(1);
     expect(socket.closed).toBe(true);
