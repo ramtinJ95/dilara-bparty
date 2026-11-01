@@ -119,7 +119,13 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
     if (plan.kind === "stop") return onPhase({ phase: "stuck" });
     if (plan.kind === "network") return onPhase({ phase: "waiting", retryAt: null });
     onPhase({ phase: "waiting", retryAt: Date.now() + plan.delayMs });
-    retryTimer = setTimeout(send, plan.delayMs);
+    retryTimer = setTimeout(retryNow, plan.delayMs);
+  }
+
+  // The phone may have gone offline during the backoff; a try then would only use up an attempt.
+  function retryNow() {
+    if (navigator.onLine) return send();
+    onPhase({ phase: "waiting", retryAt: null });
   }
 
   // The network may be back: an online event, the page coming to the foreground, or the live socket reconnecting.

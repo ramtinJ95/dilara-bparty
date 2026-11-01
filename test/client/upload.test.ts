@@ -169,6 +169,22 @@ describe("startUpload", () => {
     expect(keys().size).toBe(1);
   });
 
+  it("does not use up a try when the phone goes offline during the backoff", () => {
+    for (let i = 1; i < MAX_ATTEMPTS; i++) {
+      FakeXhr.latest().onerror!();
+      if (i < MAX_ATTEMPTS - 1) vi.runOnlyPendingTimers();
+    }
+    net.onLine = false;
+    vi.runOnlyPendingTimers();
+    expect(FakeXhr.all).toHaveLength(MAX_ATTEMPTS - 1);
+    expect(last()).toEqual({ phase: "waiting", retryAt: null });
+    net.onLine = true;
+    fire("online");
+    expect(FakeXhr.all, "the last automatic try goes out when the network is back").toHaveLength(MAX_ATTEMPTS);
+    FakeXhr.latest().respond(200, { id: ID });
+    expect(last()).toEqual({ phase: "done", id: ID });
+  });
+
   it("retries at once when the page comes back to the foreground or the live socket reconnects", () => {
     net.onLine = false;
     FakeXhr.latest().onerror!();
