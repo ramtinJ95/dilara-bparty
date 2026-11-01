@@ -138,7 +138,7 @@ try {
   await v.evidence(a.page, "07-phone-suspense");
 
   await expect(finale.getByRole("button", { name: "Reveal photo winner" })).toBeDisabled();
-  await expect(finale.getByText("Photos are tied for first. Pick the winner below.")).toBeVisible();
+  await expect(finale.getByText("Photos are tied for first. Pick the winner before you reveal it.")).toBeVisible();
   await finale.locator(".tie-photos").getByRole("button", { name: "Pick as winner" }).first().click();
   await expect(finale.getByRole("button", { name: "Winner ✓" })).toBeVisible();
   await v.evidence(admin, "08-admin-tie-picked");

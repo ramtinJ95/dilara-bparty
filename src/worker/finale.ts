@@ -1,4 +1,4 @@
-import { nextStep, type AdminFinale, type FinaleStage, type FinaleStep, type GuestFinale, type PhotoWin, type QuizWin } from "../shared/finale";
+import { FINALE_BLOCKERS, nextStep, type AdminFinale, type FinaleStage, type FinaleStep, type GuestFinale, type PhotoWin, type QuizWin } from "../shared/finale";
 import type { PhotoId, PlayerId } from "../shared/model";
 import type { TallyRow } from "../shared/protocol";
 import type { AdminQuiz } from "../shared/quiz";
@@ -22,12 +22,13 @@ export class Finale {
   constructor(private readonly kv: SyncKvStorage) {}
 
   private readonly steps: { [S in FinaleStep]: (inputs: FinaleInputs) => string | void } = {
-    suspense: ({ quiz, closeVoting }) => (quiz.stage.phase === "ended" ? closeVoting() : "End the quiz before you open the finale."),
+    suspense: ({ quiz, closeVoting }) => FINALE_BLOCKERS.suspense({ quizPhase: quiz.stage.phase }) ?? closeVoting(),
     photo: ({ tally }) => {
       const top = leaders(tally);
-      const pick = this.kv.get<PhotoId>(PICK_KEY);
+      const pick = this.kv.get<PhotoId>(PICK_KEY) ?? null;
+      const error = FINALE_BLOCKERS.photo({ tied: top.map((r) => r.photo), pick });
+      if (error) return error;
       const win = top.length > 1 ? top.find((r) => r.photo === pick) : top[0];
-      if (top.length > 1 && !win) return "Photos are tied for first. Pick the winner before you reveal it.";
       this.kv.put<FrozenPhoto | null>(PHOTO_KEY, win ? { photo: win.photo, thumb: win.thumb, owner: win.player, votes: win.votes } : null);
     },
     quiz: ({ quiz }) => {

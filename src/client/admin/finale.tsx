@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { FINALE_ORDER, nextStep, type AdminFinale, type FinaleStage, type FinaleStep } from "../../shared/finale";
+import { FINALE_ORDER, finaleBlocker, nextStep, type AdminFinale, type FinaleStage, type FinaleStep } from "../../shared/finale";
 import type { AdminCmd, AdminEntrant, TallyRow } from "../../shared/protocol";
 import type { AdminQuiz } from "../../shared/quiz";
 import { photoUrl } from "../api";
@@ -24,18 +24,10 @@ const STEP_LABEL: Record<FinaleStep, (quiz: AdminQuiz) => string> = {
 
 const STEPS = FINALE_ORDER.filter((s): s is FinaleStep => s !== "off");
 
-function blocker(step: FinaleStep, { finale, quiz }: Props): string | null {
-  if (step === "suspense" && quiz.stage.phase !== "ended") return "End the quiz first.";
-  if (step === "photo" && finale.tied.length > 1 && !finale.tied.includes(finale.pick!)) return "Photos are tied for first. Pick the winner below.";
-  return null;
-}
-
-
-export function FinaleControls(props: Props) {
-  const { finale, quiz, tally, send, live } = props;
+export function FinaleControls({ finale, quiz, tally, send, live }: Props) {
   const [confirming, setConfirming] = useState(false);
   const next = nextStep(finale.stage);
-  const blocked = next && blocker(next, props);
+  const blocked = next && finaleBlocker(next, { quizPhase: quiz.stage.phase, tied: finale.tied, pick: finale.pick });
   const done = (step: FinaleStep) => FINALE_ORDER.indexOf(step) <= FINALE_ORDER.indexOf(finale.stage);
 
   function press(step: FinaleStep) {

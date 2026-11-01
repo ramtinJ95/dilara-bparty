@@ -13,6 +13,9 @@ test("a guest finds the party by code, joins, and shows up live for the admin", 
   await expect(admin).toHaveURL(/\/admin$/);
   const code = (await admin.locator(".code").textContent())!;
   await expect(admin.getByText("Nobody has joined yet.")).toBeVisible();
+  const finale = admin.locator(".finale");
+  await expect(finale.getByRole("button", { name: "Open suspense page" })).toBeDisabled();
+  await expect(finale.getByText("End the quiz before you open the finale.")).toBeVisible();
 
   const guestContext = await browser.newContext(phone);
   const guest = await guestContext.newPage();
