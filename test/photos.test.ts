@@ -55,7 +55,15 @@ describe("/photos/<id>", () => {
     const cookie = await joinedCookie("Astrid");
     for (const id of [unknownId, "not-an-id", "..%2Fsettings"]) {
       expect((await call(`/photos/${id}`, { cookie })).status, id).toBe(404);
+      expect((await call(`/photos/${id}`, { cookie, headers: { "If-None-Match": `"${id}"` } })).status, id).toBe(404);
     }
+  });
+
+  it("leaves the blob in the Durable Object when the viewer already holds the photo", async () => {
+    const id = await landingPhoto();
+    const stub = env.PARTY.getByName("party");
+    expect(await stub.photo(id, true)).toEqual({ kind: "landing", mime: "image/png", bytes: null });
+    expect(new Uint8Array((await stub.photo(id, false))!.bytes!)).toEqual(bytes);
   });
 });
 
