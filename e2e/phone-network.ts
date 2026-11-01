@@ -48,14 +48,9 @@ async function routeSocket(page: Page, profile: NetworkProfile, links: Set<Link>
     ws.onMessage((m) => up(link, m.length, () => link.server.send(m)));
     link.server.onMessage((m) => down(link, m.length, () => ws.send(m)));
     // A close travels the same pipe as the frames, so the frames sent before it, such as the server's "gone", still arrive first.
-    ws.onClose((code, reason) => {
-      links.delete(link);
-      up(link, 0, () => void link.server.close({ code, reason }));
-    });
-    link.server.onClose((code, reason) => {
-      links.delete(link);
-      down(link, 0, () => void ws.close({ code, reason }));
-    });
+    // The link stays in links until then, so a cut while it drains still stops it.
+    ws.onClose((code, reason) => up(link, 0, () => (links.delete(link), void link.server.close({ code, reason }))));
+    link.server.onClose((code, reason) => down(link, 0, () => (links.delete(link), void ws.close({ code, reason }))));
   });
 }
 
