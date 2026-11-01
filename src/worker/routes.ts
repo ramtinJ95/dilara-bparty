@@ -138,6 +138,7 @@ export const routes: Route[] = [
     const name = parsePlayerName(body.name);
     if (!name.ok) return Response.json({ error: guestNameErrors[name.error] }, { status: 400 });
     const result = await party(ctx.env).join(name.value, body.reclaim === true);
+    if (result.status === "closed") return Response.json({ error: "Kalaset är slut. Tack för att du var med!" }, { status: 403 });
     if (result.status === "exists") return Response.json(result satisfies JoinResponse);
     const cookie = setCookie("pid", await pidCookieValue(result.id, ctx.env.JOIN_SECRET));
     return Response.json({ status: "joined" } satisfies JoinResponse, { headers: { "Set-Cookie": cookie } });
@@ -165,6 +166,12 @@ export const routes: Route[] = [
     if (!(await isAdmin(ctx))) return notFound();
     await party(ctx.env).clearLandingPhoto();
     return status(204);
+  }),
+
+  route("DELETE", "/api/admin/party", async (ctx) => {
+    if (!(await isAdmin(ctx))) return notFound();
+    const error = await party(ctx.env).wipe();
+    return error ? Response.json({ error }, { status: 409 }) : status(204);
   }),
 
   route("POST", CONTEST_UPLOAD_PATH, uploadContest),

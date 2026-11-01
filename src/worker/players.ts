@@ -2,7 +2,7 @@ import { nameKey, type PlayerId, type PlayerName } from "../shared/model";
 import { newPlayerId } from "./auth";
 
 export type Player = { id: PlayerId; name: string; createdAt: number };
-export type JoinResult = { status: "joined"; id: PlayerId } | { status: "exists"; name: string };
+export type JoinResult = { status: "joined"; id: PlayerId } | { status: "exists"; name: string } | { status: "closed" };
 export type Roster = { roots: Player[]; rootOf: (id: PlayerId) => Player | undefined };
 
 type PlayerRow = { id: PlayerId; name: string; merged_into: PlayerId | null; created_at: number };
@@ -19,7 +19,8 @@ export class Players {
     return row && toPlayer(row);
   }
 
-  join(name: PlayerName, reclaim: boolean): JoinResult {
+  // A guest who lost their cookie can still reclaim their name after the party stops taking new guests.
+  join(name: PlayerName, reclaim: boolean, open: boolean): JoinResult {
     const [match] = this.sql
       .exec<{ root: PlayerId }>("SELECT coalesce(merged_into, id) AS root FROM players WHERE name_key = ?", nameKey(name))
       .toArray();
@@ -27,6 +28,7 @@ export class Players {
       const root = this.resolve(match.root)!;
       return reclaim ? { status: "joined", id: root.id } : { status: "exists", name: root.name };
     }
+    if (!open) return { status: "closed" };
     const id = newPlayerId();
     this.sql.exec("INSERT INTO players (id, name, name_key, created_at) VALUES (?, ?, ?, ?)", id, name, nameKey(name), Date.now());
     return { status: "joined", id };
