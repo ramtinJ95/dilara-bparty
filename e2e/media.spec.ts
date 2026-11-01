@@ -18,6 +18,16 @@ test.beforeAll(() => {
   mkdirSync(out, { recursive: true });
 });
 
+function gif(input: string, output: string) {
+  execFileSync("ffmpeg", [
+    "-y", "-loglevel", "error",
+    "-i", input,
+    "-filter_complex",
+    "fps=12,scale=390:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4",
+    output,
+  ]);
+}
+
 function sideBySideGif(inputs: [string, string], output: string) {
   execFileSync("ffmpeg", [
     "-y", "-loglevel", "error",
@@ -117,12 +127,14 @@ test("contest screenshots", async ({ browser }) => {
 
   await majaPage.route(CONTEST_UPLOAD_PATH, (route) => route.abort("internetdisconnected"));
   await pickPhoto(majaPage, LOOKS.snow, "snow");
-  await expect(majaPage.getByText("Ingen kontakt just nu.", { exact: false })).toBeVisible();
+  await expect(majaPage.getByText("Anslutningen bröts.", { exact: false })).toBeVisible();
   await shot(majaPage, "08-mitt-foto-no-connection");
+  await expect(majaPage.getByText("Bilden kom inte fram.", { exact: false })).toBeVisible({ timeout: 20_000 });
+  await shot(majaPage, "08b-mitt-foto-stuck");
 
   await majaPage.unroute(CONTEST_UPLOAD_PATH);
   const unthrottle = await throttleUploads(majaPage, 40_000);
-  await majaPage.evaluate(() => dispatchEvent(new Event("online")));
+  await majaPage.getByRole("button", { name: "Försök igen" }).click();
   await expect(progress(majaPage)).toHaveAttribute("aria-valuenow", /^(3\d|4\d|5\d|6\d)$/, { timeout: 30_000 });
   await shot(majaPage, "09-mitt-foto-uploading");
   await unthrottle();
@@ -232,6 +244,41 @@ test("contest video", async ({ browser }) => {
   renameSync(await videos[1]!.path(), b);
   rmSync(videoDir, { recursive: true, force: true });
   sideBySideGif([a, b], `${out}/contest.gif`);
+});
+
+// The first try reaches the server, but the line drops before its response, as in a tunnel. The phone notices, keeps the photo, and the
+// retry once the network is back is recognised as the same upload.
+test("upload-stall video", async ({ browser }) => {
+  const videoDir = `${out}/video-tmp`;
+  const context = await browser.newContext({ ...phone, deviceScaleFactor: 1, recordVideo: { dir: videoDir, size: phone.viewport } });
+  const res = await context.request.post("/api/join", { data: { secret: secrets.join, name: "Saga" } });
+  expect(await res.json()).toEqual({ status: "joined" });
+  const page = await openShell(context);
+  await page.getByRole("button", { name: "Mitt foto" }).click();
+  await page.waitForTimeout(900);
+
+  let tries = 0;
+  await page.route(CONTEST_UPLOAD_PATH, async (route) => {
+    if (tries++ > 0) return route.fallback();
+    await context.setOffline(true);
+    await route.fetch();
+  });
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Välj bild" }).click();
+  await (await chooser).setFiles(pngFile("mint", await placeholder(page, LOOKS.mint)));
+  await expect(page.getByText("Anslutningen bröts.", { exact: false })).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(2_500);
+  await context.setOffline(false);
+  await expect(page.getByText("Inga röster än")).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+  expect(tries).toBe(2);
+
+  const video = page.video()!;
+  await context.close();
+  const clip = `${out}/upload-stall.webm`;
+  renameSync(await video.path(), clip);
+  rmSync(videoDir, { recursive: true, force: true });
+  gif(clip, `${out}/upload-stall.gif`);
 });
 
 test("join-live video", async ({ browser }) => {
