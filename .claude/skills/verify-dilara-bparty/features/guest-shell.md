@@ -1,6 +1,6 @@
 # Guest shell and tabs
 
-After joining, the guest app greets the guest by name, shows how many guests are here right now, and has three tabs: Quiz, Mitt foto and Galleri. Mitt foto and Galleri belong to the photo contest (see [photo-contest.md](./photo-contest.md)); Quiz is a placeholder until the quiz lands. A pill shows while the phone is (re)connecting.
+After joining, the guest app greets the guest by name, shows how many guests are here right now, and has three tabs: Quiz, Mitt foto and Galleri. Mitt foto and Galleri belong to the photo contest (see [photo-contest.md](./photo-contest.md)); the Quiz tab is covered in [quiz.md](./quiz.md). A pill shows while the phone is (re)connecting.
 
 ## Sub-features
 
@@ -34,4 +34,4 @@ Preconditions:
 
 - The pill has `role="status"`. Use `reconnecting(page)` from `e2e/drive.ts`, which matches `Återansluter…` only.
 - The count includes every online player, including other test phones on the same instance. Derive the expected number from the admin view, not a constant.
-- The quiz thread will replace the Quiz tab body. Update this file when it does.
+- Once the quiz is unlocked, the Quiz tab's header is compact and hides the guest count. Read the count on `Mitt foto` or `Galleri`.

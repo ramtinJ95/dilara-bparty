@@ -2,7 +2,7 @@ import { useRef, useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
 import { prepare } from "../photo-prep";
 
-const uploadErrors: Record<number, string> = {
+export const uploadErrors: Record<number, string> = {
   413: "That photo is still too large after shrinking.",
   415: "Use a JPEG, PNG or WebP photo.",
 };

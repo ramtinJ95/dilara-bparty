@@ -29,6 +29,7 @@ describe("admin auth", () => {
         ["/admin", {}],
         ["/api/admin/landing-photo", { method: "PUT", headers: { "Content-Type": "image/png" }, body: new Uint8Array([1]) }],
         ["/api/admin/landing-photo", { method: "DELETE" }],
+        ["/api/admin/question-photo", { method: "PUT", headers: { "Content-Type": "image/png" }, body: new Uint8Array([1]) }],
         ["/ws/admin", { headers: { Upgrade: "websocket", Origin: ORIGIN } }],
       ];
       for (const [path, init] of requests) {

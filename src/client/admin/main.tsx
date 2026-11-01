@@ -2,6 +2,7 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { formatJoinCode } from "../../shared/join-code";
 import type { AdminCmd, AdminState } from "../../shared/protocol";
+import { useDeadline } from "../clock";
 import { useLive } from "../live";
 import "../theme.css";
 import "./admin.css";
@@ -9,6 +10,8 @@ import { Contest } from "./contest";
 import { LandingPhoto } from "./landing-photo";
 import { Players } from "./players";
 import { Qr } from "./qr";
+import { Questions } from "./questions";
+import { QuizControls } from "./quiz-controls";
 
 function Admin() {
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +21,8 @@ function Admin() {
     const timer = setTimeout(() => setError(null), 6000);
     return () => clearTimeout(timer);
   }, [error]);
+  const stage = state?.quiz.stage;
+  const deadline = useDeadline(state, stage?.phase === "open" ? stage.endsInMs : null);
 
   const live = status.kind === "open";
   const sendCmd = (cmd: AdminCmd) => void send(JSON.stringify(cmd));
@@ -44,9 +49,11 @@ function Admin() {
             <p class="url muted">{joinUrl}</p>
           </section>
           <div class="side">
+            <QuizControls quiz={state.quiz} deadline={deadline} send={sendCmd} live={live} />
             <Players players={state.players} send={sendCmd} live={live} />
-            <LandingPhoto photo={state.landingPhoto} />
           </div>
+          <Questions questions={state.quiz.questions} played={state.quiz.played} send={sendCmd} live={live} />
+          <LandingPhoto photo={state.landingPhoto} />
           <Contest contest={state.contest} send={sendCmd} live={live} />
         </div>
       )}

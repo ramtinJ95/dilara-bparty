@@ -56,11 +56,27 @@ code and runs the admin view; it is not a shared game screen.
 - After a reveal, the host can show the leaderboard, so it can come after every
   question or every second one. Every phone shows the top five and the guest's
   own position, with players animating up and down into their new places.
-- Scoring: 1 point per correct answer, with no speed bonus. On closest-number
-  questions the closest guess gets the point.
-- Ties are broken by a final closest-number question.
+- Scoring rewards speed. A correct multiple-choice answer scores 1000 points
+  for an instant answer, falling linearly to 500 at the deadline, rounded to
+  whole points. A wrong or missing answer scores 0, so being right always beats
+  being fast. On closest-number questions the closest guess scores 1000 however
+  long it took, and equally close guesses all score 1000.
+- Each answer is timed on the phone, so a slow connection never costs points.
+  The phone starts its timer when the question is on screen, after its photo
+  has loaded, stops it at the tap and sends the elapsed time with the answer.
+  A question's photo is served to guests only once that question has started
+  in the current run, so a leaked or guessed link can't show it early. Phones
+  therefore fetch it when the question starts. A slow photo shortens the
+  countdown on that phone but never costs points.
+- The server clamps the reported time to at least 0, to at most its own time
+  between sending the question to that phone and receiving the answer, and to
+  the answer window. A phone could still report less time than it took, within
+  that bound. That is an accepted risk at a children's party.
+- A tie for first place means joint quiz winners. There is no tie-breaker
+  question; with speed points a tie is unlikely.
 - A guest who joins late plays from the current question. A phone that
-  reconnects comes back to the current question with its score intact.
+  reconnects comes back to the current question with its answer and score
+  intact.
 
 ## Photo contest
 
@@ -100,13 +116,13 @@ code and runs the admin view; it is not a shared game screen.
   when it opens.
 - The host then opens the winners page and reveals the winners one at a time,
   each with its own press: first the winning photo with the photographer's name,
-  then the quiz winner.
+  then the quiz winner, or the joint winners if first place is tied.
 
 ## Admin view
 
 - QR code and short join code.
 - Players: list, rename, merge duplicates.
-- Questions: add, edit, reorder, attach a photo.
+- Questions: add, edit, delete, reorder, attach a photo.
 - Quiz controls: unlock, start question, reveal, show leaderboard, next, end.
 - Finale controls: open the suspense page, reveal the photo winner, reveal the
   quiz winner.

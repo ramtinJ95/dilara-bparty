@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { CONTEST_UPLOAD_PATH, type JoinResponse } from "../../src/shared/api";
@@ -42,6 +42,7 @@ export async function adminCookie(): Promise<string> {
 export class TestSocket<S> {
   private readonly inbox: ServerMsg<S>[] = [];
   private waiter: (() => void) | undefined;
+  private seen: S | undefined;
   closed = false;
 
   constructor(readonly ws: WebSocket) {
@@ -61,7 +62,11 @@ export class TestSocket<S> {
     const deadline = Date.now() + waitMs;
     for (;;) {
       const i = this.inbox.findIndex(accept);
-      if (i >= 0) return this.inbox.splice(0, i + 1).at(-1)!;
+      if (i >= 0) {
+        const taken = this.inbox.splice(0, i + 1);
+        for (const m of taken) if (m.t === "state") this.seen = m.state;
+        return taken.at(-1)!;
+      }
       if (Date.now() > deadline) throw new Error(`no matching message; got ${JSON.stringify(this.inbox)}`);
       await new Promise<void>((resolve) => {
         this.waiter = resolve;
@@ -73,6 +78,16 @@ export class TestSocket<S> {
   async state(accept: (state: S) => boolean = () => true, waitMs?: number): Promise<S> {
     const msg = await this.next((m) => m.t === "state" && accept(m.state), waitMs);
     return (msg as { t: "state"; state: S }).state;
+  }
+
+  async current(accept: (state: S) => boolean = () => true): Promise<S> {
+    const newer = this.inbox.some((m) => m.t === "state");
+    return !newer && this.seen !== undefined && accept(this.seen) ? this.seen : this.state(accept);
+  }
+
+  latest(): S | undefined {
+    const queued = this.inbox.findLast((m) => m.t === "state");
+    return queued?.t === "state" ? queued.state : this.seen;
   }
 
   send(cmd: AdminCmd | GuestCmd): void {
@@ -125,3 +140,20 @@ export function uploadContest(cookie: string | undefined, init: ContestUploadIni
   if (thumb) form.append("thumb", new File([thumb.bytes], "thumb.jpg", { type: thumb.type }));
   return call(CONTEST_UPLOAD_PATH, { method: "POST", cookie, body: form });
 }
+
+export async function uploadQuestionPhoto(bytes: Uint8Array, type = "image/jpeg"): Promise<Response> {
+  return call("/api/admin/question-photo", { method: "PUT", cookie: await adminCookie(), headers: { "Content-Type": type }, body: bytes });
+}
+
+const party = () => env.PARTY.getByName("party");
+
+export async function elapse(ms: number): Promise<void> {
+  await runInDurableObject(party(), (_, state) => {
+    state.storage.sql.exec("UPDATE rounds SET started_at = started_at - ?1, deadline = deadline - ?1", ms);
+    state.storage.sql.exec("UPDATE deliveries SET sent_at = sent_at - ?", ms);
+  });
+}
+
+export const fireAlarm = () => runDurableObjectAlarm(party());
+
+export const alarmAt = () => runInDurableObject(party(), (_, state) => state.storage.getAlarm());

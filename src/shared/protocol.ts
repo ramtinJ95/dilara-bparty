@@ -1,4 +1,5 @@
-import { parsePhotoId, parsePlayerId, type PhotoId, type PlayerId } from "./model";
+import { parsePhotoId, parsePlayerId, parseQuestionId, type PhotoId, type PlayerId, type QuestionId } from "./model";
+import { parseQuestionBody, QUIZ_STEPS, type AdminQuiz, type GuestQuiz, type QuestionBody, type QuizStep } from "./quiz";
 
 export type GalleryPhoto = { id: PhotoId; thumb: PhotoId; fame: boolean; own: boolean; mine: number };
 export type MyPhoto = { id: PhotoId; thumb: PhotoId; votes: number; hidden: boolean };
@@ -10,7 +11,7 @@ export type GuestContest = {
   inFame: number;
   gallery: GalleryPhoto[];
 };
-export type GuestState = { you: { id: PlayerId; name: string }; online: number; contest: GuestContest };
+export type GuestState = { you: { id: PlayerId; name: string }; online: number; contest: GuestContest; quiz: GuestQuiz };
 
 export type EntryStatus = "current" | "replaced" | "removed";
 export type AdminVersion = {
@@ -32,6 +33,7 @@ export type AdminState = {
   join: { secret: string; code: string };
   landingPhoto: PhotoId | null;
   contest: AdminContest;
+  quiz: AdminQuiz;
 };
 
 export type ServerMsg<S> = { t: "state"; state: S } | { t: "error"; message: string } | { t: "gone" };
@@ -41,10 +43,18 @@ export type AdminCmd =
   | { t: "merge"; from: PlayerId; into: PlayerId }
   | { t: "uploads"; open: boolean }
   | { t: "voting"; open: boolean }
-  | { t: "hide"; photo: PhotoId; hidden: boolean };
+  | { t: "hide"; photo: PhotoId; hidden: boolean }
+  | { t: "save-question"; id: QuestionId | null; body: QuestionBody }
+  | { t: "delete-question"; id: QuestionId }
+  | { t: "move-question"; id: QuestionId; to: number }
+  | { t: "quiz"; step: QuizStep };
 export type AdminCmdOf<K extends AdminCmd["t"]> = Extract<AdminCmd, { t: K }>;
 
-export type GuestCmd = { t: "vote"; photo: PhotoId } | { t: "unvote"; photo: PhotoId } | { t: "remove"; photo: PhotoId };
+export type GuestCmd =
+  | { t: "vote"; photo: PhotoId }
+  | { t: "unvote"; photo: PhotoId }
+  | { t: "remove"; photo: PhotoId }
+  | { t: "answer"; q: QuestionId; pick: number; ms: number; run: number };
 export type GuestCmdOf<K extends GuestCmd["t"]> = Extract<GuestCmd, { t: K }>;
 
 export const PING = "ping";
@@ -57,6 +67,8 @@ const toggle =
   <K extends "uploads" | "voting">(t: K) =>
   (m: Fields) =>
     typeof m.open === "boolean" ? ({ t, open: m.open } as AdminCmdOf<K>) : null;
+
+const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 const onPhoto =
   <K extends GuestCmd["t"]>(t: K) =>
@@ -81,9 +93,31 @@ const adminCmdParsers: Parsers<AdminCmd> = {
     const photo = parsePhotoId(m.photo);
     return photo && typeof m.hidden === "boolean" ? { t: "hide", photo, hidden: m.hidden } : null;
   },
+  "save-question": (m) => {
+    const id = m.id === null ? null : parseQuestionId(m.id);
+    const body = parseQuestionBody(m.body);
+    return (id || m.id === null) && body.ok ? { t: "save-question", id, body: body.value } : null;
+  },
+  "delete-question": (m) => {
+    const id = parseQuestionId(m.id);
+    return id ? { t: "delete-question", id } : null;
+  },
+  "move-question": (m) => {
+    const id = parseQuestionId(m.id);
+    return id && Number.isInteger(m.to) ? { t: "move-question", id, to: m.to as number } : null;
+  },
+  quiz: (m) => (typeof m.step === "string" && Object.hasOwn(QUIZ_STEPS, m.step) ? { t: "quiz", step: m.step as QuizStep } : null),
 };
 
-const guestCmdParsers: Parsers<GuestCmd> = { vote: onPhoto("vote"), unvote: onPhoto("unvote"), remove: onPhoto("remove") };
+const guestCmdParsers: Parsers<GuestCmd> = {
+  vote: onPhoto("vote"),
+  unvote: onPhoto("unvote"),
+  remove: onPhoto("remove"),
+  answer: (m) => {
+    const q = parseQuestionId(m.q);
+    return q && finite(m.pick) && finite(m.ms) && finite(m.run) ? { t: "answer", q, pick: m.pick, ms: m.ms, run: m.run } : null;
+  },
+};
 
 function parseWith<C extends { t: string }>(parsers: Parsers<C>, raw: string): C | null {
   let msg: unknown;

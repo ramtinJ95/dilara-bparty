@@ -55,3 +55,17 @@ export const GalleryIcon = () => (
     <path d="M21 16l-5-5-9 9" />
   </svg>
 );
+
+export const QuizIcon = () => (
+  <svg viewBox="0 0 24 24" {...line} aria-hidden="true">
+    <path d="M4 4.5h16a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1h-8.5L7 20.5V17H4a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1z" />
+    <path d="M9.6 8.7a2.4 2.4 0 1 1 3.3 2.2c-.6.3-.9.7-.9 1.4" />
+    <path d="M12 14.6v.1" />
+  </svg>
+);
+
+export const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" {...line} stroke-width="2.6" aria-hidden="true">
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);

@@ -1,5 +1,5 @@
 import { JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, normalizeJoinCode } from "../shared/join-code";
-import { parsePlayerId, type PhotoId, type PlayerId } from "../shared/model";
+import { parsePlayerId, type PhotoId, type PlayerId, type QuestionId } from "../shared/model";
 
 const encoder = new TextEncoder();
 const keys = new Map<string, Promise<CryptoKey>>();
@@ -34,6 +34,7 @@ export function secretMatches(given: string, secret: string): boolean {
 const randomId = () => toBase64Url(crypto.getRandomValues(new Uint8Array(16)));
 export const newPlayerId = () => randomId() as PlayerId;
 export const newPhotoId = () => randomId() as PhotoId;
+export const newQuestionId = () => randomId() as QuestionId;
 
 export async function joinCode(joinSecret: string): Promise<string> {
   const bytes = await sign(joinSecret, "join-code");
