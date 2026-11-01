@@ -20,7 +20,7 @@ const settle = 2_500;
 const rendered = (page: Page | Frame) => page.waitForFunction(() => document.querySelector("#app > *") !== null && document.fonts.status === "loaded", undefined, { timeout: 60_000 });
 
 async function sheet(browser: Browser, id: string) {
-  const context = await browser.newContext({ viewport: { width: 2150, height: 1000 } });
+  const context = await browser.newContext({ viewport: { width: 2150, height: 1100 } });
   const page = await context.newPage();
   await page.goto(`${base}/lab/${id}`, { timeout: 60_000 });
   await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
@@ -60,7 +60,7 @@ async function clip(browser: Browser, id: string) {
       const context = await browser.newContext({ viewport: phone, isMobile: true, hasTouch: true, recordVideo: { dir, size: phone } });
       const start = Date.now();
       const page = await context.newPage();
-      await page.goto(`${base}/lab/${id}/${screen}`, { timeout: 60_000 });
+      await page.goto(`${base}/lab/${id}/${screen}?frame`, { timeout: 60_000 });
       await rendered(page);
       const skip = Math.max(0, (Date.now() - start) / 1000 - 0.1).toFixed(2);
       await script(page);

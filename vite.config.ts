@@ -5,12 +5,17 @@ import { defineConfig, type Plugin } from "vite";
 const viteDevPaths = ["!/@*", "!/src/*", "!/node_modules/*", "!/.vite/*"];
 
 // The design lab lives only on the dev server. It is no build input, so `vite build` never sees it.
+// LAB_HOME=1 sends the bare domain to the lab, so the preview opens on it.
 // The Cloudflare plugin leaves Vite no HTML middleware, so the lab answers its own page before the Worker sees the request.
 const designLab: Plugin = {
   name: "design-lab",
   apply: "serve",
   configureServer(server) {
     server.middlewares.use(async (req, res, next) => {
+      if (process.env.LAB_HOME === "1" && req.url === "/") {
+        res.writeHead(302, { Location: "/lab/" }).end();
+        return;
+      }
       if (!req.url || !/^\/lab(\/|\?|$)/.test(req.url)) return next();
       const html = await readFile("src/lab/index.html", "utf8");
       res.setHeader("Content-Type", "text/html; charset=utf-8");

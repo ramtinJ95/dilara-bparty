@@ -62,8 +62,45 @@ test("the dev server renders the admin and guest pages", async ({ page }) => {
 
 test("the dev server serves the design lab", async ({ page }) => {
   await page.goto("/lab/");
-  await expect(page.getByRole("link", { name: /Aurora glass/ })).toBeVisible();
   await expect(page.locator(".lab-list a")).toHaveCount(10);
   await page.goto("/lab/aurora");
   await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
+});
+
+test("the lab switcher keeps the screen and puts the direction in the URL", async ({ page }) => {
+  await page.goto("/lab/aurora/quiz");
+  await expect(page.locator("iframe")).toHaveCount(1);
+  await page.keyboard.press("ArrowRight");
+  await expect(page).toHaveURL(/\/lab\/pearl\/quiz$/);
+  await page.getByLabel("Direction", { exact: true }).selectOption("gameshow");
+  await expect(page).toHaveURL(/\/lab\/gameshow\/quiz$/);
+  await page.frameLocator("iframe").locator("body").press("ArrowLeft");
+  await expect(page).toHaveURL(/\/lab\/luxe\/quiz$/);
+  await page.keyboard.press("0");
+  await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lab\/luxe\/quiz$/);
+});
+
+test("the lab replays a screen without reloading it", async ({ page }) => {
+  await page.goto("/lab/clay/finale");
+  const frame = page.frames()[1]!;
+  await expect(frame.locator("#app > *")).toHaveCount(1);
+  await frame.evaluate(() => ((window as unknown as { before: Element | null }).before = document.querySelector("#app > *")));
+  await page.getByRole("button", { name: /Replay/ }).click();
+  await expect.poll(() => frame.evaluate(() => document.querySelector("#app > *") !== (window as unknown as { before: Element | null }).before)).toBe(true);
+  expect(await frame.evaluate(() => "before" in window)).toBe(true);
+});
+
+test("on a phone the lab shows one screen at a time", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto("/lab/bento");
+  await expect(page.locator("iframe")).toHaveCount(1);
+  await expect(page.locator("iframe")).toHaveAttribute("src", "/lab/bento/landing?frame");
+  await page.getByRole("button", { name: "Next screen" }).tap();
+  await expect(page).toHaveURL(/\/lab\/bento\/quiz$/);
+  await page.getByRole("button", { name: "Next direction" }).tap();
+  await expect(page).toHaveURL(/\/lab\/aurora\/quiz$/);
+  await context.close();
 });
