@@ -2,7 +2,7 @@ import { CONTEST_UPLOAD_PATH, UPLOAD_FIELDS, type CodeResponse, type JoinRespons
 import { parsePhotoId, parsePhotoMime, parsePlayerName, parseUploadKey, PLAYER_NAME_MAX, type NameError, type PhotoId, type PhotoKind } from "../shared/model";
 import { adminCookieValue, isAdminCookie, joinCodeMatches, pidCookieValue, playerFromCookie, secretMatches } from "./auth";
 import { notFound, readBody, readCookie, readJson, redirect, sameOrigin, setCookie, status } from "./http";
-import { SOCKET_ROLE_HEADER, type ContestUpload, type SocketRole } from "./party";
+import { SOCKET_ROLE_HEADER, type ContestUpload, type PhotoViewer, type SocketRole } from "./party";
 import { PHOTO_MAX_BYTES, type PhotoUpload, type StoredPhoto } from "./photo-store";
 
 type Ctx = { req: Request; env: Env; params: Record<string, string | undefined> };
@@ -23,6 +23,12 @@ const isAdmin = (ctx: Ctx) => isAdminCookie(readCookie(ctx.req, "admin"), ctx.en
 const adminOnly = (handler: Route["handler"]): Route["handler"] => async (ctx) => ((await isAdmin(ctx)) ? handler(ctx) : notFound());
 
 const joinSecretMatches = (ctx: Ctx, given: unknown) => typeof given === "string" && secretMatches(given, ctx.env.JOIN_SECRET);
+
+async function photoViewer(ctx: Ctx): Promise<PhotoViewer | null> {
+  if (await isAdmin(ctx)) return { role: "admin" };
+  const playerId = await guest(ctx);
+  return playerId ? { role: "guest", playerId } : null;
+}
 
 type Page = "neutral" | "guest" | "admin";
 
@@ -138,8 +144,7 @@ export const routes: Route[] = [
   route("GET", "/j/:secret/photos/:id", async (ctx) => {
     const id = parsePhotoId(ctx.params.id);
     if (!joinSecretMatches(ctx, ctx.params.secret) || !id) return notFound();
-    const photo = await party(ctx.env).photo(id, clientHas(ctx.req, id));
-    return photoResponse(id, photo?.kind === "landing" ? photo : null);
+    return photoResponse(id, await party(ctx.env).photo({ role: "anonymous" }, id, clientHas(ctx.req, id)));
   }),
 
   route("POST", "/api/join", async (ctx) => {
@@ -187,13 +192,11 @@ export const routes: Route[] = [
   route("PUT", "/api/admin/question-photo", adminOnly((ctx) => adminPhoto(ctx, (upload) => party(ctx.env).addQuestionPhoto(upload)))),
 
   route("GET", "/photos/:id", async (ctx) => {
-    const admin = await isAdmin(ctx);
-    const viewer = admin ? null : await guest(ctx);
-    if (!admin && !viewer) return status(401);
+    const viewer = await photoViewer(ctx);
+    if (!viewer) return status(401);
     const id = parsePhotoId(ctx.params.id);
     if (!id) return notFound();
-    const cached = clientHas(ctx.req, id);
-    return photoResponse(id, await (viewer ? party(ctx.env).guestPhoto(viewer, id, cached) : party(ctx.env).photo(id, cached)));
+    return photoResponse(id, await party(ctx.env).photo(viewer, id, clientHas(ctx.req, id)));
   }),
 ];
 
