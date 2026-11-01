@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
-import { secrets } from "./server";
+import { secrets, serverEnv } from "./server";
 
 // vite dev takes the Worker's secrets from .dev.vars when it exists, and from the environment passed below otherwise.
 const devVars = existsSync(".dev.vars") ? parseEnv(readFileSync(".dev.vars", "utf8")) : {};
@@ -36,7 +36,7 @@ test.beforeAll(async ({}, testInfo) => {
   server = spawn("npx", ["vite", "dev", "--port", url.port, "--strictPort", "--host", url.hostname], {
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, WRANGLER_SEND_METRICS: "false", CLOUDFLARE_CF_FETCH_ENABLED: "false", PARTY_EPHEMERAL_STATE: "1", JOIN_SECRET: secrets.join, ADMIN_SECRET: secrets.admin },
+    env: { ...serverEnv, JOIN_SECRET: secrets.join, ADMIN_SECRET: secrets.admin },
   });
   for (const deadline = Date.now() + 110_000; !(await serving(url)); await sleep(500)) {
     if (server.exitCode !== null || server.signalCode !== null) throw new Error(`vite dev exited (${server.exitCode ?? server.signalCode}) before it served ${url.origin}.`);
