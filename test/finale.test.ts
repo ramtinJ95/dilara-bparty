@@ -3,7 +3,7 @@ import type { GuestFinale } from "../src/shared/finale";
 import type { PhotoId } from "../src/shared/model";
 import type { AdminCmd, AdminState } from "../src/shared/protocol";
 import { answer, closeAll, host, number, phone, phones, start, step, type Admin, type Phone } from "./support/quiz";
-import { adminCookie, call, connectGuest, join, uploadContest } from "./support/worker";
+import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, uploadContest } from "./support/worker";
 
 async function adminError(admin: Admin, cmd: AdminCmd): Promise<string> {
   admin.send(cmd);
@@ -237,5 +237,36 @@ describe("end of the party", () => {
     expect(await gone.next()).toEqual({ t: "gone" });
     expect((await join("Astrid")).body).toEqual({ status: "joined" });
     closeAll(admin, gone);
+  });
+
+  it("after a wipe, goes back to slow ticks for the admin who is still connected", async () => {
+    const admin = await host(number());
+    admin.send({ t: "liveMode", on: true });
+    await admin.next((m) => m.t === "state" && m.heartbeat === "fast");
+    admin.send({ t: "joins", open: false });
+    await admin.state((s) => !s.finale.joins);
+
+    expect((await call("/api/admin/party", { method: "DELETE", cookie: await adminCookie() })).status).toBe(204);
+    await admin.next((m) => m.t === "state" && m.heartbeat === "slow" && m.state.finale.joins);
+    const slowTick = async () => ((await alarmAt()) ?? 0) - Date.now();
+    expect(await slowTick(), "the tick is scheduled again, 30 s out").toBeGreaterThan(25_000);
+    expect(await slowTick()).toBeLessThanOrEqual(30_000);
+    const ticks = admin.ticks;
+    expect(await fireAlarm()).toBe(true);
+    await expect.poll(() => admin.ticks).toBe(ticks + 1);
+    expect(await slowTick(), "and rearmed 30 s out after it fires").toBeGreaterThan(25_000);
+    admin.close();
+  });
+
+  it("after a wipe with nobody connected, leaves no alarm", async () => {
+    const admin = await connectAdmin();
+    await admin.state();
+    admin.send({ t: "joins", open: false });
+    await admin.state((s) => !s.finale.joins);
+    admin.close();
+    await expect.poll(() => admin.closed).toBe(true);
+
+    expect((await call("/api/admin/party", { method: "DELETE", cookie: await adminCookie() })).status).toBe(204);
+    expect(await alarmAt()).toBeNull();
   });
 });
