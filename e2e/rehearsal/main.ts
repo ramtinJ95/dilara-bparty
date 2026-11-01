@@ -4,16 +4,41 @@ import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { chromiumLaunchOptions, openAdmin } from "../drive.ts";
 import { shapeNetwork, type ProfileName } from "../phone-network.ts";
+import type { AdminState, ServerMsg } from "../../src/shared/protocol.ts";
+import { contentRefusal, existingContent, partyDayRefusal } from "./guards.ts";
 import { passed, toHtml, toMarkdown, type StepOutcome, type Summary } from "./report.ts";
 import type { BrowserName, CheckResult, DeviceName, Guest, Rehearsal, Timing } from "./rehearsal.ts";
 import { steps } from "./steps/index.ts";
 
-const USAGE = "Usage: JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium|webkit] [--guests 20] [--out <dir>]";
+const USAGE = "Usage: JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium|webkit] [--guests 20] [--out <dir>] [--force]";
 const PROFILES: ProfileName[] = ["good", "slow-4g", "bad-3g", "flaky"];
 const DEVICES: DeviceName[] = ["iPhone 15", "Pixel 7"];
 // The GIF shows the first phone to lock (bad 3G), the first clean drop (flaky) and the first phone to lose its cookie (good).
 const FILMED = new Set([2, 3, 4]);
 const LAPTOP = { width: 1440, height: 900 };
+
+// The admin socket sends the full state as its first message, which is the only read the admin API has.
+export async function adminSnapshot(baseUrl: string, adminSecret: string, timeoutMs = 15_000): Promise<AdminState> {
+  const login = await fetch(new URL(`/admin/${adminSecret}`, baseUrl), { redirect: "manual" });
+  const cookie = login.headers.getSetCookie().find((c) => c.startsWith("admin="))?.split(";")[0];
+  if (!cookie) throw new Error(`ADMIN_SECRET gave no admin cookie (HTTP ${login.status})`);
+  const url = new URL("/ws/admin", baseUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  // Node's WebSocket takes headers in its second argument, which the DOM type doesn't know. The socket route wants a same-origin Origin, as a browser sends.
+  const ws = new WebSocket(url, { headers: { cookie, origin: new URL(baseUrl).origin } } as unknown as string[]);
+  try {
+    return await new Promise<AdminState>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("the admin socket sent no state")), timeoutMs);
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(String(e.data)) as ServerMsg<AdminState>;
+        if (msg.t === "state") (clearTimeout(timer), resolve(msg.state));
+      };
+      ws.onerror = () => (clearTimeout(timer), reject(new Error("the admin socket failed")));
+    });
+  } finally {
+    ws.close();
+  }
+}
 
 function usage(problem: string): never {
   console.error(`${problem}\n${USAGE}`);
@@ -21,13 +46,18 @@ function usage(problem: string): never {
 }
 
 const { values: args } = parseArgs({
-  options: { "base-url": { type: "string" }, browser: { type: "string", default: "chromium" }, guests: { type: "string", default: "20" }, out: { type: "string" } },
+  options: { "base-url": { type: "string" }, browser: { type: "string", default: "chromium" }, guests: { type: "string", default: "20" }, out: { type: "string" }, force: { type: "boolean", default: false } },
 });
 const baseUrl = args["base-url"] ?? usage("Missing --base-url.");
+const refusal = partyDayRefusal(baseUrl, new Date(), args.force);
+if (refusal) usage(refusal);
 const browserName: BrowserName = args.browser === "chromium" || args.browser === "webkit" ? args.browser : usage(`Unknown --browser ${args.browser}.`);
 const guestCount = Number(args.guests);
 if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 40) usage("--guests must be a whole number from 1 to 40.");
 const secrets = { join: process.env.JOIN_SECRET ?? usage("Set JOIN_SECRET."), admin: process.env.ADMIN_SECRET ?? usage("Set ADMIN_SECRET.") };
+const found = await adminSnapshot(baseUrl, secrets.admin).then(existingContent, (e: unknown) => usage(`Could not read the party at ${baseUrl} through the admin socket: ${e instanceof Error ? e.message : e}`));
+const crowded = contentRefusal(baseUrl, found, args.force);
+if (crowded) usage(crowded);
 const startedAt = new Date();
 const out = args.out ?? `artifacts/rehearsal-${startedAt.toISOString().slice(0, 19).replace(/[T:]/g, "-")}-${browserName}`;
 const videoDir = `${out}/video-tmp`;
@@ -46,6 +76,7 @@ const checks: CheckResult[] = [];
 const timings: Timing[] = [];
 const notes: string[] = [];
 let currentStep = "setup";
+let failureShots = 0;
 const firstLine = (e: unknown) =>
   (String(e instanceof Error ? e.message : e).replace(/\x1b\[[0-9;]*m/g, "").split("\n").find((l) => l.trim()) ?? "error")
     .replaceAll(secrets.join, "<JOIN_SECRET>")
@@ -77,7 +108,6 @@ try {
   await browser.close();
   process.exit(1);
 }
-let failureShots = 0;
 const baselineOnline = Number(/· (\d+) online/.exec((await admin.locator("#players-title").textContent()) ?? "")?.[1] ?? 0);
 if ((await adminContext.request.get("/@vite/client")).ok()) {
   notes.push("The target is a Vite dev server, which serves the client as many unbundled modules, so page loads on slow profiles take far longer than on a deployed build.");
