@@ -94,10 +94,10 @@ export function Shell() {
   const { state, status, send, check } = useLive<GuestState>("/ws", (msg) =>
     msg.t === "gone" ? location.replace("/") : msg.t === "error" && showToast(msg.message),
   );
-  const uploader = useUploader(state?.contest.mine?.id ?? null);
-  const upload = { ...uploader, pick: (file: File) => (check(), uploader.pick(file)) };
-  const choose = (t: Tab) => (check(), select(t));
   const live = status.kind === "open";
+  const uploader = useUploader(state?.contest.mine?.id ?? null, live);
+  const upload = { ...uploader, pick: (file: File) => (check(), uploader.pick(file)), retry: () => (check(), uploader.retry()) };
+  const choose = (t: Tab) => (check(), select(t));
   const pill = live ? null : state ? "Återansluter…" : "Ansluter…";
   const sendCmd = (cmd: GuestCmd) => send(JSON.stringify(cmd)) || (showToast("Ingen kontakt just nu. Försök igen."), false);
 

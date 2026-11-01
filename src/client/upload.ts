@@ -5,15 +5,19 @@ import type { Prepared } from "./photo-prep";
 
 export type UploadPhase =
   | { phase: "sending"; sent: number; total: number }
-  | { phase: "waiting"; retryAt: number }
+  // retryAt is null while the phone is offline: the next try waits for the network instead of a timer.
+  | { phase: "waiting"; retryAt: number | null }
+  | { phase: "stuck" }
   | { phase: "done"; id: PhotoId }
   | { phase: "failed"; error: string };
 
-export type Upload = { cancel: () => void };
+export type Upload = { cancel: () => void; retry: () => void; resume: () => void };
 
 const BACKOFF_FIRST_MS = 1_000;
 const BACKOFF_MAX_MS = 15_000;
-const STALL_MS = 30_000;
+// No upload progress and no response for this long means the connection is gone. A slow upload on bad 3G still reports progress every few hundred ms.
+export const STALL_MS = 8_000;
+export const MAX_ATTEMPTS = 4;
 const RETRYABLE = new Set([0, 408, 429]);
 const FALLBACK_ERRORS: Record<number, string> = {
   413: "Bilden är för stor. Prova en annan.",
@@ -42,22 +46,31 @@ function uploadedId(xhr: XMLHttpRequest): PhotoId | null {
   }
 }
 
+export type RetryPlan = { kind: "timer"; delayMs: number } | { kind: "network" } | { kind: "stop" };
+
+// Every try is a request against the daily allowance, so automatic tries stop at MAX_ATTEMPTS; only the guest's own tap starts a new round.
+export function retryPlan(attempts: number, online: boolean): RetryPlan {
+  if (attempts >= MAX_ATTEMPTS) return { kind: "stop" };
+  return online ? { kind: "timer", delayMs: backoffMs(attempts - 1, BACKOFF_FIRST_MS, BACKOFF_MAX_MS) } : { kind: "network" };
+}
+
 /** Sends one prepared photo, retrying network trouble with the same key so the server never stores it twice. */
 export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) => void): Upload {
   const key = newUploadKey();
   const total = prepared.photo.size + prepared.thumb.size;
-  let failures = 0;
+  let attempts = 0;
   let xhr: XMLHttpRequest | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let stallTimer: ReturnType<typeof setTimeout> | undefined;
   let waiting = false;
+  let over = false;
 
   const finish = (phase: UploadPhase) => {
     stop();
     onPhase(phase);
   };
 
-  const stall = () => {
+  const watch = () => {
     clearTimeout(stallTimer);
     stallTimer = setTimeout(retryLater, STALL_MS);
   };
@@ -65,6 +78,7 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
   function send() {
     clearTimeout(retryTimer);
     waiting = false;
+    attempts++;
     const body = new FormData();
     body.append(UPLOAD_FIELDS.key, key);
     body.append(UPLOAD_FIELDS.photo, prepared.photo, "photo.jpg");
@@ -73,7 +87,7 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
     xhr = req;
     req.open("POST", CONTEST_UPLOAD_PATH);
     req.upload.onprogress = (e) => {
-      stall();
+      watch();
       onPhase({ phase: "sending", sent: Math.min(e.loaded, total), total });
     };
     req.onload = () => {
@@ -86,7 +100,7 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
     };
     req.onerror = retryLater;
     onPhase({ phase: "sending", sent: 0, total });
-    stall();
+    watch();
     req.send(body);
   }
 
@@ -100,22 +114,37 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
 
   function retryLater() {
     drop();
-    const delay = backoffMs(failures++, BACKOFF_FIRST_MS, BACKOFF_MAX_MS);
-    waiting = true;
-    onPhase({ phase: "waiting", retryAt: Date.now() + delay });
-    retryTimer = setTimeout(send, delay);
+    const plan = retryPlan(attempts, navigator.onLine);
+    waiting = plan.kind !== "stop";
+    if (plan.kind === "stop") return onPhase({ phase: "stuck" });
+    if (plan.kind === "network") return onPhase({ phase: "waiting", retryAt: null });
+    onPhase({ phase: "waiting", retryAt: Date.now() + plan.delayMs });
+    retryTimer = setTimeout(send, plan.delayMs);
   }
 
-  const online = () => waiting && send();
+  // The network may be back: an online event, the page coming to the foreground, or the live socket reconnecting.
+  const resume = () => waiting && send();
+  const onVisibility = () => document.visibilityState === "visible" && resume();
 
   function stop() {
+    over = true;
     clearTimeout(retryTimer);
     waiting = false;
     drop();
-    removeEventListener("online", online);
+    removeEventListener("online", resume);
+    document.removeEventListener("visibilitychange", onVisibility);
   }
 
-  addEventListener("online", online);
+  addEventListener("online", resume);
+  document.addEventListener("visibilitychange", onVisibility);
   send();
-  return { cancel: stop };
+  return {
+    cancel: stop,
+    resume,
+    retry() {
+      if (over || xhr) return;
+      attempts = 0;
+      send();
+    },
+  };
 }
