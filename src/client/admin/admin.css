@@ -3,6 +3,7 @@
 .admin { max-width: 1360px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 40px) 40px; }
 
 .admin header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.admin header .toggle { margin-left: auto; margin-right: 16px; }
 .admin h1 { margin: 0; font-family: var(--round); font-size: 26px; color: var(--ice-800); }
 .admin h2 { margin: 0 0 14px; font-size: 18px; color: var(--ice-900); }
 

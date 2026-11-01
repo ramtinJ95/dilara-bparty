@@ -1,7 +1,7 @@
 import { evictAllDurableObjects } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import type { PhotoId, QuestionId } from "../src/shared/model";
-import type { AdminCmd, AdminState } from "../src/shared/protocol";
+import type { AdminCmd, AdminState, Heartbeat } from "../src/shared/protocol";
 import { PHOTO_MAX_BYTES } from "../src/worker/photo-store";
 import {
   answer,
@@ -19,6 +19,7 @@ import {
   step,
   view,
   type Admin,
+  type Phone,
 } from "./support/quiz";
 import { adminCookie as adminCookieOf, alarmAt, call, connectAdmin, elapse, fireAlarm, JOIN_SECRET, joinedCookie, uploadQuestionPhoto } from "./support/worker";
 
@@ -396,5 +397,28 @@ describe("question photos", () => {
   it("checks the type and size like the landing photo", async () => {
     expect((await uploadQuestionPhoto(new Uint8Array([1]), "image/gif")).status).toBe(415);
     expect((await uploadQuestionPhoto(new Uint8Array(PHOTO_MAX_BYTES + 1))).status).toBe(413);
+  });
+});
+
+describe("heartbeat", () => {
+  const heartbeat = (socket: Phone["socket"] | Admin, want: Heartbeat) => socket.next((m) => m.t === "state" && m.heartbeat === want);
+
+  it("switches phones to fast ticks when the quiz unlocks, and back when it ends or is reset", { timeout: 15_000 }, async () => {
+    const admin = await host(choice());
+    const guest = await phone("Astrid");
+    await step(admin, "unlock", "lobby");
+    await heartbeat(guest.socket, "fast");
+    const ticks = guest.socket.ticks;
+    await expect.poll(() => guest.socket.ticks, { timeout: 5_000 }).toBeGreaterThan(ticks);
+
+    await step(admin, "end", "ended");
+    await heartbeat(guest.socket, "slow");
+
+    await step(admin, "reset", "locked");
+    await step(admin, "unlock", "lobby");
+    await heartbeat(guest.socket, "fast");
+    await step(admin, "reset", "locked");
+    await heartbeat(guest.socket, "slow");
+    closeAll(guest.socket, admin);
   });
 });

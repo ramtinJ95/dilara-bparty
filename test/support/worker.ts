@@ -2,7 +2,7 @@ import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test"
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { CONTEST_UPLOAD_PATH, type JoinResponse } from "../../src/shared/api";
-import { PING, PONG, type AdminCmd, type AdminState, type GuestCmd, type GuestState, type ServerMsg } from "../../src/shared/protocol";
+import { PONG, TICK, type AdminCmd, type AdminState, type GuestCmd, type GuestState, type ServerMsg } from "../../src/shared/protocol";
 
 export const ORIGIN = "https://party.test";
 export const { JOIN_SECRET, ADMIN_SECRET } = env;
@@ -44,11 +44,14 @@ export class TestSocket<S> {
   private waiter: (() => void) | undefined;
   private seen: S | undefined;
   closed = false;
+  ticks = 0;
+  pongs = 0;
 
   constructor(readonly ws: WebSocket) {
     ws.accept();
     ws.addEventListener("message", (e) => {
-      if (e.data === PONG) return;
+      if (e.data === TICK) return void this.ticks++;
+      if (e.data === PONG) return void this.pongs++;
       this.inbox.push(JSON.parse(e.data as string));
       this.waiter?.();
     });
@@ -59,7 +62,7 @@ export class TestSocket<S> {
   }
 
   async next(accept: (msg: ServerMsg<S>) => boolean = () => true, waitMs = 2000): Promise<ServerMsg<S>> {
-    const deadline = Date.now() + waitMs;
+    const deadline = performance.now() + waitMs;
     for (;;) {
       const i = this.inbox.findIndex(accept);
       if (i >= 0) {
@@ -67,7 +70,7 @@ export class TestSocket<S> {
         for (const m of taken) if (m.t === "state") this.seen = m.state;
         return taken.at(-1)!;
       }
-      if (Date.now() > deadline) throw new Error(`no matching message; got ${JSON.stringify(this.inbox)}`);
+      if (performance.now() > deadline) throw new Error(`no matching message; got ${JSON.stringify(this.inbox)}`);
       await new Promise<void>((resolve) => {
         this.waiter = resolve;
         setTimeout(resolve, 50);
@@ -92,10 +95,6 @@ export class TestSocket<S> {
 
   send(cmd: AdminCmd | GuestCmd): void {
     this.ws.send(JSON.stringify(cmd));
-  }
-
-  ping(): void {
-    this.ws.send(PING);
   }
 
   close(): void {
