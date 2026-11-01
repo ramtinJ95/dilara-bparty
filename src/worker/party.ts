@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { parsePlayerName, PLAYER_NAME_MAX, type NameError, type PhotoId, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
+import { parsePlayerName, PLAYER_NAME_MAX, type NameError, type PhotoId, type PhotoKind, type PlayerId, type PlayerName, type UploadKey } from "../shared/model";
 import {
   HEARTBEATS,
   parseAdminCmd,
@@ -99,6 +99,24 @@ export type ContestUpload = UploadResult | { status: "no-player" };
 
 export type GuestEntry = { joined: true } | { joined: false; landingPhoto: PhotoId | null };
 
+// "anonymous" is someone with only the join link.
+export type PhotoViewer = { role: "admin" } | { role: "guest"; playerId: PlayerId } | { role: "anonymous" };
+
+function contestPhotoVisible({ players, contest, finale }: Tables, viewer: PhotoViewer, id: PhotoId): boolean {
+  if (viewer.role !== "guest") return viewer.role === "admin";
+  if (finale.revealedPhoto(id)) return true;
+  const entry = contest.entryWith(id);
+  const player = entry && players.resolve(viewer.playerId);
+  return !!player && guestMaySee(entry, player.id);
+}
+
+const photoVisible: Record<PhotoKind, (tables: Tables, viewer: PhotoViewer, id: PhotoId) => boolean> = {
+  landing: () => true,
+  question: ({ quiz }, viewer, id) => viewer.role === "admin" || (viewer.role === "guest" && quiz.photoStarted(id)),
+  contest: contestPhotoVisible,
+  thumb: contestPhotoVisible,
+};
+
 function send<S>(ws: WebSocket, msg: ServerMsg<S>): void {
   ws.send(JSON.stringify(msg));
 }
@@ -156,22 +174,9 @@ export class Party extends DurableObject<Env> {
     return this.photos.put({ ...upload, kind: "question", owner: null });
   }
 
-  photo(id: PhotoId, cached: boolean): StoredPhoto | null {
-    return this.photos.get(id, !cached);
-  }
-
-  guestPhoto(viewer: PlayerId, id: PhotoId, cached: boolean): StoredPhoto | null {
-    if (this.finale.revealedPhoto(id)) return this.photos.get(id, !cached);
-    const entry = this.contest.entryWith(id);
-    if (!entry) return this.sharedPhoto(id, cached);
-    const player = this.players.resolve(viewer);
-    return player && guestMaySee(entry, player.id) ? this.photos.get(id, !cached) : null;
-  }
-
-  private sharedPhoto(id: PhotoId, cached: boolean): StoredPhoto | null {
+  photo(viewer: PhotoViewer, id: PhotoId, cached: boolean): StoredPhoto | null {
     const photo = this.photos.get(id, false);
-    const shared = photo?.kind === "landing" || (photo?.kind === "question" && this.quiz.photoStarted(id));
-    if (!shared) return null;
+    if (!photo || !photoVisible[photo.kind](this.tables(), viewer, id)) return null;
     return cached ? photo : this.photos.get(id, true);
   }
 
