@@ -1,11 +1,12 @@
 import { reset } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
-import type { PhotoId, PlayerId } from "../src/shared/model";
+import type { PhotoId } from "../src/shared/model";
 import type { AdminState, GuestCmd, GuestContest, GuestState } from "../src/shared/protocol";
 import { PHOTO_MAX_BYTES } from "../src/worker/photo-store";
-import { adminCookie, call, connectAdmin, connectGuest, jpeg, joinedCookie, newUploadKey, uploadContest, type TestSocket } from "./support/worker";
+import { phone, type Phone } from "./support/quiz";
+import { adminCookie, call, connectAdmin, jpeg, joinedCookie, newUploadKey, uploadContest, uploadContestAs, type TestSocket } from "./support/worker";
 
-type Guest = { name: string; cookie: string; id: PlayerId; socket: TestSocket<GuestState>; last?: GuestContest };
+type Guest = Phone & { last?: GuestContest };
 
 const sockets: TestSocket<unknown>[] = [];
 afterEach(() => {
@@ -13,10 +14,9 @@ afterEach(() => {
 });
 
 async function guest(name: string): Promise<Guest> {
-  const cookie = await joinedCookie(name);
-  const socket = await connectGuest(cookie);
-  sockets.push(socket as TestSocket<unknown>);
-  return { name, cookie, id: (await socket.state()).you.id, socket };
+  const p = await phone(name);
+  sockets.push(p.socket as TestSocket<unknown>);
+  return p;
 }
 
 async function admin(): Promise<TestSocket<AdminState>> {
@@ -26,10 +26,8 @@ async function admin(): Promise<TestSocket<AdminState>> {
 }
 
 async function upload(g: Guest, init: Parameters<typeof uploadContest>[1] = {}): Promise<PhotoId> {
-  const res = await uploadContest(g.cookie, init);
-  expect(res.status).toBe(200);
-  const { id } = (await res.json()) as { id: PhotoId };
-  g.last = (await g.socket.state((s) => s.contest.mine?.id === id)).contest;
+  const { id, state } = await uploadContestAs(g, init);
+  g.last = state.contest;
   return id;
 }
 
@@ -40,8 +38,7 @@ async function act(g: Guest, cmd: GuestCmd, see: (c: GuestContest) => boolean): 
 
 async function refused(g: Guest, cmd: GuestCmd): Promise<string> {
   g.socket.send(cmd);
-  const msg = await g.socket.next((m) => m.t === "error");
-  return msg.t === "error" ? msg.message : "";
+  return g.socket.error();
 }
 
 const seen = (c: GuestContest, photo: PhotoId) => c.gallery.find((p) => p.id === photo);

@@ -2,6 +2,7 @@ import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test"
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { CONTEST_UPLOAD_PATH, type JoinResponse } from "../../src/shared/api";
+import type { PhotoId } from "../../src/shared/model";
 import { PONG, TICK, type AdminCmd, type AdminState, type GuestCmd, type GuestState, type ServerMsg } from "../../src/shared/protocol";
 
 export const ORIGIN = "https://party.test";
@@ -78,6 +79,11 @@ export class TestSocket<S> {
     }
   }
 
+  async error(): Promise<string> {
+    const msg = await this.next((m) => m.t === "error");
+    return msg.t === "error" ? msg.message : "";
+  }
+
   async state(accept: (state: S) => boolean = () => true, waitMs?: number): Promise<S> {
     const msg = await this.next((m) => m.t === "state" && accept(m.state), waitMs);
     return (msg as { t: "state"; state: S }).state;
@@ -138,6 +144,13 @@ export function uploadContest(cookie: string | undefined, init: ContestUploadIni
   if (photo) form.append("photo", new File([photo.bytes], "photo.jpg", { type: photo.type }));
   if (thumb) form.append("thumb", new File([thumb.bytes], "thumb.jpg", { type: thumb.type }));
   return call(CONTEST_UPLOAD_PATH, { method: "POST", cookie, body: form });
+}
+
+export async function uploadContestAs(guest: { cookie: string; socket: TestSocket<GuestState> }, init: ContestUploadInit = {}): Promise<{ id: PhotoId; state: GuestState }> {
+  const res = await uploadContest(guest.cookie, init);
+  expect(res.status).toBe(200);
+  const { id } = (await res.json()) as { id: PhotoId };
+  return { id, state: await guest.socket.state((s) => s.contest.mine?.id === id) };
 }
 
 export async function uploadQuestionPhoto(bytes: Uint8Array, type = "image/jpeg"): Promise<Response> {
