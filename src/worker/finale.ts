@@ -66,19 +66,30 @@ export class Finale {
     this.kv.put(JOINS_CLOSED_KEY, !open);
   }
 
+  // A revealed winner stays visible to guests even if it is later hidden or replaced.
+  revealedPhoto(id: PhotoId): boolean {
+    const photo = this.kv.get<FrozenPhoto | null>(PHOTO_KEY);
+    return photo?.photo === id || photo?.thumb === id;
+  }
+
   guest(roster: Roster): GuestFinale {
-    const name = (id: PlayerId) => roster.rootOf(id)?.name ?? "";
+    const root = (id: PlayerId) => roster.rootOf(id) ?? { id, name: "" };
     const photo = this.kv.get<FrozenPhoto | null>(PHOTO_KEY) ?? null;
-    const won = photo && { ...photo, name: name(photo.owner) };
+    const won = photo && { ...photo, owner: root(photo.owner).id, name: root(photo.owner).name };
+    // Joint winners merged into one player after the reveal are one winner.
+    const quizWinners = () => {
+      const byRoot = new Map<PlayerId, QuizWin>();
+      for (const w of this.kv.get<FrozenQuiz[]>(QUIZ_KEY) ?? []) {
+        const { id, name } = root(w.id);
+        byRoot.set(id, { id, name, score: w.score });
+      }
+      return [...byRoot.values()];
+    };
     const views: { [S in FinaleStage]: () => GuestFinale } = {
       off: () => ({ stage: "off" }),
       suspense: () => ({ stage: "suspense" }),
       photo: () => ({ stage: "photo", photo: won }),
-      quiz: () => ({
-        stage: "quiz",
-        photo: won,
-        quiz: (this.kv.get<FrozenQuiz[]>(QUIZ_KEY) ?? []).map((w) => ({ ...w, name: name(w.id) })),
-      }),
+      quiz: () => ({ stage: "quiz", photo: won, quiz: quizWinners() }),
     };
     return views[this.stage()]();
   }
