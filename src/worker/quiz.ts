@@ -328,7 +328,7 @@ function view({ stage, unlockedAt, questions, rounds, answers, roster, online, n
     played,
     next: upcoming?.id ?? null,
     board: rows,
-    winners: stage.phase === "ended" ? rows.filter((r) => r.rank === 1).map((r) => r.id) : [],
+    winners: stage.phase === "ended" ? rows.filter((r) => r.rank === 1 && r.score > 0).map((r) => r.id) : [],
   };
 
   if (!("round" in stage)) {
