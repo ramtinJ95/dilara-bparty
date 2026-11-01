@@ -45,7 +45,21 @@ describe("upload progress", () => {
 
   it("still shows a change of phase at an unchanged percent", () => {
     const waiting: Progress = { phase: "waiting", retryAt: null };
-    const states = feed([sending(0), { preview: "blob:a", progress: waiting }, sending(0), { preview: "blob:a", progress: { phase: "stuck" } }]);
-    expect(states.map((s) => s.progress.phase)).toEqual(["sending", "waiting", "sending", "stuck"]);
+    const done: Progress = { phase: "done", id: uploaded };
+    const states = feed([
+      sending(0),
+      { preview: "blob:a", progress: waiting },
+      sending(0),
+      { preview: "blob:a", progress: { phase: "stuck" } },
+      sending(0),
+      sending(1_000),
+      { preview: "blob:a", progress: done },
+    ]);
+    expect(states.map((s) => s.progress.phase)).toEqual(["sending", "waiting", "sending", "stuck", "sending", "sending", "done"]);
+  });
+
+  it("shows a new photo's preview at an unchanged percent", () => {
+    const states = feed([sending(0), { ...sending(0), preview: "blob:b" }]);
+    expect(states.map((s) => s.preview)).toEqual(["blob:a", "blob:b"]);
   });
 });
