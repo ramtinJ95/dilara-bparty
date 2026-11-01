@@ -121,12 +121,11 @@ const unlock: Step = {
 
 // A phone holds its answer until the server confirms it, so a line that drops at once still ends with the pick kept.
 type Drop = "after delivery" | "at once";
-const DELIVERED_MS = 2_000;
 
-// "at once" taps here and cuts the line straight away, before the server's confirmation can arrive.
+// "at once" taps here and cuts the line before the server's confirmation can arrive.
+// "after delivery" comes from answer(), which already waited for “Svar skickat!”, the server's confirmation.
 async function dropAfterAnswer(r: Rehearsal, g: Guest, option: string, drop: Drop): Promise<void> {
   if (drop === "at once") await g.page.locator(".choice", { hasText: option }).click();
-  else await g.page.waitForTimeout(DELIVERED_MS);
   await g.line.cut("clean");
   await r.check(`${g.name} shows “Återansluter…” after dropping ${drop}`, () => expect(reconnecting(g.page)).toBeVisible({ timeout: SEE_TIMEOUT }), g.page);
   await g.page.waitForTimeout(AWAY_MS);
