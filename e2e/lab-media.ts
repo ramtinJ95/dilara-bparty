@@ -56,7 +56,7 @@ async function clip(browser: Browser, id: string) {
   rmSync(tmp, { recursive: true, force: true });
   const inputs = parts.flatMap((p) => ["-ss", p.skip, "-t", "6", "-i", p.file]);
   const pads = parts.map((_, i) => `[${i}:v]setpts=PTS-STARTPTS,pad=iw+${i < parts.length - 1 ? 16 : 0}:ih:0:0:color=white[v${i}]`).join(";");
-  const stack = `${parts.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${parts.length}:shortest=1,fps=10,scale=780:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4`;
+  const stack = `${parts.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${parts.length}:shortest=1,fps=8,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`;
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...inputs, "-filter_complex", `${pads};${stack}`, `${out}/${id}.gif`]);
 }
 
