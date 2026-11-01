@@ -82,6 +82,19 @@ test("the lab switcher keeps the screen and puts the direction in the URL", asyn
   await expect(page).toHaveURL(/\/lab\/luxe\/quiz$/);
 });
 
+test("back and forward in the lab move the screen with the URL", async ({ page }) => {
+  const shown = () => page.locator("iframe").evaluate((f: HTMLIFrameElement) => f.contentWindow?.location.pathname);
+  await page.goto("/lab/aurora/quiz");
+  await page.getByRole("button", { name: "Next direction" }).click();
+  await expect.poll(shown).toBe("/lab/pearl/quiz");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lab\/aurora\/quiz$/);
+  await expect.poll(shown).toBe("/lab/aurora/quiz");
+  await page.goForward();
+  await expect(page).toHaveURL(/\/lab\/pearl\/quiz$/);
+  await expect.poll(shown).toBe("/lab/pearl/quiz");
+});
+
 test("the lab replays a screen without reloading it", async ({ page }) => {
   await page.goto("/lab/clay/finale");
   const frame = page.frames()[1]!;

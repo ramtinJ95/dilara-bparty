@@ -120,7 +120,7 @@ function AllFive({ meta, go }: { meta: DirectionMeta; go: (path: string) => void
         {SCREENS.map((s) => (
           <figure key={s.id} style={{ width: `${PHONE.w * scale}px` }}>
             <div class="lab-phone-box" style={{ height: `${PHONE.h * scale}px` }}>
-              <iframe src={frameSrc(meta, s.id)} title={`${meta.name}: ${s.title}`} width={PHONE.w} height={PHONE.h} />
+              <iframe key={frameSrc(meta, s.id)} src={frameSrc(meta, s.id)} title={`${meta.name}: ${s.title}`} width={PHONE.w} height={PHONE.h} />
             </div>
             <figcaption>
               <button type="button" onClick={() => go(pathOf(meta, s.id))}>
@@ -142,7 +142,7 @@ function OneScreen({ meta, screen, narrow, go }: { meta: DirectionMeta; screen: 
   if (narrow)
     return (
       <main class="lab-narrow">
-        <iframe src={frameSrc(meta, screen)} title={title} />
+        <iframe key={frameSrc(meta, screen)} src={frameSrc(meta, screen)} title={title} />
         <nav class="lab-steps" aria-label="Screens">
           <button type="button" onClick={() => move(-1)} aria-label="Previous screen">
             ‹
@@ -168,7 +168,7 @@ function OneScreen({ meta, screen, narrow, go }: { meta: DirectionMeta; screen: 
         ‹
       </button>
       <div class="lab-phone-box" style={{ width: `${PHONE.w * scale}px`, height: `${PHONE.h * scale}px` }}>
-        <iframe src={frameSrc(meta, screen)} title={title} width={PHONE.w} height={PHONE.h} />
+        <iframe key={frameSrc(meta, screen)} src={frameSrc(meta, screen)} title={title} width={PHONE.w} height={PHONE.h} />
       </div>
       <button type="button" class="lab-side" onClick={() => move(1)} aria-label="Next screen">
         ›
