@@ -58,19 +58,21 @@ async function clip(browser: Browser, id: string) {
     Object.entries(scripts).map(async ([screen, script]) => {
       const dir = `${tmp}/${screen}`;
       const context = await browser.newContext({ viewport: phone, isMobile: true, hasTouch: true, recordVideo: { dir, size: phone } });
+      const start = Date.now();
       const page = await context.newPage();
       await page.goto(`${base}/lab/${id}/${screen}`, { timeout: 60_000 });
       await rendered(page);
+      const skip = Math.max(0, (Date.now() - start) / 1000 - 0.1).toFixed(2);
       await script(page);
       await context.close();
       const [file] = readdirSync(dir);
       if (!file) throw new Error(`no video for ${id}/${screen}`);
       renameSync(`${dir}/${file}`, `${out}/${id}-${screen}.webm`);
-      return `${out}/${id}-${screen}.webm`;
+      return { file: `${out}/${id}-${screen}.webm`, skip };
     }),
   );
   rmSync(tmp, { recursive: true, force: true });
-  const inputs = parts.flatMap((p) => ["-ss", "0.6", "-t", "6", "-i", p]);
+  const inputs = parts.flatMap((p) => ["-ss", p.skip, "-t", "6", "-i", p.file]);
   const pads = parts.map((_, i) => `[${i}:v]setpts=PTS-STARTPTS,pad=iw+${i < parts.length - 1 ? 16 : 0}:ih:0:0:color=white[v${i}]`).join(";");
   const stack = `${parts.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${parts.length}:shortest=1,fps=12,scale=1200:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4`;
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...inputs, "-filter_complex", `${pads};${stack}`, `${out}/${id}.gif`]);
