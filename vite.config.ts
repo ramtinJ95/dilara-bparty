@@ -1,7 +1,7 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { defineConfig } from "vite";
 
-const viteDevPaths = ["!/@*", "!/src/*", "!/node_modules/*"];
+const viteDevPaths = ["!/@*", "!/src/*", "!/node_modules/*", "!/.vite/*"];
 
 export default defineConfig(({ command, isPreview }) => ({
   plugins: [
