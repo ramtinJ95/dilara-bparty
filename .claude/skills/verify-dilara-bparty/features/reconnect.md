@@ -6,7 +6,7 @@ Guests are on mobile data. Every phone keeps a WebSocket to the party, reconnect
 
 - `net-slow` joins and follows live changes on `slow-4g` and `bad-3g` (400 ms, 400 kbps).
 - `net-drop-clean` shows `Återansluter…`, then reconnects within about a second once the network is back, as when Chrome closes sockets on a network change.
-- `net-drop-silent` recovers from a socket that goes quiet without closing, as in a tunnel. Only the 40 s heartbeat notices, so recovery takes up to about 40 s.
+- `net-drop-silent` recovers from a socket that goes quiet without closing, as in a tunnel. Only the phone notices: after 11 s without the server's tick with the fast heartbeat on, 70 s otherwise, or 5 s after the guest returns to the page or acts. The admin view keeps showing the phone online until its connection fails.
 - `net-freeze` catches up after a background tab is frozen and resumed, with or without losing its socket.
 - `net-admin` shows a cleanly dropped or locked phone as offline, and online again after it returns.
 

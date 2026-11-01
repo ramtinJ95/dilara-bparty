@@ -55,7 +55,7 @@ Network facts to know before you write a network journey. They were measured in 
 - CDP network emulation slows HTTP but not WebSocket frames. `shapeNetwork` adds the latency to the party socket itself.
 - `setOffline` does not close an open WebSocket. Only `Line.cut` ends the live connection.
 - A frozen page keeps its socket, so the server still counts it online.
-- A silent outage (`cut("silent")`) is noticed only by the phone's 40 s heartbeat. Expect up to about 40 s before the phone catches up.
+- A silent outage (`cut("silent")`) is noticed only by the phone: after 11 s without a tick while the fast heartbeat is on (the quiz), after 70 s otherwise. Turn the fast heartbeat on in the admin header to test quiz-time recovery.
 
 For checks that must run on every PR, add a test to `e2e/network.spec.ts` or `e2e/smoke.spec.ts` instead of a journey. `.nexus/check` runs both through `npm run test:e2e`.
 

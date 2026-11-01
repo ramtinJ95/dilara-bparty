@@ -1,12 +1,12 @@
 import { expect } from "@playwright/test";
-import { greeting, guestsHere, joinByCode, joinByLink, onlineDot, reconnecting, renameFromAdmin } from "../../drive.ts";
+import { greeting, guestsHere, joinByCode, joinByLink, onlineDot, reconnecting, renameFromAdmin, setFastHeartbeat } from "../../drive.ts";
 import type { Outage } from "../../phone-network.ts";
 import type { Guest, Rehearsal, Step } from "../rehearsal.ts";
 
 const JOIN_TIMEOUT = 30_000;
 const CATCH_UP_TIMEOUT = 20_000;
-// A silent outage is noticed only by the phone's heartbeat, which gives up after 40 s without a word from the server.
-const SILENT_CATCH_UP_TIMEOUT = 60_000;
+// The drop step runs with the fast heartbeat, as during the quiz: a phone gives up after 11 s without the server's 4 s tick.
+const SILENT_CATCH_UP_TIMEOUT = 30_000;
 const AWAY_MS = 5_000;
 
 const adminCount = (r: Rehearsal) => r.admin.locator("#players-title");
@@ -107,8 +107,9 @@ const lock: Step = {
 
 const drop: Step = {
   id: "drop",
-  title: "Flaky phones lose the network, cleanly or silently, and come back",
+  title: "Flaky phones lose the network, cleanly or silently, and come back, with the fast heartbeat on",
   async run(r) {
+    await r.check("admin turns the fast heartbeat on", () => setFastHeartbeat(r.admin, true), r.admin);
     const droppers = r.guests.filter((g) => g.profile === "flaky").map((g, i) => ({ g, outage: (i % 2 === 0 ? "clean" : "silent") as Outage }));
     const clean = droppers.filter((d) => d.outage === "clean").map((d) => d.g);
     const silent = droppers.filter((d) => d.outage === "silent").map((d) => d.g);
@@ -126,6 +127,7 @@ const drop: Step = {
       }),
     );
     await everyoneCurrent(r);
+    await r.check("admin turns the fast heartbeat off", () => setFastHeartbeat(r.admin, false), r.admin);
   },
 };
 

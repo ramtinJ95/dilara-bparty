@@ -94,8 +94,10 @@ export async function shapeNetwork(context: BrowserContext, page: Page, name: Pr
     async cut(outage) {
       for (const link of links) {
         link.dead = true;
-        if (outage === "clean") await Promise.all([link.page.close({ code: 1006 }), link.server.close({ code: 1000 })]);
-        else silenced.push(link);
+        if (outage === "clean") {
+          await link.server.close({ code: 1000 });
+          await link.page.close({ code: 1006 });
+        } else silenced.push(link);
       }
       links.clear();
       await context.setOffline(true);
