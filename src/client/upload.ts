@@ -122,14 +122,14 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
     retryTimer = setTimeout(retryNow, plan.delayMs);
   }
 
-  // The phone may have gone offline during the backoff; a try then would only use up an attempt.
+  // A try while the phone is offline would only use up an attempt, whether the backoff ended or the page came back to the foreground.
   function retryNow() {
     if (navigator.onLine) return send();
     onPhase({ phase: "waiting", retryAt: null });
   }
 
   // The network may be back: an online event, the page coming to the foreground, or the live socket reconnecting.
-  const resume = () => waiting && send();
+  const resume = () => waiting && retryNow();
   const onVisibility = () => document.visibilityState === "visible" && resume();
 
   function stop() {

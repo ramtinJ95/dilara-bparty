@@ -186,7 +186,6 @@ describe("startUpload", () => {
   });
 
   it("retries at once when the page comes back to the foreground or the live socket reconnects", () => {
-    net.onLine = false;
     FakeXhr.latest().onerror!();
     doc.visibilityState = "hidden";
     fire("visibilitychange");
@@ -199,6 +198,25 @@ describe("startUpload", () => {
     expect(FakeXhr.all).toHaveLength(3);
     upload.resume();
     expect(FakeXhr.all, "resume while sending does not restart").toHaveLength(3);
+  });
+
+  it("does not use up tries when the page comes back to the foreground while still offline", () => {
+    net.onLine = false;
+    FakeXhr.latest().onerror!();
+    for (let i = 0; i < MAX_ATTEMPTS + 2; i++) {
+      doc.visibilityState = "hidden";
+      fire("visibilitychange");
+      doc.visibilityState = "visible";
+      fire("visibilitychange");
+      upload.resume();
+    }
+    expect(FakeXhr.all, "no request while offline").toHaveLength(1);
+    expect(last()).toEqual({ phase: "waiting", retryAt: null });
+    net.onLine = true;
+    fire("online");
+    expect(FakeXhr.all).toHaveLength(2);
+    FakeXhr.latest().respond(200, { id: ID });
+    expect(last()).toEqual({ phase: "done", id: ID });
   });
 
   it("retries at once when the phone comes back online", () => {
