@@ -1,5 +1,6 @@
 import { CONTEST_UPLOAD_PATH, UPLOAD_FIELDS } from "../shared/api";
 import { parsePhotoId, type PhotoId, type UploadKey } from "../shared/model";
+import { backoffMs } from "./live";
 import type { Prepared } from "./photo-prep";
 
 export type UploadPhase =
@@ -99,7 +100,7 @@ export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) =>
 
   function retryLater() {
     drop();
-    const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** failures++) * (0.5 + Math.random() / 2);
+    const delay = backoffMs(failures++, BACKOFF_FIRST_MS, BACKOFF_MAX_MS);
     waiting = true;
     onPhase({ phase: "waiting", retryAt: Date.now() + delay });
     retryTimer = setTimeout(send, delay);

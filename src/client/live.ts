@@ -15,6 +15,10 @@ const REPLY_WITHIN_MS = 5_000;
 const PROBE_GAP_MS = 15_000;
 
 type Handlers<S> = { onMessage: (msg: Delivered<S>) => void; onStatus: (status: LiveStatus) => void };
+
+// Jitter spreads the retries of phones that lost the same network at once.
+export const backoffMs = (failures: number, firstMs: number, maxMs: number) => Math.min(maxMs, firstMs * 2 ** failures) * (0.5 + Math.random() / 2);
+
 export type Live = { send: (data: string) => boolean; check: () => void; stop: () => void };
 
 function socketUrl(path: string): string {
@@ -106,7 +110,7 @@ export function connectLive<S>(path: string, { onMessage, onStatus }: Handlers<S
     drop();
     forgetReplies();
     clearTimeout(silenceTimer);
-    const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** failures++) * (0.5 + Math.random() / 2);
+    const delay = backoffMs(failures++, BACKOFF_FIRST_MS, BACKOFF_MAX_MS);
     enter({ kind: "waiting", retryAt: Date.now() + delay });
     retryTimer = setTimeout(open, delay);
   }
