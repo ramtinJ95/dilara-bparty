@@ -452,3 +452,111 @@ test("quiz videos", async ({ browser }) => {
     `${out}/quiz-leaderboard.gif`,
   ]);
 });
+
+async function wipeParty(admin: Page) {
+  const end = admin.locator(".party-end");
+  if (await end.getByRole("button", { name: "End the party" }).isVisible()) {
+    await end.getByRole("button", { name: "End the party" }).click();
+    await end.getByRole("button", { name: "Yes, end the party" }).click();
+  }
+  await end.getByRole("button", { name: "Wipe all data…" }).click();
+  await end.getByRole("button", { name: "Yes, wipe everything" }).click();
+  await expect(end.getByText("New guests can join.")).toBeVisible();
+}
+
+const finaleGuests = ["Astrid", "Olle", "Kim Testsson"] as const;
+
+// Astrid's and Olle's photos tie on one vote each from Kim, and Astrid and Kim guess the number exactly, so both
+// competitions end on a tie: the host picks Olle's photo, and Astrid and Kim are joint quiz winners.
+async function finaleRoom(browser: Browser, admin: Page, contextOptions: Parameters<Browser["newContext"]>[0]) {
+  await wipeParty(admin);
+  await addQuestion(admin, { kind: "number", text: "Hur många snögubbar ryms i trädgården?", answer: "42" });
+  const contexts = await Promise.all(finaleGuests.map((name) => joinViaApi(browser, name, contextOptions)));
+  const [astrid, olle, kim] = await Promise.all(contexts.map((c) => openShell(c)));
+  await uploadViaApi(contexts[0]!, astrid!, LOOKS.snow);
+  await uploadViaApi(contexts[1]!, olle!, LOOKS.rose);
+  await kim!.getByRole("button", { name: "Galleri" }).click();
+  await vote(kim!, 0, 1);
+  await vote(kim!, 1, 1);
+  await kim!.getByRole("button", { name: "Quiz" }).click();
+
+  await step(admin, "Unlock quiz");
+  await step(admin, "Start question 1");
+  await Promise.all([answer(astrid!, "42"), answer(olle!, "30"), answer(kim!, "42")]);
+  await step(admin, "Reveal answer");
+  await step(admin, "End quiz");
+  await expect(admin.getByText("Joint winners")).toBeVisible();
+  return { contexts, astrid: astrid!, olle: olle!, kim: kim! };
+}
+
+test("finale screenshots and video", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const videoDir = `${out}/video-tmp`;
+  const adminContext = await browser.newContext({ ...laptop, recordVideo: { dir: videoDir, size: laptop.viewport } });
+  const admin = await openAdmin(adminContext);
+  const { contexts, astrid, olle, kim } = await finaleRoom(browser, admin, { ...phone, recordVideo: { dir: videoDir, size: phone.viewport } });
+  const phones = [astrid, olle, kim];
+  const finaleCard = admin.locator(".finale");
+  await finaleCard.evaluate((el) => el.scrollIntoView({ block: "start" }));
+  const startedAt = Date.now();
+  await admin.waitForTimeout(1200);
+
+  await finaleCard.getByRole("button", { name: "Open suspense page" }).click();
+  await shot(admin, "40-admin-finale-confirm");
+  await finaleCard.getByRole("button", { name: "Yes, open suspense page" }).click();
+  for (const p of phones) await expect(p.getByRole("heading", { name: "Och vinnarna är…" })).toBeVisible();
+  await kim.waitForTimeout(2500);
+  await shot(kim, "41-suspense");
+  await expect(finaleCard.getByText("Tie for first")).toBeVisible();
+  await shot(admin, "42-admin-finale-tie");
+
+  await finaleCard.locator(".tie-photos li", { hasText: "Olle" }).getByRole("button", { name: "Pick as winner" }).click();
+  await expect(finaleCard.getByRole("button", { name: "Winner ✓" })).toBeVisible();
+  await admin.waitForTimeout(1000);
+  await finaleCard.getByRole("button", { name: "Reveal photo winner" }).click();
+  for (const p of phones) await expect(p.getByText("tog vinnarbilden", { exact: false })).toBeVisible();
+  await olle.waitForTimeout(2200);
+  await shot(olle, "43-reveal-photo-winner");
+  await shot(kim, "44-reveal-photo");
+  await shot(admin, "45-admin-finale-photo");
+  await admin.waitForTimeout(1500);
+
+  await finaleCard.getByRole("button", { name: "Reveal quiz winners" }).click();
+  for (const p of phones) await expect(p.getByText("Quizvinnarna")).toBeVisible();
+  await kim.waitForTimeout(2200);
+  await shot(kim, "46-reveal-quiz-joint-winner");
+  await shot(olle, "47-reveal-quiz");
+  await shot(admin, "48-admin-finale-quiz");
+  await admin.waitForTimeout(1500);
+  const finaleEnd = Date.now();
+
+  const end = admin.locator(".party-end");
+  await end.getByRole("button", { name: "End the party" }).click();
+  await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
+  await shot(admin, "49-admin-end-confirm");
+  await end.getByRole("button", { name: "Yes, end the party" }).click();
+  await end.getByRole("button", { name: "Wipe all data…" }).click();
+  await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
+  await shot(admin, "50-admin-wipe-confirm");
+  await end.getByRole("button", { name: "Yes, wipe everything" }).click();
+  for (const p of phones) await expect(p).toHaveURL(/\/$/);
+
+  const videos = [admin.video()!, ...phones.map((p) => p.video()!)];
+  const closedAt = Date.now();
+  await Promise.all([adminContext.close(), ...contexts.map((c) => c.close())]);
+  const files = ["finale-admin", ...finaleGuests.map((n) => `finale-${n.split(" ")[0]!.toLowerCase()}`)].map((n) => `${out}/${n}.webm`);
+  for (const [i, video] of videos.entries()) renameSync(await video.path(), files[i]!);
+  rmSync(videoDir, { recursive: true, force: true });
+
+  // A recording starts a moment after its page opens, and the delay differs per page, but all four end together when
+  // their contexts close, so each clip is cut back from its end. The admin is cropped to the column with the finale card.
+  const secs = (ms: number) => (ms / 1000).toFixed(2);
+  const duration = (f: string) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString()) * 1000;
+  const inputs = files.flatMap((f) => ["-ss", secs(duration(f) - (closedAt - startedAt)), "-t", secs(finaleEnd - startedAt), "-i", f]);
+  execFileSync("ffmpeg", [
+    "-y", "-loglevel", "error", ...inputs,
+    "-filter_complex",
+    `[0:v]crop=720:900:720:0,scale=-2:844[a];[1:v]pad=iw+16:ih:16:0:color=white[p1];[2:v]pad=iw+16:ih:16:0:color=white[p2];[3:v]pad=iw+16:ih:16:0:color=white[p3];[a][p1][p2][p3]hstack=inputs=4:shortest=1,${gifFilter(1400)}`,
+    `${out}/finale.gif`,
+  ]);
+});
