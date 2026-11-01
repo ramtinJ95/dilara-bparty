@@ -20,7 +20,7 @@ const FALLBACK_ERRORS: Record<number, string> = {
 };
 const GENERIC_ERROR = "Något gick fel. Försök igen.";
 
-export function newUploadKey(): UploadKey {
+function newUploadKey(): UploadKey {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") as UploadKey;
 }
@@ -42,7 +42,8 @@ function uploadedId(xhr: XMLHttpRequest): PhotoId | null {
 }
 
 /** Sends one prepared photo, retrying network trouble with the same key so the server never stores it twice. */
-export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) => void, key = newUploadKey()): Upload {
+export function startUpload(prepared: Prepared, onPhase: (phase: UploadPhase) => void): Upload {
+  const key = newUploadKey();
   const total = prepared.photo.size + prepared.thumb.size;
   let failures = 0;
   let xhr: XMLHttpRequest | null = null;

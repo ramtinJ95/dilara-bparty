@@ -15,7 +15,6 @@ import {
   type GuestState,
   type Heartbeat,
   type ServerMsg,
-  type TallyRow,
 } from "../shared/protocol";
 import type { AdminQuiz, QuizStep } from "../shared/quiz";
 import { joinCode } from "./auth";
@@ -191,10 +190,6 @@ export class Party extends DurableObject<Env> {
     this.broadcast();
     await this.schedule();
     return null;
-  }
-
-  tally(): TallyRow[] {
-    return tally(this.contest.snapshot(), this.players.roster());
   }
 
   // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.
