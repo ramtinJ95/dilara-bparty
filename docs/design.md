@@ -117,6 +117,13 @@ code and runs the admin view; it is not a shared game screen.
 - The host then opens the winners page and reveals the winners one at a time,
   each with its own press: first the winning photo with the photographer's name,
   then the quiz winner, or the joint winners if first place is tied.
+- A tie for the most photo votes shows the tied photos in the admin view, and
+  the host picks the winner before revealing it.
+- Each reveal is a short celebration on every phone at once. The winner's own
+  phone also congratulates them. A phone that reconnects during the finale
+  lands on the current step.
+- Once the suspense page is open, the quiz can't change, and each winner is
+  fixed when it is revealed.
 
 ## Admin view
 
@@ -129,4 +136,7 @@ code and runs the admin view; it is not a shared game screen.
 - Contest controls: close uploads and voting, hide photos, browse every stored
   version, download everything.
 - Landing page photo upload.
-- End the party and wipe the data, after downloading the photos.
+- End the party, which refuses new guests. A guest who is already in can still
+  get back in by name.
+- Wipe the data, photos included, once the party has ended. The confirmation
+  reminds the host to download the photos first.
