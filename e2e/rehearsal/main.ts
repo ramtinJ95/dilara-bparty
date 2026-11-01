@@ -58,7 +58,8 @@ async function check(label: string, run: () => Promise<unknown>, evidence?: Page
     checks.push({ step: currentStep, label, ok: true, ms: Date.now() - start });
     return true;
   } catch (e) {
-    const screenshot = evidence && `failures/${String(checks.length).padStart(3, "0")}-${currentStep}.png`;
+    // Checks fail concurrently and push only after their screenshot, so number the screenshots from their own counter.
+    const screenshot = evidence && `failures/${String(++failureShots).padStart(3, "0")}-${currentStep}.png`;
     if (screenshot) await evidence.screenshot({ path: `${out}/${screenshot}` }).catch(() => {});
     checks.push({ step: currentStep, label, ok: false, ms: Date.now() - start, error: firstLine(e), ...(screenshot && { screenshot }) });
     console.log(`  ✘ ${label}: ${firstLine(e)}`);
@@ -76,6 +77,7 @@ try {
   await browser.close();
   process.exit(1);
 }
+let failureShots = 0;
 const baselineOnline = Number(/· (\d+) online/.exec((await admin.locator("#players-title").textContent()) ?? "")?.[1] ?? 0);
 if ((await adminContext.request.get("/@vite/client")).ok()) {
   notes.push("The target is a Vite dev server, which serves the client as many unbundled modules, so page loads on slow profiles take far longer than on a deployed build.");
