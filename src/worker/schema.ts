@@ -65,6 +65,7 @@ const VERSION_KEY = "schema_version";
 export function migrate(storage: DurableObjectStorage): void {
   storage.transactionSync(() => {
     const version = storage.kv.get<number>(VERSION_KEY) ?? 0;
+    if (version === migrations.length) return;
     for (const step of migrations.slice(version)) storage.sql.exec(step);
     storage.kv.put(VERSION_KEY, migrations.length);
   });
