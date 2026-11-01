@@ -1,5 +1,5 @@
 import { evictAllDurableObjects } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PhotoId, QuestionId } from "../src/shared/model";
 import type { AdminCmd, AdminState, Heartbeat } from "../src/shared/protocol";
 import { PHOTO_MAX_BYTES } from "../src/worker/photo-store";
@@ -223,14 +223,14 @@ describe("quiz flow", () => {
     const q = await start(admin);
     await elapse(10_000);
 
+    vi.useFakeTimers({ toFake: ["Date"] });
     const late = await phone("Sen gäst");
     expect((await view(late, "open")).question.id).toBe(q);
+    vi.setSystemTime(Date.now() + 2_000);
     await answer(late, q, 0, 99_999);
     await answer(astrid, q, 0, 10_000);
     await stage(admin, "closed");
-    const points = await revealPoints(admin, [astrid, late]);
-    expect(points["Astrid"]).toBe(750);
-    expect(points["Sen gäst"]).toBeGreaterThanOrEqual(990);
+    expect(await revealPoints(admin, [astrid, late])).toEqual({ Astrid: 750, "Sen gäst": 950 });
     closeAll(admin, astrid.socket, late.socket);
   });
 
@@ -398,12 +398,14 @@ describe("question photos", () => {
 describe("heartbeat", () => {
   const heartbeat = (socket: Phone["socket"] | Admin, want: Heartbeat) => socket.next((m) => m.t === "state" && m.heartbeat === want);
 
-  it("switches phones to fast ticks when the quiz unlocks, and back when it ends or is reset", { timeout: 15_000 }, async () => {
+  it("switches phones to fast ticks when the quiz unlocks, and back when it ends or is reset", async () => {
     const admin = await host(choice());
     const guest = await phone("Astrid");
     await step(admin, "unlock", "lobby");
     await heartbeat(guest.socket, "fast");
+    expect(await alarmAt()).toBeLessThanOrEqual(Date.now() + 4_000);
     const ticks = guest.socket.ticks;
+    await fireAlarm();
     await expect.poll(() => guest.socket.ticks, { timeout: 5_000 }).toBeGreaterThan(ticks);
 
     await step(admin, "end", "ended");

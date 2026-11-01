@@ -1,4 +1,7 @@
 import { reset } from "cloudflare:test";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 
-afterEach(() => reset());
+afterEach(() => {
+  vi.useRealTimers();
+  return reset();
+});

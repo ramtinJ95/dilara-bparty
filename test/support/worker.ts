@@ -62,7 +62,7 @@ export class TestSocket<S> {
     });
   }
 
-  async next(accept: (msg: ServerMsg<S>) => boolean = () => true, waitMs = 2000): Promise<ServerMsg<S>> {
+  async next(accept: (msg: ServerMsg<S>) => boolean = () => true, waitMs = 10_000): Promise<ServerMsg<S>> {
     const deadline = performance.now() + waitMs;
     for (;;) {
       const i = this.inbox.findIndex(accept);

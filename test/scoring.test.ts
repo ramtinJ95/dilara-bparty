@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AdminState } from "../src/shared/protocol";
 import { answer, answerCmd, choice, closeAll, host, number, phone, phones, refused, revealPoints, stage, start, step, view, type Admin, type Phone } from "./support/quiz";
 import { elapse, fireAlarm, joinedCookie } from "./support/worker";
@@ -47,13 +47,13 @@ describe("multiple choice points", () => {
   it("clamps a negative time to 0 and an over-reported time to the time since the phone got the question", async () => {
     const { admin, players } = await quiz(["Astrid", "Olle"], choice());
     const [astrid, olle] = players as [Phone, Phone];
+    vi.useFakeTimers({ toFake: ["Date"] });
     await round(admin, async (q) => {
+      vi.setSystemTime(Date.now() + 2_000);
       await answer(astrid, q, 0, -500);
       await answer(olle, q, 0, 99_999);
     });
-    const points = await revealPoints(admin, players);
-    expect(points["Astrid"]).toBe(1000);
-    expect(points["Olle"]).toBeGreaterThanOrEqual(990);
+    expect(await revealPoints(admin, players)).toEqual({ Astrid: 1000, Olle: 950 });
     done(admin, players);
   });
 
