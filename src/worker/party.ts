@@ -97,6 +97,8 @@ const guestCommands: GuestHandlers = {
 
 export type ContestUpload = UploadResult | { status: "no-player" };
 
+export type GuestEntry = { joined: true } | { joined: false; landingPhoto: PhotoId | null };
+
 function send<S>(ws: WebSocket, msg: ServerMsg<S>): void {
   ws.send(JSON.stringify(msg));
 }
@@ -129,11 +131,12 @@ export class Party extends DurableObject<Env> {
     return result;
   }
 
-  playerExists(id: PlayerId): boolean {
-    return this.players.resolve(id) !== undefined;
+  guestEntry(id: PlayerId | null): GuestEntry {
+    if (id && this.players.resolve(id) !== undefined) return { joined: true };
+    return { joined: false, landingPhoto: this.landingPhoto() };
   }
 
-  landingPhoto(settings: Settings = readSettings(this.ctx.storage.sql)): PhotoId | null {
+  private landingPhoto(settings: Settings = readSettings(this.ctx.storage.sql)): PhotoId | null {
     return (settings.get(LANDING_PHOTO) as PhotoId | undefined) ?? null;
   }
 

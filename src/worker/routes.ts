@@ -24,8 +24,11 @@ const joinSecretMatches = (ctx: Ctx, given: unknown) => typeof given === "string
 
 type Page = "neutral" | "guest" | "admin";
 
-async function entry({ req, env }: Ctx, name: Page, landingPhoto?: PhotoId | null): Promise<Response> {
-  const asset = await env.ASSETS.fetch(new URL(`/${name}.html`, req.url));
+const page = ({ req, env }: Ctx, name: Page) => env.ASSETS.fetch(new URL(`/${name}.html`, req.url));
+
+const entry = async (ctx: Ctx, name: Page) => pageResponse(await page(ctx, name));
+
+function pageResponse(asset: Response, landingPhoto?: PhotoId | null): Response {
   const res = new Response(asset.body, asset);
   res.headers.set("Cache-Control", "no-store");
   if (!landingPhoto) return res;
@@ -121,8 +124,10 @@ export const routes: Route[] = [
   route("GET", "/j/:secret", async (ctx) => {
     if (!joinSecretMatches(ctx, ctx.params.secret)) return notFound();
     const id = await guest(ctx);
-    if (id && (await party(ctx.env).playerExists(id))) return redirect("/app");
-    return entry(ctx, "guest", await party(ctx.env).landingPhoto());
+    const [asset, entered] = await Promise.all([page(ctx, "guest"), party(ctx.env).guestEntry(id)]);
+    if (!entered.joined) return pageResponse(asset, entered.landingPhoto);
+    await asset.body?.cancel();
+    return redirect("/app");
   }),
 
   route("GET", "/j/:secret/photos/:id", async (ctx) => {
