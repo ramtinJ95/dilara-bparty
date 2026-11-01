@@ -1,7 +1,7 @@
 import { env, evictAllDurableObjects, reset, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdminState, Heartbeat } from "../src/shared/protocol";
-import { call, connectAdmin, connectGuest, JOIN_SECRET, joinedCookie, ORIGIN, whoAmI, type TestSocket } from "./support/worker";
+import { alarmAt, call, connectAdmin, connectGuest, fireAlarm, JOIN_SECRET, joinedCookie, ORIGIN, whoAmI, type TestSocket } from "./support/worker";
 
 const player = (state: AdminState, name: string) => state.players.find((p) => p.name === name);
 
@@ -168,17 +168,22 @@ describe("tick", () => {
 
   const runAlarm = () => runDurableObjectAlarm(env.PARTY.getByName("party"));
 
-  it("ticks every 30 s outside the quiz and every 4 s once live mode is on", { timeout: 25_000 }, async () => {
+  it("ticks every 30 s outside the quiz and every 4 s once live mode is on", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = Date.now();
     const guest = await connectGuest(await joinedCookie("Tick"));
     await guest.state();
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    expect(guest.ticks, "no tick within 5 s in slow mode").toBe(0);
+    expect(await alarmAt(), "slow mode ticks 30 s out").toBe(now + 30_000);
 
     const admin = await connectAdmin();
     admin.send({ t: "liveMode", on: true });
     await heartbeat(guest, "fast");
-    // Real alarms run late on a loaded runner; 12 s still tells a 4 s tick from a 30 s one.
-    await expect.poll(() => guest.ticks, { timeout: 12_000 }).toBeGreaterThan(0);
+    expect(await alarmAt(), "live mode ticks 4 s out").toBe(now + 4_000);
+
+    expect(guest.ticks).toBe(0);
+    expect(await fireAlarm()).toBe(true);
+    await expect.poll(() => guest.ticks).toBe(1);
+    expect(await alarmAt(), "and rearms 4 s out after it fires").toBe(now + 4_000);
     guest.close();
     admin.close();
   });
