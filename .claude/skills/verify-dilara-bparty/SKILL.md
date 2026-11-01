@@ -42,8 +42,8 @@ It checks the following: the neutral page answers with `X-Robots-Tag: noindex`, 
 The harness is Playwright as a library, run with `node` (Node 22.18 or later strips the types). Use these building blocks instead of writing your own:
 
 - `scripts/verify.ts` exports `openVerify(baseUrl, evidenceDir)`. It returns `phone(profile?)` at 390x844, `laptop()` at 1440x900, `evidence(page, name)` and `close()`. It launches Debian's `/usr/bin/chromium` when Playwright's own Chromium is missing, as on the pylon.
-- `e2e/drive.ts` has the stable handles: `openAdmin`, `joinByLink`, `joinByCode`, `renameFromAdmin`, `greeting`, `onlineDot`, `adminRow`, `reconnecting`, `guestsHere`, `setFastHeartbeat(admin, on)`, and for the quiz `addQuestion`, `fillQuestion`, `answer` and `unlockPopup`.
-- `e2e/placeholder.ts` draws placeholder photos: `placeholder(page, LOOKS.snow)` returns a PNG buffer, and `pngFile(name, buffer)` wraps it for `setInputFiles`.
+- `e2e/drive.ts` has the stable handles: `openAdmin`, `joinByLink`, `joinByCode`, `renameFromAdmin`, `greeting`, `onlineDot`, `adminRow`, `versionsOf` (an entrant's rows in the admin's `Every version`), `reconnecting`, `guestsHere`, `setFastHeartbeat(admin, on)`, and for the quiz `addQuestion`, `fillQuestion`, `answer` and `unlockPopup`.
+- `e2e/placeholder.ts` draws placeholder photos: `placeholder(page, LOOKS.snow)` returns a PNG buffer, and `pngFile(name, buffer)` wraps it for `setInputFiles`. `noise(page)` draws random pixels that shrink to about 400 KB, for an upload that takes a while on a slow line.
 - `e2e/phone-network.ts` puts a phone on a network profile: `good`, `slow-4g`, `bad-3g` (400 ms, 400 kbps) or `flaky`. The returned `Line` can `cut("clean" | "silent")`, `restore()`, and, on Chromium, `lifecycle.freeze()` and `resume()`.
 
 A journey is a short script in `scripts/journeys/`. `join-by-link.ts` is the reference one. `quiz-finale.ts` plays a whole party on three phones, from the photo tie through the wipe. `heartbeat.ts` times silent-drop recovery with the fast heartbeat on and off. `admin-tools.ts` covers the landing photo, the photo route, rename, merge and reclaim. Copy one for a new journey:

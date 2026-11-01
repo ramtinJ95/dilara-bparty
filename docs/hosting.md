@@ -129,7 +129,7 @@ for 8 hours, the quiz open for 1 hour, every message counted in full.
 | WebSocket connects: 50 per socket | 26 × 50 | 1,300 |
 | Page loads that ask the Durable Object (`/j/…`; `/app` doesn't): 20 per phone | 25 × 20 | 500 |
 | Joins, with retries | 50 | 50 |
-| Contest uploads: 10 per phone | 250 | 250 |
+| Contest uploads: 10 per phone, each at most 4 automatic tries | 25 × 10 × 4 | 1,000 |
 | Photo views (`/photos/…`), cached on the phone: 100 per phone | 2,500 | 2,500 |
 | Votes and vote moves: 20 per phone | 500 | 500 |
 | Quiz answers: 20 questions | 25 × 20 | 500 |
@@ -137,10 +137,10 @@ for 8 hours, the quiz open for 1 hour, every message counted in full.
 | Question closes, from the shared alarm | 20 | 20 |
 | Quiz and finale steps, question edits by the host | 200 | 200 |
 | Other admin commands and photo uploads | 300 | 300 |
-| **Total** | | **12,460** |
+| **Total** | | **13,210** |
 
 That is well under half of 30,000, our own cap. A quiz that is never ended
-costs 5,460 more alarms, for 17,920. The ticks don't grow with the number of phones,
+costs 5,460 more alarms, for 18,670. The ticks don't grow with the number of phones,
 so more guests cost only their checks, connects and actions. Each alarm also
 writes one SQLite row, under 2,000 of the 100,000 rows a day.
 
@@ -152,6 +152,12 @@ Photos fit in the same allowances. Twenty guests uploading a few 300 KB photos
 each, plus thumbnails and every replaced version, is under 100 MB of the 5 GB,
 one row written per upload, and one row read per photo shown, which phone
 caching keeps low.
+
+A stalled or failed upload retries with the same key, so the server stores it
+once. The phone retries on a backoff timer while it is online, and only on an
+`online` event, the page coming back to the foreground or the live socket
+reconnecting while it is offline, so it never polls. After 4 tries it stops
+until the guest taps `Försök igen`.
 
 Unknown: the docs don't state a maximum number of WebSockets per Durable
 Object. Twenty is far below anything that should matter, but test with real
