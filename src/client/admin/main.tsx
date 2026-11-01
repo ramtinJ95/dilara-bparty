@@ -7,6 +7,7 @@ import { useLive } from "../live";
 import "../theme.css";
 import "./admin.css";
 import { Contest } from "./contest";
+import { FinaleControls, PartyEnd } from "./finale";
 import { LandingPhoto } from "./landing-photo";
 import { Players } from "./players";
 import { Qr } from "./qr";
@@ -49,12 +50,14 @@ function Admin() {
             <p class="url muted">{joinUrl}</p>
           </section>
           <div class="side">
-            <QuizControls quiz={state.quiz} deadline={deadline} send={sendCmd} live={live} />
+            <QuizControls quiz={state.quiz} deadline={deadline} send={sendCmd} live={live} frozen={state.finale.stage !== "off"} />
+            <FinaleControls finale={state.finale} quiz={state.quiz} tally={state.contest.tally} send={sendCmd} live={live} />
             <Players players={state.players} send={sendCmd} live={live} />
           </div>
           <Questions questions={state.quiz.questions} played={state.quiz.played} send={sendCmd} live={live} />
           <LandingPhoto photo={state.landingPhoto} />
           <Contest contest={state.contest} send={sendCmd} live={live} />
+          <PartyEnd joins={state.finale.joins} entrants={state.contest.entrants} send={sendCmd} live={live} />
         </div>
       )}
     </div>

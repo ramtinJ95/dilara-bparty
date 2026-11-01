@@ -37,14 +37,14 @@ const CONFIRM: Partial<Record<QuizStep, (quiz: AdminQuiz) => string | null>> = {
 
 const fmt = (n: number) => n.toLocaleString("en-GB");
 
-type Props = { quiz: AdminQuiz; deadline: number | null; send: (cmd: AdminCmd) => void; live: boolean };
+type Props = { quiz: AdminQuiz; deadline: number | null; send: (cmd: AdminCmd) => void; live: boolean; frozen: boolean };
 
-export function QuizControls({ quiz, deadline, send, live }: Props) {
+export function QuizControls({ quiz, deadline, send, live, frozen }: Props) {
   const { stage } = quiz;
   const [confirm, setConfirm] = useState<{ step: QuizStep; warning: string } | null>(null);
   const current = "q" in stage ? (quiz.questions.find((q) => q.id === stage.q) ?? null) : null;
   const upNext = quiz.questions.find((q) => q.id === quiz.next) ?? null;
-  const enabled = (step: QuizStep) => live && stepAllowed(step, stage.phase) && (step !== "start" || quiz.next !== null);
+  const enabled = (step: QuizStep) => live && !frozen && stepAllowed(step, stage.phase) && (step !== "start" || quiz.next !== null);
 
   function run(step: QuizStep) {
     const warning = CONFIRM[step]?.(quiz);

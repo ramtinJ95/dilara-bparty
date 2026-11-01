@@ -84,7 +84,7 @@ function Versions({ entrants, send, live, view }: { entrants: AdminEntrant[]; se
   );
 }
 
-function DownloadAll({ entrants }: { entrants: AdminEntrant[] }) {
+export function DownloadAll({ entrants }: { entrants: AdminEntrant[] }) {
   const [state, setState] = useState<Download>({ kind: "idle" });
   const files = archiveFiles(entrants);
 

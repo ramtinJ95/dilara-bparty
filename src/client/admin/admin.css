@@ -185,3 +185,27 @@ h2 .muted { font-weight: 500; font-size: 15px; }
 @media (max-width: 900px) {
   .contest-body { grid-template-columns: 1fr; }
 }
+
+.finale { padding: 20px 22px; display: grid; gap: 14px; }
+.finale h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.phase.suspense, .phase.photo, .phase.quiz { background: var(--ice-100); color: var(--ice-800); }
+.finale-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; counter-reset: finale; }
+.finale-steps li { counter-increment: finale; color: #8193a6; font-weight: 600; }
+.finale-steps li::before { content: counter(finale) ". "; }
+.finale-steps li.next { color: var(--ice-800); }
+.finale-steps li.done { color: #1b6e3a; }
+.finale-steps li.done::before { content: "✓ "; }
+.finale-next { justify-self: start; min-width: 240px; }
+.tie h3 { margin: 0 0 10px; font-size: 16px; }
+.tie-photos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.tie-photos .btn { white-space: nowrap; }
+.tie-photos li { display: grid; gap: 8px; padding: 8px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--silver) inset; }
+.tie-photos li.picked { box-shadow: 0 0 0 3px var(--ice-500) inset; }
+.tie-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+.tie-photos .name { font-weight: 650; }
+.revealed { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 0; align-items: center; }
+.revealed dt { color: #5a6f85; font-size: 14px; }
+.revealed dd { margin: 0; display: flex; align-items: center; gap: 10px; }
+.revealed img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+.party-end { grid-column: 1 / -1; padding: 20px 22px; display: grid; gap: 12px; }
+.party-end .state { margin: 0; }
