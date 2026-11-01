@@ -93,6 +93,20 @@ describe("contest upload", () => {
     expect(versionsOf(state, "Olle")).toEqual([]);
   });
 
+  it("stores one version when a stalled try that did reach the server and its retry arrive together", async () => {
+    const astrid = await guest("Astrid");
+    const key = newUploadKey();
+    const tries = await Promise.all([uploadContest(astrid.cookie, { key }), uploadContest(astrid.cookie, { key }), uploadContest(astrid.cookie, { key })]);
+    expect(tries.map((r) => r.status)).toEqual([200, 200, 200]);
+    const ids = new Set(await Promise.all(tries.map(async (r) => ((await r.json()) as { id: PhotoId }).id)));
+    expect(ids.size).toBe(1);
+
+    const [id] = ids;
+    const state = await (await admin()).state((s) => versionsOf(s, "Astrid").length > 0);
+    expect(versionsOf(state, "Astrid")).toEqual([expect.objectContaining({ id, status: "current" })]);
+    expect((await astrid.socket.state((s) => s.contest.mine?.id === id!)).contest.inFame).toBe(0);
+  });
+
   it("replaces the current photo and hides a replaced one without votes from other guests", async () => {
     const astrid = await guest("Astrid");
     const olle = await guest("Olle");

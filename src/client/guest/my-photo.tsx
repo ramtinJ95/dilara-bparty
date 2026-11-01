@@ -9,17 +9,18 @@ export const votesText = (n: number) => (n === 1 ? "1 röst" : `${n} röster`);
 const progressText: Record<Progress["phase"], string> = {
   preparing: "Gör i ordning bilden…",
   sending: "Skickar bilden…",
-  waiting: "Ingen kontakt just nu. Bilden skickas så fort nätet är tillbaka.",
+  waiting: "Anslutningen bröts. Bilden skickas igen så fort nätet är tillbaka.",
+  stuck: "Bilden kom inte fram. Du behöver inte välja den igen, tryck bara på Försök igen.",
   done: "Klart!",
 };
 
 const percent = (p: Progress) =>
   p.phase === "done" ? 100 : p.phase === "sending" && p.total > 0 ? Math.round((p.sent / p.total) * 100) : 0;
 
-function UploadingView({ upload }: { upload: Uploading }) {
+function UploadingView({ upload, retry }: { upload: Uploading; retry: () => void }) {
   const { progress } = upload;
   const pct = percent(progress);
-  const waiting = progress.phase === "waiting";
+  const waiting = progress.phase === "waiting" || progress.phase === "stuck";
   return (
     <div class="photo-stage" aria-live="polite">
       <div class={waiting ? "photo-frame waiting" : "photo-frame"}>{upload.preview ? <img src={upload.preview} alt="Din bild" /> : <Snowflake />}</div>
@@ -32,6 +33,11 @@ function UploadingView({ upload }: { upload: Uploading }) {
         {progressText[progress.phase]}
         {progress.phase === "sending" && <strong> {pct}%</strong>}
       </p>
+      {waiting && (
+        <button class={progress.phase === "stuck" ? "btn" : "btn secondary"} type="button" onClick={retry}>
+          Försök igen
+        </button>
+      )}
     </div>
   );
 }
@@ -144,7 +150,7 @@ export function MyPhotoPanel({ contest, upload, live, send }: { contest: GuestCo
           <p class="hint">Du kan byta bild när du vill.</p>
         </>
       )}
-      {view.kind === "uploading" && <UploadingView upload={view.upload} />}
+      {view.kind === "uploading" && <UploadingView upload={view.upload} retry={upload.retry} />}
       {view.kind === "uploaded" && <Uploaded mine={view.mine} live={live} open={open} send={send} />}
       {view.kind === "closed" && (
         <>

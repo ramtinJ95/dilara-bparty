@@ -1,15 +1,14 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { LOOKS, placeholder, pngFile } from "../../placeholder.ts";
+import { versionsOf } from "../../drive.ts";
 import type { Guest, Rehearsal, Step } from "../rehearsal.ts";
 
 const UPLOAD_TIMEOUT = 45_000;
 const LIVE_TIMEOUT = 20_000;
+const DROPPED = "Anslutningen bröts.";
 const looks = Object.values(LOOKS);
 
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const tallyRow = (admin: Page, name: string): Locator => admin.locator(".tally li").filter({ has: admin.locator(".name").getByText(name, { exact: true }) });
-const versionsOf = (admin: Page, name: string): Locator =>
-  admin.locator(".entrants > li").filter({ has: admin.locator("h4", { hasText: new RegExp(`^${escape(name)} ·`) }) }).locator(".versions > li");
 const votesText = (n: number) => (n === 0 ? "Inga röster än" : `Din bild har ${n === 1 ? "1 röst" : `${n} röster`}`);
 const tab = (page: Page, name: "Mitt foto" | "Galleri") => page.getByRole("button", { name, exact: true }).click();
 
@@ -50,17 +49,23 @@ const upload: Step = {
           if (outage === "before") await g.line.cut("clean");
           await g.page.locator('input[type="file"]').setInputFiles(file);
           if (outage === "before") {
-            await expect(g.page.getByText("Ingen kontakt just nu.", { exact: false })).toBeVisible({ timeout: LIVE_TIMEOUT });
+            await expect(g.page.getByText(DROPPED, { exact: false })).toBeVisible({ timeout: LIVE_TIMEOUT });
             await g.page.waitForTimeout(2_000);
             await g.line.restore();
           }
           if (outage === "mid-send") {
             await expect(g.page.getByText("Skickar bilden…", { exact: false })).toBeVisible({ timeout: LIVE_TIMEOUT });
             await g.line.cut("clean");
-            const waiting = g.page.getByText("Ingen kontakt just nu.", { exact: false });
-            const done = g.page.getByText(votesText(0));
-            await expect(waiting.or(done)).toBeVisible({ timeout: 5_000 }).catch(() => {});
-            const seen = (await done.isVisible()) ? "finished anyway: the request already in flight kept going" : (await waiting.isVisible()) ? "showed “Ingen kontakt just nu.” and waited" : "was still sending 5 s later";
+            const cutAt = Date.now();
+            const waiting = g.page.getByText(DROPPED, { exact: false });
+            const done = g.page.getByText(votesText(0)).or(g.page.getByText("Klart!"));
+            await expect(waiting.or(done)).toBeVisible({ timeout: 15_000 }).catch(() => {});
+            const after = `${((Date.now() - cutAt) / 1000).toFixed(1)} s`;
+            const seen = (await done.isVisible())
+              ? "finished anyway: the request already in flight kept going"
+              : (await waiting.isVisible())
+                ? `showed “${DROPPED}” after ${after} and waited`
+                : "was still sending 15 s later";
             r.note(`${g.name} lost the network mid-send, and the upload ${seen}.`);
             await g.line.restore();
           }

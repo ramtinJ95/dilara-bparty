@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop } from "./drive";
+import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop, versionsOf } from "./drive";
 import { shapeNetwork, type Line, type ProfileName } from "./phone-network";
+import { noise, pngFile } from "./placeholder";
 import { secrets } from "./server";
 
 const phoneSize = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
@@ -97,4 +98,67 @@ test("a phone that lost its cookie rejoins by name and keeps its identity", asyn
   await expect(greeting(page, forgetful)).toBeVisible({ timeout: 15_000 });
   await expect(adminRow(host, forgetful)).toHaveCount(1);
   await expect(onlineDot(host, forgetful)).toBeVisible();
+});
+
+const dropped = (page: Page) => page.getByText("Anslutningen bröts.", { exact: false });
+const uploaded = (page: Page) => page.getByText("Inga röster än");
+
+function countUploads(page: Page): () => number {
+  let n = 0;
+  page.on("request", (r) => void (r.method() === "POST" && new URL(r.url()).pathname === "/api/photo" && n++));
+  return () => n;
+}
+
+// Chromium's offline emulation lets a request it has started finish, so the route plays the tunnel: the first try reaches the server and
+// stores the photo, but its response never comes back and the line goes down with it.
+test("a phone that loses the network mid-upload knows within seconds and lands exactly one version once it is back", async ({ browser }) => {
+  const tunnel = tagged("Gäst Uppladdning");
+  const host = await admin(browser);
+  const { page, line } = await phone(browser, "slow-4g", tunnel);
+  const uploads = countUploads(page);
+  let reachedServer!: () => void;
+  const stored = new Promise<void>((resolve) => (reachedServer = resolve));
+  await page.route("**/api/photo", async (route) => {
+    if (uploads() > 1) return route.fallback();
+    await line.cut("clean");
+    await route.fetch();
+    reachedServer();
+  });
+
+  await page.getByRole("button", { name: "Mitt foto" }).click();
+  await page.locator('input[type="file"]').setInputFiles(pngFile("noise", await noise(page)));
+  await stored;
+  const cutAt = Date.now();
+  await expect(versionsOf(host, tunnel)).toHaveCount(1);
+  await expect(dropped(page)).toBeVisible({ timeout: 12_000 });
+  const noticedMs = Date.now() - cutAt;
+  test.info().annotations.push({ type: "stall noticed after", description: `${noticedMs} ms` });
+  await expect(page.getByAltText("Din bild"), "the shrunk photo is still on screen").toBeVisible();
+  await expect(page.getByRole("button", { name: "Försök igen" })).toBeVisible();
+
+  await page.waitForTimeout(5_000);
+  expect(uploads(), "no tries while the phone is offline").toBe(1);
+
+  await line.restore();
+  await expect(uploaded(page)).toBeVisible({ timeout: 15_000 });
+  expect(uploads(), "one retry, sent when the network came back").toBe(2);
+  await expect(versionsOf(host, tunnel), "the retry was recognised as the same upload").toHaveCount(1);
+  await expect(dropped(page)).toHaveCount(0);
+});
+
+test("a slow upload on bad 3G that keeps moving is never cut off as stalled", async ({ browser }) => {
+  const slow = tagged("Gäst Trög");
+  const host = await admin(browser);
+  const { page } = await phone(browser, "bad-3g", slow);
+  const uploads = countUploads(page);
+
+  await page.getByRole("button", { name: "Mitt foto" }).click();
+  const startedAt = Date.now();
+  await page.locator('input[type="file"]').setInputFiles(pngFile("noise", await noise(page)));
+  await expect(uploaded(page).or(dropped(page))).toBeVisible({ timeout: 60_000 });
+  test.info().annotations.push({ type: "bad 3G upload took", description: `${Date.now() - startedAt} ms` });
+  await expect(uploaded(page)).toBeVisible();
+  expect(uploads()).toBe(1);
+  expect(Date.now() - startedAt, "long enough to span several stall windows").toBeGreaterThan(16_000);
+  await expect(versionsOf(host, slow)).toHaveCount(1);
 });
