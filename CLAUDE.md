@@ -6,7 +6,7 @@ A web app for a 3-year-old's birthday party: a live quiz and a photo contest, pl
 
 TypeScript on Cloudflare Workers with static assets, one Durable Object (`Party`, SQLite storage, WebSocket Hibernation API), Vite with `@cloudflare/vite-plugin`, and Preact.
 
-- `src/worker/`: the Worker and the Durable Object. `routes.ts` is the route table. `auth.ts` signs the `pid` and `admin` cookies. `party.ts` is the Durable Object, `players.ts` and `photo-store.ts` its tables, `schema.ts` its migrations (append a step, never edit one).
+- `src/worker/`: the Worker and the Durable Object. `routes.ts` is the route table. `auth.ts` signs the `pid` and `admin` cookies. `party.ts` is the Durable Object. `players.ts`, `photo-store.ts`, `contest.ts`, `quiz.ts` and `finale.ts` hold its state, and `scoring.ts` has the pure scoring rules. `schema.ts` has its migrations (append a step, never edit one).
 - `src/shared/`: types used on both sides. `model.ts` has the branded ids and parsers. `protocol.ts` has the WebSocket messages.
 - `src/client/`: three pages, one per HTML entry (`neutral.html`, `guest.html`, `admin.html`). `live.ts` is the reconnecting WebSocket.
 - `test/`: Worker tests in the Workers runtime. `test/client/` drives `live.ts` with fake timers and a stub WebSocket. `e2e/`: the Playwright smoke and network tests, the PR media script, and the party rehearsal in `e2e/rehearsal/`.
