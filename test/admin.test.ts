@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PHOTO_MAX_BYTES } from "../src/worker/photo-store";
+import { routes } from "../src/worker/routes";
 import { ADMIN_SECRET, adminCookie, call, cookieOf, JOIN_SECRET, joinedCookie, ORIGIN, uploadLanding } from "./support/worker";
 
 const landingMeta = /<meta name="landing-photo" content="([\w-]+)">/;
@@ -22,19 +23,19 @@ describe("admin auth", () => {
     expect(page.headers.get("Content-Type")).toContain("text/html");
   });
 
-  it("refuses the admin page, APIs and socket without the admin cookie", async () => {
+  it("refuses every admin route in the route table without the admin cookie", async () => {
     const guest = await joinedCookie("Astrid");
+    const adminRoutes = routes.filter(({ pattern }) => /^\/(ws\/|api\/)?admin(\/|$)/.test(pattern.pathname) && pattern.pathname !== "/admin/:secret");
+    expect(adminRoutes.length).toBeGreaterThanOrEqual(6);
     for (const cookie of [undefined, guest, "admin=forged", `admin=${(await adminCookie()).slice(6, -1)}`]) {
-      const requests: [string, RequestInit][] = [
-        ["/admin", {}],
-        ["/api/admin/landing-photo", { method: "PUT", headers: { "Content-Type": "image/png" }, body: new Uint8Array([1]) }],
-        ["/api/admin/landing-photo", { method: "DELETE" }],
-        ["/api/admin/party", { method: "DELETE" }],
-        ["/api/admin/question-photo", { method: "PUT", headers: { "Content-Type": "image/png" }, body: new Uint8Array([1]) }],
-        ["/ws/admin", { headers: { Upgrade: "websocket", Origin: ORIGIN } }],
-      ];
-      for (const [path, init] of requests) {
-        expect((await call(path, { ...init, cookie })).status, `${init.method ?? "GET"} ${path} with ${cookie}`).toBe(404);
+      for (const { method, pattern } of adminRoutes) {
+        const init: RequestInit = pattern.pathname.startsWith("/ws/")
+          ? { headers: { Upgrade: "websocket", Origin: ORIGIN } }
+          : method === "PUT"
+            ? { headers: { "Content-Type": "image/png" }, body: new Uint8Array([1]) }
+            : {};
+        const res = await call(pattern.pathname, { ...init, method, cookie });
+        expect(res.status, `${method} ${pattern.pathname} with ${cookie}`).toBe(404);
       }
     }
   });
