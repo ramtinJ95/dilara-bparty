@@ -2,7 +2,7 @@ import { useRef, useState } from "preact/hooks";
 import type { GuestCmd, GuestContest, MyPhoto as Mine } from "../../shared/protocol";
 import { photoUrl } from "../api";
 import { CameraIcon, Snowflake, Sparkle } from "../icons";
-import type { Progress, Uploader, Uploading } from "./use-upload";
+import { percent, type Progress, type Uploader, type Uploading } from "./use-upload";
 
 export const votesText = (n: number) => (n === 1 ? "1 röst" : `${n} röster`);
 
@@ -13,9 +13,6 @@ const progressText: Record<Progress["phase"], string> = {
   stuck: "Bilden kom inte fram. Du behöver inte välja den igen, tryck bara på Försök igen.",
   done: "Klart!",
 };
-
-const percent = (p: Progress) =>
-  p.phase === "done" ? 100 : p.phase === "sending" && p.total > 0 ? Math.round((p.sent / p.total) * 100) : 0;
 
 function UploadingView({ upload, retry }: { upload: Uploading; retry: () => void }) {
   const { progress } = upload;

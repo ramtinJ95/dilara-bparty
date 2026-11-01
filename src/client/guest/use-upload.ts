@@ -15,6 +15,15 @@ export type Uploader = {
 const UNREADABLE = "Den bilden gick inte att läsa. Prova en annan.";
 const SUPERSEDED_GRACE_MS = 2_000;
 
+export const percent = (p: Progress) =>
+  p.phase === "done" ? 100 : p.phase === "sending" && p.total > 0 ? Math.round((p.sent / p.total) * 100) : 0;
+
+// Each new state re-renders the whole shell, and a slow upload can report progress more often than the shown percent moves.
+export const nextUploading = (prev: Uploading | null, next: Uploading): Uploading =>
+  prev?.preview === next.preview && prev.progress.phase === "sending" && next.progress.phase === "sending" && percent(prev.progress) === percent(next.progress)
+    ? prev
+    : next;
+
 // A retried upload can succeed after the photo was already replaced, removed or merged away, so its id may never become ours.
 // Without the socket no snapshot can show the photo, and an empty frame would invite the guest to pick it again as a second version.
 export const settleDelay = (uploaded: PhotoId, mine: PhotoId | null, live: boolean) => (!live ? null : uploaded === mine ? 0 : SUPERSEDED_GRACE_MS);
@@ -65,7 +74,7 @@ export function useUploader(mine: PhotoId | null, live: boolean): Uploader {
     const url = URL.createObjectURL(prepared.thumb);
     preview.current = url;
     upload.current = startUpload(prepared, (phase) => {
-      if (phase.phase !== "failed") return setCurrent({ preview: url, progress: phase });
+      if (phase.phase !== "failed") return setCurrent((prev) => nextUploading(prev, { preview: url, progress: phase }));
       clear();
       setError(phase.error);
     });
