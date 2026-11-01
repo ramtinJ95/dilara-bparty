@@ -16,7 +16,8 @@ const UNREADABLE = "Den bilden gick inte att läsa. Prova en annan.";
 const SUPERSEDED_GRACE_MS = 2_000;
 
 // A retried upload can succeed after the photo was already replaced, removed or merged away, so its id may never become ours.
-export const settleDelay = (uploaded: PhotoId, mine: PhotoId | null) => (uploaded === mine ? 0 : SUPERSEDED_GRACE_MS);
+// Without the socket no snapshot can show the photo, and an empty frame would invite the guest to pick it again as a second version.
+export const settleDelay = (uploaded: PhotoId, mine: PhotoId | null, live: boolean) => (!live ? null : uploaded === mine ? 0 : SUPERSEDED_GRACE_MS);
 
 /** One upload at a time, kept above the tabs so switching tab doesn't stop it. It ends once the snapshot shows the new photo. */
 export function useUploader(mine: PhotoId | null, live: boolean): Uploader {
@@ -40,11 +41,12 @@ export function useUploader(mine: PhotoId | null, live: boolean): Uploader {
   }, [live]);
   useEffect(() => {
     if (current?.progress.phase !== "done") return;
-    const wait = settleDelay(current.progress.id, mine);
+    const wait = settleDelay(current.progress.id, mine, live);
+    if (wait === null) return;
     if (wait === 0) return clear();
     const timer = setTimeout(clear, wait);
     return () => clearTimeout(timer);
-  }, [current, mine]);
+  }, [current, mine, live]);
 
   async function pick(file: File) {
     clear();
