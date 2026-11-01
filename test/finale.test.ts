@@ -150,6 +150,43 @@ describe("finale", () => {
   });
 });
 
+describe("revealed winners", () => {
+  it("keeps the revealed photo visible after the host hides it", async () => {
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    const [astrid, olle] = all as [Phone, Phone];
+    const photo = await upload(astrid);
+    await vote(olle, photo);
+    await playQuiz(admin, all);
+    admin.send({ t: "finale", step: "suspense" });
+    admin.send({ t: "finale", step: "photo" });
+    const { photo: win } = await finale(olle, "photo");
+
+    admin.send({ t: "hide", photo, hidden: true });
+    await admin.state((s) => s.contest.tally.length === 0);
+    expect((await finale(olle, "photo")).photo).toMatchObject({ photo, name: "Astrid" });
+    for (const id of [win!.photo, win!.thumb]) expect((await call(`/photos/${id}`, { cookie: olle.cookie })).status).toBe(200);
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+
+  it("shows joint winners merged after the reveal as one winner, congratulated on both phones", async () => {
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    const [astrid, olle] = all as [Phone, Phone];
+    await playQuiz(admin, all);
+    admin.send({ t: "finale", step: "suspense" });
+    admin.send({ t: "finale", step: "photo" });
+    admin.send({ t: "finale", step: "quiz" });
+    await adminAt(admin, "quiz");
+
+    admin.send({ t: "merge", from: astrid.id, into: olle.id });
+    const merged = await astrid.socket.state((s) => s.you.id === olle.id);
+    expect(merged.finale).toMatchObject({ stage: "quiz", quiz: [{ id: olle.id, name: "Olle", score: 1000 }] });
+    expect((await olle.socket.current((s) => s.finale.stage === "quiz" && s.finale.quiz.length === 1)).you.id).toBe(olle.id);
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+});
+
 describe("end of the party", () => {
   it("refuses new guests once the party has ended, but lets a guest reclaim their name", async () => {
     const admin = await host();

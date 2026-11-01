@@ -152,6 +152,7 @@ export class Party extends DurableObject<Env> {
   }
 
   guestPhoto(viewer: PlayerId, id: PhotoId): StoredPhoto | null {
+    if (this.finale.revealedPhoto(id)) return this.photos.get(id);
     const entry = this.contest.entry(id);
     if (!entry) return this.sharedPhoto(id);
     const player = this.players.resolve(viewer);
