@@ -4,6 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { chromiumLaunchOptions } from "../../../../e2e/drive.ts";
+import { serverEnv } from "../../../../e2e/server.ts";
 import { readSecrets, repoRoot } from "./verify.ts";
 
 const USAGE = `Usage: node .claude/skills/verify-dilara-bparty/scripts/instance.ts <command>
@@ -78,11 +79,10 @@ async function start(args: string[]): Promise<number> {
   }
   const log = `${instancesDir}/${port}.log`;
   const out = openSync(log, "w");
-  const env = { ...process.env, WRANGLER_SEND_METRICS: "false", CLOUDFLARE_CF_FETCH_ENABLED: "false", PARTY_EPHEMERAL_STATE: "1" };
   if (build) {
     try {
       // The build copies .dev.vars into dist/, where vite preview reads the secrets.
-      execFileSync("npx", ["vite", "build", "--logLevel", "warn"], { cwd: repoRoot, stdio: ["ignore", out, out], env });
+      execFileSync("npx", ["vite", "build", "--logLevel", "warn"], { cwd: repoRoot, stdio: ["ignore", out, out], env: serverEnv });
     } catch {
       rmSync(instanceFile(port));
       console.error(`The build failed. Log: ${log}`);
@@ -93,7 +93,7 @@ async function start(args: string[]): Promise<number> {
     cwd: repoRoot,
     detached: true,
     stdio: ["ignore", out, out],
-    env,
+    env: serverEnv,
   });
   child.unref();
   const baseUrl = `http://127.0.0.1:${port}`;

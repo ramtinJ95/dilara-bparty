@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow } from "./drive";
+import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop } from "./drive";
 import { shapeNetwork, type Line, type ProfileName } from "./phone-network";
 import { secrets } from "./server";
 
@@ -8,7 +8,7 @@ const phoneSize = { viewport: { width: 390, height: 844 }, isMobile: true, hasTo
 const tagged = (name: string) => `${name} ${Math.random().toString(36).slice(2, 5)}`;
 
 async function admin(browser: Browser): Promise<Page> {
-  const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const page = await (await browser.newContext(laptop)).newPage();
   await openAdmin(page, secrets.admin);
   return page;
 }

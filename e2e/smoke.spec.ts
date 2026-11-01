@@ -7,16 +7,10 @@ import { joinViaApi, laptop, openAdmin, openShell } from "./support";
 
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 
-async function adminPage(page: Page) {
-  await page.goto(`/admin/${secrets.admin}`);
-  await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByText("Live", { exact: true })).toBeVisible();
-}
-
 test("a guest finds the party by code, joins, and shows up live for the admin", async ({ browser }) => {
-  const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const admin = await adminContext.newPage();
-  await adminPage(admin);
+  const adminContext = await browser.newContext(laptop);
+  const admin = await openAdmin(adminContext);
+  await expect(admin).toHaveURL(/\/admin$/);
   const code = (await admin.locator(".code").textContent())!;
   await expect(admin.getByText("Nobody has joined yet.")).toBeVisible();
 
@@ -88,9 +82,9 @@ async function joinedPhone(browser: Browser, name: string): Promise<Page> {
 }
 
 test("a guest uploads a photo, another guest votes for it, and the admin sees the tally", async ({ browser }) => {
-  const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const admin = await adminContext.newPage();
-  await adminPage(admin);
+  const adminContext = await browser.newContext(laptop);
+  const admin = await openAdmin(adminContext);
+  await expect(admin).toHaveURL(/\/admin$/);
 
   const uploader = await joinedPhone(browser, "Fotogäst");
   await uploader.getByRole("button", { name: "Mitt foto" }).click();

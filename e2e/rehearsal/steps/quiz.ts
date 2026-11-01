@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { addQuestion, answer, greeting, reconnecting, unlockPopup } from "../../drive.ts";
+import { addQuestion, answer, greeting, heartbeatState, reconnecting, unlockPopup } from "../../drive.ts";
 import { LOOKS, placeholder } from "../../placeholder.ts";
 import type { Guest, Rehearsal, Step } from "../rehearsal.ts";
 
@@ -21,7 +21,6 @@ const numberGuess = (r: Rehearsal, g: Guest) => 1 + (indexOf(r, g) % 10);
 const silentInRound2 = (r: Rehearsal) => new Set(r.guests.filter((g) => g.profile === "slow-4g").slice(0, 2));
 
 const phaseOf = (r: Rehearsal) => r.admin.locator(".quiz .phase");
-const heartbeatOf = (r: Rehearsal) => r.admin.locator("header .toggle .state");
 const onQuestion = (page: Page, text: string, input: string) => Promise.all([
   expect(page.getByRole("heading", { name: text })).toBeVisible({ timeout: SEE_TIMEOUT }),
   expect(page.locator(input)).toBeVisible({ timeout: SEE_TIMEOUT }),
@@ -116,7 +115,7 @@ const unlock: Step = {
             ),
       ),
     ]);
-    await r.check("unlocking turns the fast heartbeat on", () => expect(heartbeatOf(r)).toHaveText("Fast heartbeat on"), r.admin);
+    await r.check("unlocking turns the fast heartbeat on", () => expect(heartbeatState(r.admin)).toHaveText("Fast heartbeat on"), r.admin);
   },
 };
 
@@ -285,7 +284,7 @@ const end: Step = {
       }),
     ]);
     await r.check("admin names the winner", () => expect(r.admin.locator(".winners")).toHaveText(/^(Winner|Joint winners): .+/), r.admin);
-    await r.check("ending the quiz turns the fast heartbeat off", () => expect(heartbeatOf(r)).toHaveText("Fast heartbeat off"), r.admin);
+    await r.check("ending the quiz turns the fast heartbeat off", () => expect(heartbeatState(r.admin)).toHaveText("Fast heartbeat off"), r.admin);
   },
 };
 

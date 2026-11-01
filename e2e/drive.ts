@@ -8,7 +8,14 @@ export function chromiumLaunchOptions(): LaunchOptions {
   return system ? { executablePath: system } : {};
 }
 
+export const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
+export const laptop = { viewport: { width: 1440, height: 900 } };
+
+export const redact = (text: string, { join, admin }: { join: string; admin: string }) =>
+  text.replaceAll(join, "<JOIN_SECRET>").replaceAll(admin, "<ADMIN_SECRET>");
+
 export const adminRow = (admin: Page, name: string): Locator => admin.locator(".players li").filter({ has: admin.getByText(name, { exact: true }) });
+export const heartbeatState = (admin: Page): Locator => admin.locator("header .toggle .state");
 export const onlineDot = (admin: Page, name: string): Locator => adminRow(admin, name).locator(".dot.on");
 export const greeting = (phone: Page, name: string): Locator => phone.getByRole("heading", { name: `Hej, ${name}!`, exact: true });
 export const reconnecting = (phone: Page): Locator => phone.getByRole("status").filter({ hasText: "Återansluter…" });
@@ -32,7 +39,7 @@ export async function renameFromAdmin(admin: Page, from: string, to: string): Pr
 }
 
 export async function setFastHeartbeat(admin: Page, on: boolean): Promise<void> {
-  const state = admin.locator("header .toggle .state");
+  const state = heartbeatState(admin);
   if ((await state.textContent())?.endsWith(on ? "on" : "off")) return;
   await admin.getByRole("button", { name: on ? "Turn on" : "Turn off" }).click();
   await expect(state).toHaveText(`Fast heartbeat ${on ? "on" : "off"}`);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { expect } from "@playwright/test";
-import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, setFastHeartbeat } from "../../../../../e2e/drive.ts";
+import { greeting, heartbeatState, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, setFastHeartbeat } from "../../../../../e2e/drive.ts";
 import { openVerify, readSecrets, redact, repoRoot } from "../verify.ts";
 
 const [baseUrl, out = `${repoRoot}artifacts/verify/heartbeat-${Date.now()}`] = process.argv.slice(2);
@@ -20,7 +20,7 @@ const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 try {
   const admin = await v.laptop();
   await openAdmin(admin, secrets.admin);
-  await expect(admin.locator("header .toggle .state")).toHaveText("Fast heartbeat off");
+  await expect(heartbeatState(admin)).toHaveText("Fast heartbeat off");
   const { page, line } = await v.phone("flaky");
   await joinByLink(page, secrets.join, names[0]!);
   await expect(greeting(page, names[0]!)).toBeVisible({ timeout: 15_000 });

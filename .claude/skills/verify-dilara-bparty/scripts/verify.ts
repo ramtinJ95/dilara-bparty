@@ -1,11 +1,10 @@
 import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { chromiumLaunchOptions } from "../../../../e2e/drive.ts";
+import { chromiumLaunchOptions, laptop, phone, redact } from "../../../../e2e/drive.ts";
 import { shapeNetwork, type Line, type ProfileName } from "../../../../e2e/phone-network.ts";
 
 export const repoRoot = new URL("../../../../", import.meta.url).pathname;
-export const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
-export const LAPTOP = { viewport: { width: 1440, height: 900 } };
+export { redact };
 
 export function readSecrets(): { join: string; admin: string } {
   const path = `${repoRoot}.dev.vars`;
@@ -23,20 +22,17 @@ export function readSecrets(): { join: string; admin: string } {
   return { join, admin };
 }
 
-export const redact = (text: string, { join, admin }: { join: string; admin: string }) =>
-  text.replaceAll(join, "<JOIN_SECRET>").replaceAll(admin, "<ADMIN_SECRET>");
-
 export async function openVerify(baseUrl: string, evidenceDir: string) {
   mkdirSync(evidenceDir, { recursive: true });
   const browser = await chromium.launch(chromiumLaunchOptions());
   return {
     async phone(profile?: ProfileName): Promise<{ page: Page; line: Line | null }> {
-      const context = await browser.newContext({ ...PHONE, baseURL: baseUrl });
+      const context = await browser.newContext({ ...phone, baseURL: baseUrl });
       const page = await context.newPage();
       return { page, line: profile ? await shapeNetwork(context, page, profile) : null };
     },
     async laptop(): Promise<Page> {
-      return (await browser.newContext({ ...LAPTOP, baseURL: baseUrl })).newPage();
+      return (await browser.newContext({ ...laptop, baseURL: baseUrl })).newPage();
     },
     async evidence(page: Page, name: string): Promise<void> {
       await page.screenshot({ path: `${evidenceDir}/${name}.png` });

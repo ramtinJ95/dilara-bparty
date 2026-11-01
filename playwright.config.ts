@@ -1,9 +1,8 @@
-import { chromium, defineConfig, devices } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { defineConfig, devices } from "@playwright/test";
+import { chromiumLaunchOptions } from "./e2e/drive.ts";
 
 const port = Number(process.env.E2E_PORT ?? 4317);
 const devPort = port + 1;
-const systemChromium = existsSync(chromium.executablePath()) ? undefined : ["/usr/bin/chromium", "/usr/bin/chromium-browser"].find(existsSync);
 
 export default defineConfig({
   testDir: "e2e",
@@ -13,7 +12,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     ...devices["Desktop Chrome"],
-    launchOptions: systemChromium ? { executablePath: systemChromium } : {},
+    launchOptions: chromiumLaunchOptions(),
   },
   projects: [
     { name: "smoke", testMatch: "smoke.spec.ts" },
