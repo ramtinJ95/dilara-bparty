@@ -1,6 +1,5 @@
 import { chromium, defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
-import { secrets } from "./e2e/server";
 
 const port = Number(process.env.E2E_PORT ?? 4317);
 const devPort = port + 1;
@@ -18,24 +17,16 @@ export default defineConfig({
   },
   projects: [
     { name: "smoke", testMatch: "smoke.spec.ts" },
-    { name: "network", testMatch: "network.spec.ts", dependencies: ["smoke"], fullyParallel: true },
+    // Two at a time, and after dev so its dev server is gone: each test runs several browsers, and a 4 GB pylon runs out of memory otherwise.
+    { name: "network", testMatch: "network.spec.ts", dependencies: ["smoke", "dev"], fullyParallel: true, workers: 2 },
     { name: "media", testMatch: "media.spec.ts" },
-    // test:e2e otherwise drives only a build, where Vite's dev-only paths never reach the Worker.
+    // test:e2e otherwise drives only a build, where Vite's dev-only paths never reach the Worker. dev.spec.ts starts its server.
     { name: "dev", testMatch: "dev.spec.ts", use: { baseURL: `http://127.0.0.1:${devPort}` } },
   ],
-  webServer: [
-    {
-      command: `node e2e/server.ts ${port}`,
-      url: `http://127.0.0.1:${port}/robots.txt`,
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-    {
-      command: `npx vite dev --port ${devPort} --strictPort --host 127.0.0.1`,
-      url: `http://127.0.0.1:${devPort}/robots.txt`,
-      env: { WRANGLER_SEND_METRICS: "false", CLOUDFLARE_CF_FETCH_ENABLED: "false", PARTY_EPHEMERAL_STATE: "1", JOIN_SECRET: secrets.join, ADMIN_SECRET: secrets.admin },
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-  ],
+  webServer: {
+    command: `node e2e/server.ts ${port}`,
+    url: `http://127.0.0.1:${port}/robots.txt`,
+    reuseExistingServer: false,
+    timeout: 120_000,
+  },
 });
