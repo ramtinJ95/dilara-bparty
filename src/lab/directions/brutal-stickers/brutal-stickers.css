@@ -1,0 +1,559 @@
+.d-brutal-stickers {
+  --ink: #10204a;
+  --ice: #cfeaff;
+  --ice2: #8fd0ff;
+  --silv: #b0bfce;
+  --edge: #c9d4df;
+  --pink: #ff9cc8;
+  --blush: #ffd6e8;
+  --lilac: #d9c8ff;
+  --line: 3px solid var(--ink);
+  --die: 0 0 0 6px #fff, 0 0 0 7.5px var(--edge), 7px 7px 0 7.5px var(--silv);
+  --die-sm: 0 0 0 4px #fff, 0 0 0 5.5px var(--edge), 5px 5px 0 5.5px var(--silv);
+  --holo: linear-gradient(115deg, #dff2ff 0%, #f3dcff 18%, #d2f1ff 36%, #ffe0f0 54%, #e2e7ff 72%, #d6f4ff 90%);
+  --spring: cubic-bezier(0.34, 1.8, 0.5, 1);
+  position: relative;
+  min-height: 100vh;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  font-family: "Space Grotesk Variable", system-ui, sans-serif;
+  color: var(--ink);
+  background-color: #dcefff;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.65) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.65) 1.5px, transparent 1.5px);
+  background-size: 26px 26px;
+}
+.d-brutal-stickers *,
+.d-brutal-stickers *::before,
+.d-brutal-stickers *::after { box-sizing: border-box; }
+.d-brutal-stickers p,
+.d-brutal-stickers h1,
+.d-brutal-stickers h2,
+.d-brutal-stickers ol,
+.d-brutal-stickers ul,
+.d-brutal-stickers figure { margin: 0; padding: 0; }
+.d-brutal-stickers ol,
+.d-brutal-stickers ul { list-style: none; }
+.d-brutal-stickers button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+/* A die-cut sticker: navy outline, a white margin, a thin silver cut edge, a hard silver shadow. */
+.d-brutal-stickers .bs-cut { position: relative; background: #fff; border: var(--line); border-radius: 16px; box-shadow: var(--die); }
+
+/* Art stickers: chained white drop-shadows grow a die-cut margin around any SVG silhouette. */
+.d-brutal-stickers .bs-st {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  transform: rotate(var(--r, 0deg));
+  filter: drop-shadow(2.5px 0 0 #fff) drop-shadow(-2.5px 0 0 #fff) drop-shadow(0 2.5px 0 #fff) drop-shadow(0 -2.5px 0 #fff) drop-shadow(3px 3px 0 var(--silv));
+}
+.d-brutal-stickers .bs-st svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+.d-brutal-stickers .bs-ribbon { display: inline-block; filter: drop-shadow(4px 4px 0 var(--silv)); }
+.d-brutal-stickers .bs-ribbon > span {
+  display: block;
+  padding: 3px;
+  background: var(--ink);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 13px) 50%, 100% 100%, 0 100%, 13px 50%);
+}
+.d-brutal-stickers .bs-ribbon > span > span {
+  display: block;
+  padding: 6px 26px;
+  background: var(--ice2);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%, 11px 50%);
+  font-family: "Archivo Black", sans-serif;
+  font-size: 16px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.d-brutal-stickers .bs-ribbon.pink > span > span { background: var(--blush); }
+
+.d-brutal-stickers .bs-snow { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.d-brutal-stickers .bs-snow i { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); border-radius: 50%; background: #fff; box-shadow: 1px 1px 0 var(--silv); }
+.d-brutal-stickers .bs-top,
+.d-brutal-stickers .bs-tabs,
+.d-brutal-stickers .bs-main,
+.d-brutal-stickers .bs-land,
+.d-brutal-stickers .bs-win { position: relative; z-index: 1; }
+
+/* Shell */
+.d-brutal-stickers .bs-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 18px 18px 8px; }
+.d-brutal-stickers .bs-hello { padding: 4px 12px; border-radius: 10px; font-family: "Archivo Black", sans-serif; font-size: 19px; transform: rotate(-3deg); box-shadow: var(--die-sm); }
+.d-brutal-stickers .bs-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 3px 3px 0 var(--silv);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.d-brutal-stickers .bs-online i { width: 9px; height: 9px; border-radius: 50%; background: #1f9d6b; border: 2px solid var(--ink); }
+.d-brutal-stickers .bs-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 14px 22px 6px; }
+.d-brutal-stickers .bs-tabs button { min-height: 44px; border-radius: 999px; font-weight: 700; font-size: 15px; box-shadow: var(--die-sm); }
+.d-brutal-stickers .bs-tabs button.on { background: var(--ice2); font-family: "Archivo Black", sans-serif; font-weight: 400; transform: rotate(-2deg); }
+.d-brutal-stickers .bs-tabstar { width: 26px; top: -14px; right: -10px; --r: 14deg; }
+.d-brutal-stickers .bs-main { padding: 12px 22px 30px; display: flex; flex-direction: column; gap: 14px; }
+
+.d-brutal-stickers .bs-btn,
+.d-brutal-stickers .bs-opt,
+.d-brutal-stickers .bs-vbtns button { transition: transform 0.16s var(--spring), box-shadow 0.16s var(--spring); }
+.d-brutal-stickers .bs-btn:active,
+.d-brutal-stickers .bs-opt:active,
+.d-brutal-stickers .bs-vbtns button:active:not(:disabled) { transform: scale(0.95) rotate(-1deg); }
+
+/* Landing */
+.d-brutal-stickers .bs-land { padding: 30px 26px 30px; display: flex; flex-direction: column; }
+.d-brutal-stickers .bs-hero { position: relative; align-self: center; width: 300px; height: 248px; }
+.d-brutal-stickers .bs-photo-st {
+  position: absolute;
+  left: 48px;
+  top: 14px;
+  width: 204px;
+  height: 204px;
+  border-radius: 50%;
+  border: var(--line);
+  box-shadow: 0 0 0 8px #fff, 0 0 0 10px var(--edge), 9px 9px 0 10px var(--silv);
+  overflow: hidden;
+  background: #fff;
+  transform: rotate(-5deg);
+}
+.d-brutal-stickers .bs-photo-st img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.d-brutal-stickers .h-crown { width: 84px; left: 178px; top: -12px; --r: 18deg; }
+.d-brutal-stickers .h-castle { width: 86px; left: -4px; top: 150px; --r: -8deg; }
+.d-brutal-stickers .h-heart { width: 44px; left: 254px; top: 150px; --r: 14deg; }
+.d-brutal-stickers .h-flake { width: 46px; left: 10px; top: 20px; --r: -12deg; }
+.d-brutal-stickers .h-wand { width: 60px; left: 246px; top: 72px; --r: 10deg; }
+.d-brutal-stickers .h-heart2 { width: 28px; left: 70px; top: 4px; --r: -22deg; }
+
+.d-brutal-stickers .bs-title { margin-top: 14px; font-family: "Archivo Black", sans-serif; font-weight: 400; line-height: 1; letter-spacing: -0.02em; }
+.d-brutal-stickers .bs-name { display: table; padding: 4px 16px 8px; font-size: 70px; border-radius: 18px; transform: rotate(-3deg); }
+.d-brutal-stickers .n-crown { width: 58px; right: -26px; top: -30px; --r: 22deg; }
+.d-brutal-stickers .bs-l2 { display: flex; align-items: center; gap: 18px; margin-top: 16px; padding-left: 22px; }
+.d-brutal-stickers .bs-fyller { padding: 4px 14px 7px; font-size: 40px; border-radius: 12px; background: var(--ice); transform: rotate(2deg); }
+.d-brutal-stickers .bs-three { position: relative; display: grid; place-items: center; width: 100px; height: 100px; margin: -18px 0 -18px; font-size: 40px; transform: rotate(10deg); }
+.d-brutal-stickers .bs-three svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(5px 5px 0 var(--silv)); }
+.d-brutal-stickers .bs-three path { fill: var(--ice2); stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; }
+.d-brutal-stickers .bs-three::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  background: var(--holo);
+  background-size: 220% 220%;
+  border: 2.5px solid var(--ink);
+}
+.d-brutal-stickers .bs-three span { position: relative; }
+.d-brutal-stickers .bs-sub { align-self: flex-end; margin-top: 18px; transform: rotate(-2deg); }
+.d-brutal-stickers .bs-sub > span > span { font-size: 17px; }
+.d-brutal-stickers .bs-join { margin-top: 26px; display: grid; gap: 10px; padding: 14px; border-radius: 20px; transform: rotate(0.6deg); }
+.d-brutal-stickers .bs-join label { font-family: "Archivo Black", sans-serif; font-size: 18px; }
+.d-brutal-stickers .bs-join input {
+  min-height: 52px;
+  padding: 0 16px;
+  border: var(--line);
+  border-radius: 12px;
+  background: #f4faff;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+}
+.d-brutal-stickers .bs-join input::placeholder { color: #4c5d86; }
+.d-brutal-stickers .bs-join input:focus { box-shadow: 0 0 0 4px var(--ice2); }
+.d-brutal-stickers .bs-btn {
+  min-height: 56px;
+  border: var(--line);
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 0 0 4px #fff, 5px 5px 0 4px var(--silv);
+  font-family: "Archivo Black", sans-serif;
+  font-size: 22px;
+  margin-top: 4px;
+}
+
+/* Quiz */
+.d-brutal-stickers .bs-qhead { display: flex; justify-content: space-between; align-items: center; }
+.d-brutal-stickers .bs-qhead .bs-ribbon { transform: rotate(-3deg); }
+.d-brutal-stickers .bs-clock {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: var(--line);
+  background: conic-gradient(var(--ice2) calc(var(--p) * 1turn), #fff 0);
+  box-shadow: 0 0 0 5px #fff, 0 0 0 6.5px var(--edge), 5px 5px 0 6.5px var(--silv);
+  margin-right: 6px;
+  transition: background 0.3s;
+}
+.d-brutal-stickers .bs-clock.low { background: conic-gradient(var(--pink) calc(var(--p) * 1turn), #fff 0); }
+.d-brutal-stickers .bs-clock::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: #fff; border: 2.5px solid var(--ink); }
+.d-brutal-stickers .bs-clock span { position: relative; font-family: "Archivo Black", sans-serif; font-size: 27px; font-variant-numeric: tabular-nums; }
+.d-brutal-stickers .bs-qphoto { height: 160px; padding: 0; overflow: visible; transform: rotate(-1.2deg); }
+.d-brutal-stickers .bs-qphoto img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 13px; }
+.d-brutal-stickers .q-flake { width: 50px; right: -12px; top: -18px; --r: 12deg; }
+/* A peeling corner: the sticker lifts off the page at the bottom right. */
+.d-brutal-stickers .bs-peel::after {
+  content: "";
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 34px;
+  height: 34px;
+  border-radius: 0 0 16px 0;
+  background: linear-gradient(135deg, transparent 50%, #e9eef4 50%, #fff 64%, #c7d3df 100%);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(-2px -2px 0 var(--edge));
+}
+.d-brutal-stickers .bs-question { font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 25px; line-height: 1.12; }
+.d-brutal-stickers .bs-options { display: grid; gap: 15px; padding: 0 4px; }
+.d-brutal-stickers .bs-opt {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  text-align: left;
+  box-shadow: var(--die-sm);
+}
+.d-brutal-stickers .bs-letter {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  font-family: "Archivo Black", sans-serif;
+  font-size: 18px;
+}
+.d-brutal-stickers .bs-letter.l0 { background: var(--ice2); }
+.d-brutal-stickers .bs-letter.l1 { background: var(--blush); }
+.d-brutal-stickers .bs-letter.l2 { background: var(--lilac); }
+.d-brutal-stickers .bs-letter.l3 { background: #e8eef5; }
+.d-brutal-stickers .bs-otext { font-size: 20px; font-weight: 700; }
+.d-brutal-stickers .bs-opt.on { background: var(--holo); background-size: 220% 220%; transform: rotate(-1.5deg); border-width: 3.5px; }
+.d-brutal-stickers .bs-opt.on .bs-otext { font-family: "Archivo Black", sans-serif; font-weight: 400; }
+.d-brutal-stickers .bs-pickheart { width: 46px; right: 10px; top: 50%; margin-top: -21px; --r: 12deg; }
+
+/* Reveal */
+.d-brutal-stickers .bs-verdict { position: relative; display: flex; align-items: center; gap: 12px; }
+.d-brutal-stickers .bs-burstst { position: relative; flex: none; width: 140px; height: 112px; display: grid; place-items: center; margin: -6px 0 -4px -10px; }
+.d-brutal-stickers .bs-burstst svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 0 #fff) drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff) drop-shadow(5px 5px 0 var(--silv)); }
+.d-brutal-stickers .bs-burstst path { fill: var(--ice2); stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.d-brutal-stickers .bs-right { position: relative; font-family: "Archivo Black", sans-serif; font-size: 38px; transform: rotate(-8deg); }
+.d-brutal-stickers .bs-vtext { display: grid; gap: 8px; justify-items: start; }
+.d-brutal-stickers .bs-points { padding: 3px 12px; border-radius: 10px; background: var(--blush); font-family: "Archivo Black", sans-serif; font-size: 19px; transform: rotate(3deg); box-shadow: var(--die-sm); }
+.d-brutal-stickers .bs-total { font-weight: 700; font-size: 15px; }
+.d-brutal-stickers .v-star { width: 34px; right: 2px; top: -6px; --r: 16deg; }
+.d-brutal-stickers .bs-spread { padding: 12px 14px; }
+.d-brutal-stickers .bs-spread h2 { font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 18px; }
+.d-brutal-stickers .bs-spread ol { margin-top: 6px; display: grid; gap: 4px; }
+.d-brutal-stickers .bs-spread li { display: grid; grid-template-columns: 22px 1fr 22px; gap: 8px; align-items: center; }
+.d-brutal-stickers .bs-sl { font-family: "Archivo Black", sans-serif; font-size: 15px; }
+.d-brutal-stickers .bs-track { height: 24px; border: 2px solid var(--ink); border-radius: 999px; background: #f4faff; overflow: hidden; }
+.d-brutal-stickers .bs-fill {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  width: calc(30% + var(--w) * 70%);
+  padding-left: 10px;
+  background: #e8eef5;
+  border-right: 2px solid var(--ink);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform-origin: left;
+}
+.d-brutal-stickers .right .bs-fill { background: var(--ice2); }
+.d-brutal-stickers .bs-spread b { font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 16px; text-align: right; }
+.d-brutal-stickers .bs-legend { margin-top: 9px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; }
+.d-brutal-stickers .bs-tag { padding: 2px 9px; border: 2px solid var(--ink); border-radius: 999px; background: var(--ice2); transform: rotate(-2deg); }
+.d-brutal-stickers .bs-bhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.d-brutal-stickers .bs-bhead .bs-ribbon { transform: rotate(-2deg); }
+.d-brutal-stickers .bs-small { font-size: 13px; font-weight: 700; padding: 3px 9px; background: #fff; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 3px 3px 0 var(--silv); }
+.d-brutal-stickers .bs-board ol { display: grid; gap: 9px; padding: 0 4px; }
+.d-brutal-stickers .bs-row {
+  height: 40px;
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 4px;
+  border-radius: 999px;
+  box-shadow: var(--die-sm);
+  font-weight: 700;
+  font-size: 16px;
+}
+.d-brutal-stickers .bs-rank {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8eef5;
+  border: 2px solid var(--ink);
+  font-family: "Archivo Black", sans-serif;
+  font-size: 14px;
+}
+.d-brutal-stickers .bs-row.first { background: var(--holo); background-size: 220% 220%; transform: rotate(-1deg); }
+.d-brutal-stickers .bs-row.first .bs-name2 { font-family: "Archivo Black", sans-serif; font-weight: 400; }
+.d-brutal-stickers .bs-badge {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  margin: -6px 0 0 -10px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--blush);
+  border: 2.5px solid var(--ink);
+  box-shadow: 0 0 0 3.5px #fff, 3px 3px 0 3.5px var(--silv);
+  transform: rotate(-12deg);
+}
+.d-brutal-stickers .bs-badge svg { width: 34px; margin-top: -8px; }
+.d-brutal-stickers .bs-badge b { position: absolute; bottom: -4px; right: -6px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #fff; border: 2px solid var(--ink); font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 11px; }
+.d-brutal-stickers .bs-name2 { display: flex; align-items: center; gap: 8px; }
+.d-brutal-stickers .bs-score { font-family: "Archivo Black", sans-serif; font-weight: 400; font-variant-numeric: tabular-nums; }
+.d-brutal-stickers .bs-you { font-style: normal; padding: 1px 8px; border-radius: 999px; border: 2px solid var(--ink); background: var(--pink); font-size: 12px; transform: rotate(-5deg); }
+.d-brutal-stickers .bs-place { margin: 10px 0 7px; font-family: "Archivo Black", sans-serif; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+.d-brutal-stickers .bs-row.me { background: var(--ice2); }
+
+/* Gallery */
+.d-brutal-stickers .bs-ghead { display: flex; justify-content: space-between; align-items: center; }
+.d-brutal-stickers .bs-gtitle {
+  font-family: "Archivo Black", sans-serif;
+  font-weight: 400;
+  font-size: 50px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 3px 0 0 #fff, -3px 0 0 #fff, 0 3px 0 #fff, 0 -3px 0 #fff, 2.5px 2.5px 0 #fff, -2.5px -2.5px 0 #fff, 2.5px -2.5px 0 #fff, -2.5px 2.5px 0 #fff, 6px 6px 0 var(--silv);
+  transform: rotate(-2deg);
+}
+.d-brutal-stickers .bs-pips { position: relative; display: flex; gap: 4px; }
+.d-brutal-stickers .bs-pips .bs-st { position: relative; width: 32px; }
+.d-brutal-stickers .bs-pips .bs-st:nth-child(2) { --r: 10deg; }
+.d-brutal-stickers .bs-pips .bs-st:nth-child(1) { --r: -10deg; }
+.d-brutal-stickers .bs-pips .empty path:first-child { fill: #fff; stroke-dasharray: 4 4; }
+.d-brutal-stickers .bs-pips .empty path + path { display: none; }
+.d-brutal-stickers .bs-status { padding: 10px 14px; background: var(--ice); }
+.d-brutal-stickers .bs-left { font-family: "Archivo Black", sans-serif; font-size: 18px; }
+.d-brutal-stickers .bs-hint { margin-top: 3px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.d-brutal-stickers .bs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 20px; padding: 4px; }
+.d-brutal-stickers .bs-photo { padding: 6px; border-radius: 14px; transform: rotate(var(--tilt)); }
+.d-brutal-stickers .bs-photo.voted { background: var(--holo); background-size: 220% 220%; border-width: 3.5px; }
+.d-brutal-stickers .bs-pic { position: relative; }
+.d-brutal-stickers .bs-pic img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border: 2px solid var(--ink); border-radius: 9px; }
+.d-brutal-stickers .bs-ownlabel { position: absolute; left: -14px; bottom: 12px; transform: rotate(-6deg); }
+.d-brutal-stickers .bs-ownlabel > span > span { padding: 4px 18px; font-size: 14px; background: #fff; }
+.d-brutal-stickers .bs-stamp {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  width: 54px;
+  display: grid;
+  place-items: center;
+  transform: rotate(12deg);
+  filter: drop-shadow(2.5px 0 0 #fff) drop-shadow(-2.5px 0 0 #fff) drop-shadow(0 2.5px 0 #fff) drop-shadow(0 -2.5px 0 #fff) drop-shadow(3px 3px 0 var(--silv));
+}
+.d-brutal-stickers .bs-stamp svg { grid-area: 1 / 1; width: 100%; }
+.d-brutal-stickers .bs-stamp b { grid-area: 1 / 1; margin-top: -4px; font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 15px; }
+.d-brutal-stickers .bs-vote { padding-top: 8px; display: grid; gap: 6px; }
+.d-brutal-stickers .bs-mine { font-size: 13px; font-weight: 700; text-align: center; }
+.d-brutal-stickers .bs-vbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 2px 4px; }
+.d-brutal-stickers .bs-vbtns button {
+  min-height: 44px;
+  border: var(--line);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 3px 3px 0 var(--silv);
+  font-family: "Archivo Black", sans-serif;
+  font-size: 24px;
+  line-height: 1;
+}
+.d-brutal-stickers .bs-vbtns button:last-child { background: var(--ink); color: #fff; }
+.d-brutal-stickers .bs-vbtns button:disabled,
+.d-brutal-stickers .bs-vbtns button.spent { opacity: 0.4; box-shadow: none; cursor: default; }
+.d-brutal-stickers .bs-fame { margin-top: 14px; display: grid; gap: 12px; }
+.d-brutal-stickers .bs-fame h2 { position: relative; display: flex; align-items: center; gap: 12px; }
+.d-brutal-stickers .bs-fame h2 .bs-ribbon > span > span { font-size: 22px; padding: 6px 30px; }
+.d-brutal-stickers .f-crown { position: relative; width: 44px; --r: 14deg; }
+.d-brutal-stickers .bs-fame > p { font-size: 15px; font-weight: 600; line-height: 1.4; }
+
+/* Finale */
+.d-brutal-stickers .bs-suspense { display: none; }
+.d-brutal-stickers .bs-win { min-height: 100vh; padding: 64px 26px 30px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.d-brutal-stickers .bs-kicker { transform: rotate(-3deg); }
+.d-brutal-stickers .bs-kicker > span > span { font-size: 22px; padding: 7px 32px; text-transform: uppercase; }
+.d-brutal-stickers .bs-holocrown {
+  position: relative;
+  margin-top: 26px;
+  width: 168px;
+  height: 168px;
+  display: grid;
+  place-items: center;
+  transform: rotate(-8deg);
+}
+.d-brutal-stickers .bs-holo-disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--line);
+  background: var(--holo);
+  background-size: 220% 220%;
+  box-shadow: 0 0 0 8px #fff, 0 0 0 10px var(--edge), 9px 9px 0 10px var(--silv);
+}
+.d-brutal-stickers .bs-holo-disc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.6) 0 6deg, transparent 6deg 22deg);
+}
+.d-brutal-stickers .bs-holocrown svg { position: relative; width: 116px; margin-top: -10px; filter: drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff); }
+.d-brutal-stickers .bs-winner {
+  margin-top: 30px;
+  font-family: "Archivo Black", sans-serif;
+  font-weight: 400;
+  font-size: 88px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 5px 0 0 #fff, -5px 0 0 #fff, 0 5px 0 #fff, 0 -5px 0 #fff, 4px 4px 0 #fff, -4px -4px 0 #fff, 4px -4px 0 #fff, -4px 4px 0 #fff, 6px 0 0 var(--edge), 10px 10px 0 var(--silv);
+  transform: rotate(-3deg);
+}
+.d-brutal-stickers .bs-wpoints { margin-top: 18px; padding: 6px 20px; border-radius: 999px; background: var(--ice2); font-family: "Archivo Black", sans-serif; font-size: 24px; transform: rotate(2deg); }
+.d-brutal-stickers .bs-recap {
+  margin-top: 54px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 14px 14px;
+  border-radius: 20px;
+  text-align: left;
+  transform: rotate(-1.5deg);
+}
+.d-brutal-stickers .bs-recap img { width: 96px; height: 96px; object-fit: cover; border: var(--line); border-radius: 14px; box-shadow: 0 0 0 4px #fff, 4px 4px 0 4px var(--silv); transform: rotate(4deg); }
+.d-brutal-stickers .bs-rkicker { position: absolute; top: -22px; left: 16px; transform: rotate(-3deg); }
+.d-brutal-stickers .bs-rname { font-family: "Archivo Black", sans-serif; font-size: 36px; line-height: 1; }
+.d-brutal-stickers .bs-rsub { margin-top: 6px; font-size: 15px; font-weight: 700; }
+.d-brutal-stickers .r-heart { width: 40px; right: -10px; top: -18px; --r: 16deg; }
+.d-brutal-stickers .bs-slaps { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .d-brutal-stickers .bs-snow i { top: -12px; animation: bs-fall var(--dur) linear var(--dl) infinite; }
+  .d-brutal-stickers .bs-top > * { animation: bs-slap 0.5s var(--spring) 0.05s both; }
+  .d-brutal-stickers .bs-top > *:last-child { animation-delay: 0.12s; }
+  .d-brutal-stickers .bs-tabs button { animation: bs-slap 0.5s var(--spring) calc(0.1s + var(--n, 0) * 0.06s) both; }
+  .d-brutal-stickers .bs-tabs button:nth-child(2) { --n: 1; }
+  .d-brutal-stickers .bs-tabs button:nth-child(3) { --n: 2; }
+  .d-brutal-stickers .bs-tabs button.on { animation-name: bs-slap-on; }
+  .d-brutal-stickers .bs-tabstar { animation: bs-slap-st 0.45s var(--spring) 0.5s both; }
+  .d-brutal-stickers .bs-in { animation: bs-slap 0.55s var(--spring) var(--d, 0.05s) both; }
+
+  .d-brutal-stickers .bs-photo-st { animation: bs-slap-photo 0.6s var(--spring) 0.05s both; }
+  .d-brutal-stickers .bs-hero .bs-st { animation: bs-slap-st 0.45s var(--spring) both; }
+  .d-brutal-stickers .h-crown { animation-delay: 0.35s !important; }
+  .d-brutal-stickers .h-castle { animation-delay: 0.45s !important; }
+  .d-brutal-stickers .h-wand { animation-delay: 0.55s !important; }
+  .d-brutal-stickers .h-heart { animation-delay: 0.62s !important; }
+  .d-brutal-stickers .h-flake { animation-delay: 0.68s !important; }
+  .d-brutal-stickers .h-heart2 { animation-delay: 0.74s !important; }
+  .d-brutal-stickers .n-crown { animation: bs-slap-st 0.45s var(--spring) 0.7s both; }
+  .d-brutal-stickers .bs-name { animation: bs-slap-name 0.55s var(--spring) 0.25s both; }
+  .d-brutal-stickers .bs-fyller { animation: bs-slap-fyller 0.5s var(--spring) 0.4s both; }
+  .d-brutal-stickers .bs-three { animation: bs-slap-three 0.55s var(--spring) 0.5s both; }
+  .d-brutal-stickers .bs-sub { animation: bs-slap-sub 0.5s var(--spring) 0.6s both; }
+  .d-brutal-stickers .bs-join { animation: bs-up 0.5s var(--spring) 0.6s both; }
+
+  .d-brutal-stickers .bs-three::before,
+  .d-brutal-stickers .bs-opt.on,
+  .d-brutal-stickers .bs-row.first,
+  .d-brutal-stickers .bs-photo.voted,
+  .d-brutal-stickers .bs-holo-disc { animation: bs-holo 3s ease-in-out infinite alternate; }
+
+  .d-brutal-stickers .bs-clock span { animation: bs-tick 0.35s var(--spring) both; }
+  .d-brutal-stickers .bs-opt { animation: bs-slap 0.5s var(--spring) calc(0.25s + var(--i) * 0.07s) both; }
+  .d-brutal-stickers .bs-opt.on { animation: bs-slap-on 0.45s var(--spring) both, bs-holo 3s ease-in-out 0.45s infinite alternate; }
+  .d-brutal-stickers .bs-pickheart { animation: bs-slap-st 0.4s var(--spring) both; }
+  .d-brutal-stickers .q-flake { animation: bs-slap-st 0.45s var(--spring) 0.5s both; }
+
+  .d-brutal-stickers .bs-burstst { animation: bs-slap-photo 0.55s var(--spring) 0.1s both; }
+  .d-brutal-stickers .bs-points { animation: bs-slap-pts 0.45s var(--spring) 0.4s both; }
+  .d-brutal-stickers .v-star { animation: bs-slap-st 0.4s var(--spring) 0.55s both; }
+  .d-brutal-stickers .bs-fill { animation: bs-bar 0.6s var(--spring) 0.3s both; }
+  .d-brutal-stickers .bs-row { animation: bs-climb 0.7s var(--spring) var(--d) both; }
+  .d-brutal-stickers .bs-row.first { animation: bs-climb-first 0.7s var(--spring) var(--d) both, bs-holo 3s ease-in-out 0.8s infinite alternate; }
+  .d-brutal-stickers .bs-badge { animation: bs-slap-badge 0.5s var(--spring) 0.75s both; }
+
+  .d-brutal-stickers .bs-photo { animation: bs-slap-tilt 0.5s var(--spring) calc(0.15s + var(--i) * 0.07s) both; }
+  .d-brutal-stickers .bs-photo.voted { animation: bs-slap-tilt 0.5s var(--spring) calc(0.15s + var(--i) * 0.07s) both, bs-holo 3s ease-in-out infinite alternate; }
+  .d-brutal-stickers .bs-stamp { animation: bs-slap-stamp 0.45s var(--spring) both; }
+  .d-brutal-stickers .bs-pips .full { animation: bs-slap-st 0.4s var(--spring) both; }
+  .d-brutal-stickers .f-crown { animation: bs-slap-st 0.45s var(--spring) 0.6s both; }
+
+  .d-brutal-stickers .bs-suspense { position: absolute; inset: 0; z-index: 4; display: block; animation: bs-peeloff 0.4s cubic-bezier(0.6, 0, 0.9, 0.6) 1.05s both; transform-origin: 100% 0; }
+  .d-brutal-stickers .bs-sheet {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    background-color: #fff;
+    background-image: radial-gradient(var(--ice) 2px, transparent 2.5px);
+    background-size: 22px 22px;
+  }
+  .d-brutal-stickers .bs-sheet .bs-st { position: absolute; animation: bs-wob 0.6s ease-in-out infinite alternate; }
+  .d-brutal-stickers .bs-sheet .s1 { width: 90px; top: 22%; left: 16%; --r: -14deg; }
+  .d-brutal-stickers .bs-sheet .s2 { width: 60px; top: 25%; right: 16%; --r: 12deg; animation-delay: 0.2s; }
+  .d-brutal-stickers .bs-sheet .s3 { width: 64px; bottom: 22%; left: 44%; --r: 6deg; animation-delay: 0.4s; }
+  .d-brutal-stickers .bs-sus { animation: bs-wob 0.5s ease-in-out infinite alternate; --r: -3deg; }
+  .d-brutal-stickers .bs-sus > span > span { font-size: 28px; padding: 10px 34px; }
+  .d-brutal-stickers .bs-sussub { padding: 6px 16px; border-radius: 999px; font-weight: 700; font-size: 16px; box-shadow: var(--die-sm); }
+
+  .d-brutal-stickers .bs-kicker { animation: bs-slap-sub 0.45s var(--spring) 1.2s both; }
+  .d-brutal-stickers .bs-holocrown { animation: bs-slap-crown 0.6s var(--spring) 1.3s both; }
+  .d-brutal-stickers .bs-holo-disc { animation: bs-holo 2.4s ease-in-out infinite alternate; }
+  .d-brutal-stickers .bs-holo-disc::after { animation: bs-spin 10s linear infinite; }
+  .d-brutal-stickers .bs-winner { animation: bs-slap-name 0.55s var(--spring) 1.25s both; }
+  .d-brutal-stickers .bs-wpoints { animation: bs-slap-pts 0.45s var(--spring) 1.5s both; }
+  .d-brutal-stickers .bs-recap { animation: bs-slap-recap 0.5s var(--spring) 1.6s both; }
+  .d-brutal-stickers .bs-slaps .bs-st { animation: bs-slap-st 0.45s var(--spring) var(--dl) both; }
+}
+
+@keyframes bs-fall { from { transform: translate(0, 0); } 50% { transform: translate(12px, 450px); } to { transform: translate(-4px, 900px); } }
+@keyframes bs-up { from { opacity: 0; transform: translateY(30px); } }
+@keyframes bs-slap { 0% { opacity: 0; transform: scale(1.5) rotate(-8deg); } 45% { opacity: 1; transform: scale(0.94) rotate(2deg); } 70% { transform: scale(1.03) rotate(-1deg); } 100% { transform: none; } }
+@keyframes bs-slap-on { 0% { opacity: 0; transform: scale(1.5) rotate(-10deg); } 45% { opacity: 1; transform: scale(0.94) rotate(1deg); } 70% { transform: scale(1.03) rotate(-3deg); } 100% { transform: rotate(-2deg); } }
+@keyframes bs-slap-tilt { 0% { opacity: 0; transform: scale(1.5) rotate(calc(var(--tilt) * -6)); } 45% { opacity: 1; transform: scale(0.94) rotate(calc(var(--tilt) * 2)); } 70% { transform: scale(1.03) rotate(calc(var(--tilt) * -0.5)); } 100% { transform: rotate(var(--tilt)); } }
+@keyframes bs-slap-st { 0% { opacity: 0; transform: scale(2) rotate(calc(var(--r, 0deg) - 30deg)); } 45% { opacity: 1; transform: scale(0.9) rotate(calc(var(--r, 0deg) + 8deg)); } 70% { transform: scale(1.06) rotate(calc(var(--r, 0deg) - 3deg)); } 100% { transform: rotate(var(--r, 0deg)); } }
+@keyframes bs-slap-photo { 0% { opacity: 0; transform: scale(1.6) rotate(-25deg); } 45% { opacity: 1; transform: scale(0.94) rotate(0deg); } 70% { transform: scale(1.03) rotate(-7deg); } 100% { transform: rotate(-5deg); } }
+@keyframes bs-slap-name { 0% { opacity: 0; transform: scale(1.7) rotate(-14deg); } 45% { opacity: 1; transform: scale(0.94) rotate(0deg); } 70% { transform: scale(1.03) rotate(-4deg); } 100% { transform: rotate(-3deg); } }
+@keyframes bs-slap-fyller { 0% { opacity: 0; transform: scale(1.6) rotate(14deg); } 45% { opacity: 1; transform: scale(0.94) rotate(0deg); } 100% { transform: rotate(2deg); } }
+@keyframes bs-slap-three { 0% { opacity: 0; transform: scale(2) rotate(60deg); } 50% { opacity: 1; transform: scale(0.9) rotate(4deg); } 100% { transform: rotate(10deg); } }
+@keyframes bs-slap-sub { 0% { opacity: 0; transform: scale(1.6) rotate(10deg); } 50% { opacity: 1; transform: scale(0.94) rotate(-4deg); } 100% { transform: rotate(-2deg); } }
+@keyframes bs-slap-pts { 0% { opacity: 0; transform: scale(1.8) rotate(-14deg); } 50% { opacity: 1; transform: scale(0.92) rotate(5deg); } 100% { transform: rotate(2deg); } }
+@keyframes bs-slap-badge { 0% { opacity: 0; transform: scale(2) rotate(-50deg); } 50% { opacity: 1; transform: scale(0.9) rotate(-6deg); } 100% { transform: rotate(-12deg); } }
+@keyframes bs-slap-stamp { 0% { opacity: 0; transform: scale(2.2) rotate(-30deg); } 50% { opacity: 1; transform: scale(0.9) rotate(18deg); } 100% { transform: rotate(12deg); } }
+@keyframes bs-slap-crown { 0% { opacity: 0; transform: scale(2.2) rotate(-40deg); } 45% { opacity: 1; transform: scale(0.92) rotate(0deg); } 70% { transform: scale(1.04) rotate(-11deg); } 100% { transform: rotate(-8deg); } }
+@keyframes bs-slap-recap { 0% { opacity: 0; transform: translateY(40px) scale(1.2) rotate(6deg); } 55% { opacity: 1; transform: scale(0.96) rotate(-3deg); } 100% { transform: rotate(-1.5deg); } }
+@keyframes bs-holo { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes bs-tick { 0% { transform: scale(1.5) rotate(-12deg); } 60% { transform: scale(0.92) rotate(4deg); } }
+@keyframes bs-bar { from { transform: scaleX(0); } }
+@keyframes bs-climb { from { transform: translateY(var(--from)); } to { transform: none; } }
+@keyframes bs-climb-first { from { transform: translateY(var(--from)); } to { transform: rotate(-1deg); } }
+@keyframes bs-wob { from { transform: rotate(calc(var(--r, 0deg) - 4deg)) scale(0.98); } to { transform: rotate(calc(var(--r, 0deg) + 4deg)) scale(1.03); } }
+@keyframes bs-peeloff { 0% { transform: none; } 30% { transform: rotate(4deg) translate(2%, -2%); } 100% { transform: rotate(28deg) translate(110%, -40%); visibility: hidden; } }
+@keyframes bs-spin { to { rotate: 360deg; } }

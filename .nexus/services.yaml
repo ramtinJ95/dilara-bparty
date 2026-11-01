@@ -1,8 +1,9 @@
 services:
   web:
     command: npm run dev -- --port $PORT --host 127.0.0.1 --strictPort
-    health: /
+    health: /robots.txt
     preview: { title: Party app }
     env:
       WRANGLER_SEND_METRICS: "false"
       CLOUDFLARE_CF_FETCH_ENABLED: "false"
+      LAB_HOME: "1"

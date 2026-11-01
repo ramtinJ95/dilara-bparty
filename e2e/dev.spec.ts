@@ -59,3 +59,61 @@ test("the dev server renders the admin and guest pages", async ({ page }) => {
   await page.goto(`/j/${join}`);
   await expect(page.getByRole("heading", { name: "Dilara fyller 3!" })).toBeVisible();
 });
+
+test("the dev server serves the design lab", async ({ page }) => {
+  await page.goto("/lab/");
+  await expect(page.locator(".lab-list a")).toHaveCount(9);
+  await page.goto("/lab/brutal");
+  await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
+});
+
+test("the lab switcher keeps the screen and puts the direction in the URL", async ({ page }) => {
+  await page.goto("/lab/brutal/quiz");
+  await expect(page.locator("iframe")).toHaveCount(1);
+  await page.keyboard.press("ArrowRight");
+  await expect(page).toHaveURL(/\/lab\/brutal-ice\/quiz$/);
+  await page.getByLabel("Direction", { exact: true }).selectOption("luxe");
+  await expect(page).toHaveURL(/\/lab\/luxe\/quiz$/);
+  await page.frameLocator("iframe").locator("body").press("ArrowLeft");
+  await expect(page).toHaveURL(/\/lab\/storybook-papercut\/quiz$/);
+  await page.keyboard.press("0");
+  await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lab\/storybook-papercut\/quiz$/);
+});
+
+test("back and forward in the lab move the screen with the URL", async ({ page }) => {
+  const shown = () => page.locator("iframe").evaluate((f: HTMLIFrameElement) => f.contentWindow?.location.pathname);
+  await page.goto("/lab/brutal/quiz");
+  await page.getByRole("button", { name: "Next direction" }).click();
+  await expect.poll(shown).toBe("/lab/brutal-ice/quiz");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lab\/brutal\/quiz$/);
+  await expect.poll(shown).toBe("/lab/brutal/quiz");
+  await page.goForward();
+  await expect(page).toHaveURL(/\/lab\/brutal-ice\/quiz$/);
+  await expect.poll(shown).toBe("/lab/brutal-ice/quiz");
+});
+
+test("the lab replays a screen without reloading it", async ({ page }) => {
+  await page.goto("/lab/luxe/finale");
+  const frame = page.frames()[1]!;
+  await expect(frame.locator("#app > *")).toHaveCount(1);
+  await frame.evaluate(() => ((window as unknown as { before: Element | null }).before = document.querySelector("#app > *")));
+  await page.getByRole("button", { name: /Replay/ }).click();
+  await expect.poll(() => frame.evaluate(() => document.querySelector("#app > *") !== (window as unknown as { before: Element | null }).before)).toBe(true);
+  expect(await frame.evaluate(() => "before" in window)).toBe(true);
+});
+
+test("on a phone the lab shows one screen at a time", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto("/lab/luxe-ballet");
+  await expect(page.locator("iframe")).toHaveCount(1);
+  await expect(page.locator("iframe")).toHaveAttribute("src", "/lab/luxe-ballet/landing?frame");
+  await page.getByRole("button", { name: "Next screen" }).tap();
+  await expect(page).toHaveURL(/\/lab\/luxe-ballet\/quiz$/);
+  await page.getByRole("button", { name: "Next direction" }).tap();
+  await expect(page).toHaveURL(/\/lab\/brutal\/quiz$/);
+  await context.close();
+});
