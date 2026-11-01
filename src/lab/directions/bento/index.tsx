@@ -77,16 +77,15 @@ function Landing() {
         <Tile class="bn-tiara-tile bn-s2" i={3}>
           <Tiara />
         </Tile>
-        <Tile class="bn-chips bn-s6" i={4}>
-          {S.tabs.map((t, i) => {
-            const Icon = TAB_ICONS[i]!;
-            return (
-              <span key={t} class={`bn-chip c-${i}`} style={{ "--tilt": `${[-3, 2, -2][i]}deg` }} aria-hidden="true">
-                <Icon />
-                {t}
-              </span>
-            );
-          })}
+        <Tile class="bn-stickers bn-s6" i={4}>
+          <Sticker class="bn-ice bn-st-date" tilt={-4}>
+            <Snowflake />
+            Lördag 7 nov
+          </Sticker>
+          <Sticker class="bn-lilac bn-st-kalas" tilt={5}>
+            <Sparkle />
+            Kalas!
+          </Sticker>
         </Tile>
         <Tile class="bn-form bn-s6" i={5}>
           <form onSubmit={(e) => e.preventDefault()}>

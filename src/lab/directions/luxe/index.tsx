@@ -298,45 +298,99 @@ function Gallery() {
   );
 }
 
-const FALL = Array.from({ length: 26 }, (_, i) => ({
-  x: (i * 37) % 100,
-  y: (i * 53) % 70,
-  d: ((i * 7) % 10) / 10,
-  kind: ["strip", "spark", "strip", "flake", "dot"][i % 5]!,
-  hue: ["#a3b1c0", "#8cb8e0", "#d9a3bd", "#c3ccd6"][i % 4]!,
+const SHOWER = Array.from({ length: 40 }, (_, i) => ({
+  x: (i * 37 + 11) % 100,
+  y: (i * 53) % 78,
+  d: ((i * 7) % 12) / 10,
+  kind: ["spark", "dot", "strip", "flake", "dot", "spark", "strip", "dot"][i % 8]!,
+  hue: ["#9db3c9", "#6f9fcf", "#4f86c0", "#c3d5e6", "#7fa9d4", "#d9a3bd"][i % 6]!,
   rot: (i * 47) % 180,
 }));
+
+const BURST = Array.from({ length: 14 }, (_, i) => {
+  const a = (i / 14) * Math.PI * 2 + 0.2;
+  const r = 118 + (i % 3) * 22;
+  return { x: Math.cos(a) * r * 1.2, y: Math.max(Math.sin(a) * r * 0.78, -66), s: 10 + (i % 4) * 4, d: (i % 5) * 0.05 };
+});
+
+const RAYS = Array.from({ length: 24 }, (_, i) => i * 15);
+
+function TiaraLine() {
+  const draw = (d: number) => ({ pathLength: 1, style: { "--d": `${d}s` } });
+  return (
+    <svg class="tline" viewBox="0 0 240 124" aria-hidden="true">
+      <defs>
+        <linearGradient id="lx-sb" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#8ea6bd" />
+          <stop offset="0.45" stop-color="#3f78b4" />
+          <stop offset="1" stop-color="#9db3c9" />
+        </linearGradient>
+      </defs>
+      <g fill="none" stroke="url(#lx-sb)" stroke-linecap="round" stroke-linejoin="round">
+        <path class="dr" {...draw(0)} stroke-width="2" d="M18 106 L38 50 L72 86 L120 12 L168 86 L202 50 L222 106" />
+        <path class="dr" {...draw(0.15)} stroke-width="2" d="M18 106 Q120 88 222 106 M24 118 Q120 100 216 118 M18 106 L24 118 M222 106 L216 118" />
+        <path class="dr" {...draw(0.3)} stroke-width="1.2" d="M46 98 L58 72 L80 96 M194 98 L182 72 L160 96" />
+        <path class="dr" {...draw(0.35)} stroke-width="1.2" d="M88 94 Q120 52 152 94 M100 94 Q120 70 140 94" />
+        <path class="dr" {...draw(0.45)} stroke-width="1.2" d="M120 32 Q132 52 120 70 Q108 52 120 32 Z" />
+        <path class="dr" {...draw(0.55)} stroke-width="1" d="M30 112 L210 112" stroke-dasharray="0.01 0.03" />
+      </g>
+      <g class="gems">
+        <circle cx="120" cy="12" r="6" fill="#4f86c0" />
+        <circle cx="38" cy="50" r="4.5" fill="#7fa9d4" />
+        <circle cx="202" cy="50" r="4.5" fill="#7fa9d4" />
+        <circle cx="120" cy="98" r="4.5" fill="#d9a3bd" />
+        <circle cx="72" cy="86" r="3" fill="#9db3c9" />
+        <circle cx="168" cy="86" r="3" fill="#9db3c9" />
+      </g>
+    </svg>
+  );
+}
 
 function Finale() {
   const f = fixture.finale;
   const replay = useReplay(7000);
   return (
     <div class="d-luxe finale" key={replay}>
+      <span class="finframe" aria-hidden="true" />
       <div class="suspense" aria-hidden="true">
         <p class="sus">{f.suspense}</p>
         <span class="rule" />
         <p class="kick">{f.suspenseSub}</p>
       </div>
       <div class="fall" aria-hidden="true">
-        {FALL.map((c, i) => (
+        {SHOWER.map((c, i) => (
           <span key={i} class={`c ${c.kind}`} style={{ left: `${c.x}%`, top: `${c.y}%`, "--d": `${c.d}s`, "--rot": `${c.rot}deg`, color: c.hue, background: c.kind === "strip" || c.kind === "dot" ? c.hue : undefined }}>
             {c.kind === "spark" && <Sparkle />}
             {c.kind === "flake" && <Snowflake />}
           </span>
         ))}
       </div>
+      <header class="colo kick" aria-hidden="true">
+        <span>N° 3</span>
+        <span class="flake">
+          <Snowflake />
+        </span>
+        <span>7.11</span>
+      </header>
       <section class="win">
         <p class="kick k1">{f.kicker}</p>
-        <Tiara />
-        <h1 class="winner" aria-label={f.winner}>
-          {[...f.winner].map((ch, i) => (
-            <span key={i} class="mask">
-              <span class="ch" style={{ "--i": i }}>
-                {ch}
-              </span>
+        <div class="crown" aria-hidden="true">
+          <span class="rays">
+            {RAYS.map((a) => (
+              <i key={a} style={{ "--a": `${a}deg` }} />
+            ))}
+          </span>
+          {BURST.map((b, i) => (
+            <span key={i} class="burst" style={{ "--x": `${b.x}px`, "--y": `${b.y}px`, "--s": `${b.s}px`, "--d": `${b.d}s` }}>
+              <Sparkle />
             </span>
           ))}
-        </h1>
+          <TiaraLine />
+        </div>
+        <div class="wname">
+          <h1 class="winner">{f.winner}</h1>
+          <span class="sweep" aria-hidden="true" />
+        </div>
         <p class="pts">
           <span class="hair" aria-hidden="true" />
           {f.points}
@@ -353,6 +407,11 @@ function Finale() {
           </figcaption>
         </figure>
       </section>
+      <footer class="colo-b" aria-hidden="true">
+        <Sparkle />
+        <span>Dilara fyller 3!</span>
+        <Sparkle />
+      </footer>
     </div>
   );
 }

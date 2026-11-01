@@ -108,22 +108,10 @@
 .d-bento .bn-three span { font-size: 150px; font-weight: 800; font-stretch: 75%; line-height: 0.8; margin-top: 10px; }
 .d-bento .bn-tiara-tile { display: grid; place-items: center; background: var(--silver); }
 .d-bento .bn-tiara-tile .tiara { width: 86px; height: auto; }
-.d-bento .bn-chips { display: flex; justify-content: space-around; align-items: center; padding: 16px 10px; background: #fff; }
-.d-bento .bn-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px 7px 8px;
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 700;
-  background: var(--ice);
-  box-shadow: 0 0 0 3px #fff, 0 4px 10px -3px rgb(30 60 110 / 0.3);
-  transform: rotate(var(--tilt));
-}
-.d-bento .bn-chip svg { width: 22px; height: 22px; padding: 3px; border-radius: 50%; background: #fff; color: var(--blue); }
-.d-bento .bn-chip.c-1 { background: var(--pink); }
-.d-bento .bn-chip.c-2 { background: var(--lilac); }
+.d-bento .bn-stickers { display: flex; justify-content: space-around; align-items: center; gap: 8px; padding: 16px 10px; background: #fff; }
+.d-bento .bn-stickers .bn-sticker { font-size: 21px; padding: 9px 16px; box-shadow: 0 0 0 4px #fff, 0 7px 14px -3px rgb(30 60 110 / 0.32); }
+.d-bento .bn-stickers .bn-sticker svg { width: 20px; height: 20px; color: var(--blue); }
+.d-bento .bn-ice { background: var(--ice-2); }
 .d-bento .bn-form { padding: 18px 16px 18px; background: var(--silver); }
 .d-bento .bn-form label { display: block; margin-bottom: 10px; font-size: 22px; font-weight: 800; font-stretch: 85%; }
 .d-bento .bn-form-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
@@ -160,7 +148,7 @@
 .d-bento .bn-progress-t { font-size: 15px; font-weight: 700; }
 .d-bento .bn-clock { display: grid; align-content: space-between; padding: 14px 16px; color: #fff; background: var(--blue); overflow: hidden; }
 .d-bento .bn-clock [role="timer"] { display: flex; align-items: baseline; gap: 6px; }
-.d-bento .bn-clock-n { display: inline-block; font-size: 76px; font-weight: 800; font-stretch: 75%; line-height: 0.85; font-variant-numeric: tabular-nums; }
+.d-bento .bn-clock-n { display: inline-block; color: #fff; text-shadow: 0 2px 0 var(--blue-2); font-size: 76px; font-weight: 800; font-stretch: 75%; line-height: 0.85; font-variant-numeric: tabular-nums; }
 .d-bento .bn-clock-unit { font-size: 16px; font-weight: 700; }
 .d-bento .bn-bar { display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px; }
 .d-bento .bn-bar i { height: 14px; border-radius: 3px; background: rgb(255 255 255 / 0.25); transition: background 0.3s; }
@@ -376,9 +364,6 @@
   .d-bento .bn-sub { animation: bn-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 65ms); }
   .d-bento .bn-photos .bn-tile { animation: none; }
   .d-bento .bn-tile .bn-sticker { animation: bn-slap 0.5s cubic-bezier(0.34, 1.7, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 65ms + 0.35s); }
-  .d-bento .bn-chip { animation: bn-slap 0.5s cubic-bezier(0.34, 1.7, 0.64, 1) both; animation-delay: calc(0.45s + var(--tilt) * 0s); }
-  .d-bento .bn-chip.c-1 { animation-delay: 0.55s; }
-  .d-bento .bn-chip.c-2 { animation-delay: 0.65s; }
   .d-bento .bn-hero-spark,
   .d-bento .bn-gtitle-spark { animation: bn-wink 2.2s ease-in-out infinite; }
   .d-bento .bn-three span,
@@ -435,8 +420,8 @@
   50% { transform: translateY(-6px) rotate(-3deg); }
 }
 @keyframes bn-tick {
-  from { transform: translateY(-40%) scale(0.7); opacity: 0; }
-  to { transform: none; opacity: 1; }
+  from { transform: translateY(-18%) scale(1.25); }
+  to { transform: none; }
 }
 @keyframes bn-squish {
   0% { transform: scale(0.92); }
