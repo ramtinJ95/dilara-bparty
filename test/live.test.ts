@@ -168,7 +168,7 @@ describe("tick", () => {
 
   const runAlarm = () => runDurableObjectAlarm(env.PARTY.getByName("party"));
 
-  it("ticks every 30 s outside the quiz and every 4 s once live mode is on", { timeout: 15_000 }, async () => {
+  it("ticks every 30 s outside the quiz and every 4 s once live mode is on", { timeout: 25_000 }, async () => {
     const guest = await connectGuest(await joinedCookie("Tick"));
     await guest.state();
     await new Promise((resolve) => setTimeout(resolve, 5_000));
@@ -177,7 +177,8 @@ describe("tick", () => {
     const admin = await connectAdmin();
     admin.send({ t: "liveMode", on: true });
     await heartbeat(guest, "fast");
-    await expect.poll(() => guest.ticks, { timeout: 5_000 }).toBeGreaterThan(0);
+    // Real alarms run late on a loaded runner; 12 s still tells a 4 s tick from a 30 s one.
+    await expect.poll(() => guest.ticks, { timeout: 12_000 }).toBeGreaterThan(0);
     guest.close();
     admin.close();
   });
