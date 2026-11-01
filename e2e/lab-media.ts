@@ -48,7 +48,7 @@ const scripts: Record<"quiz" | "reveal" | "gallery" | "finale", (page: Page) => 
     await tap(page, "Ge en röst", 1);
     await tap(page, "Ta tillbaka en röst", 0);
     await tap(page, "Ge en röst", 2);
-    await tap(page, "Ge en röst", 0);
+    await tap(page, "Ta tillbaka en röst", 0);
     await page.waitForTimeout(1_000);
   },
   finale: (page) => page.waitForTimeout(7_000),
