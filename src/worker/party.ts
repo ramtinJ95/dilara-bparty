@@ -16,6 +16,7 @@ import {
 } from "../shared/protocol";
 import type { AdminQuiz } from "../shared/quiz";
 import { joinCode } from "./auth";
+import { Finale } from "./finale";
 import { adminContest, Contest, guestContest, guestMaySee, tally, type ContestSnapshot, type UploadResult } from "./contest";
 import { PhotoStore, type PhotoUpload, type StoredPhoto } from "./photo-store";
 import { Players, type JoinResult, type Roster } from "./players";
@@ -39,7 +40,7 @@ const adminNameErrors: Record<NameError, string> = {
   "too-long": "Name is too long (max 30 characters).",
 };
 
-type Tables = { players: Players; contest: Contest; quiz: Quiz };
+type Tables = { players: Players; contest: Contest; quiz: Quiz; finale: Finale };
 
 type AdminHandlers = { [K in AdminCmd["t"]]: (tables: Tables, cmd: AdminCmdOf<K>) => string | null };
 
@@ -61,7 +62,17 @@ const adminCommands: AdminHandlers = {
   "save-question": ({ quiz }, { id, body }) => quiz.save(id, body),
   "delete-question": ({ quiz }, { id }) => quiz.remove(id),
   "move-question": ({ quiz }, { id, to }) => quiz.move(id, to),
-  quiz: ({ quiz }, { step }) => quiz.step(step, Date.now()),
+  quiz: ({ quiz, finale }, { step }) => (finale.stage() === "off" ? quiz.step(step, Date.now()) : "The finale has started, so the quiz can't change."),
+  finale: ({ finale, quiz, contest, players }, { step }) => {
+    const roster = players.roster();
+    return finale.step(step, {
+      quiz: quiz.publish(roster, new Set(), Date.now()).admin,
+      tally: tally(contest.snapshot(), roster),
+      closeVoting: () => contest.setOpen("voting", false),
+    });
+  },
+  "pick-photo": ({ finale, contest, players }, { photo }) => finale.pick(photo, tally(contest.snapshot(), players.roster())),
+  joins: ({ finale }, { open }) => (finale.setJoins(open), null),
 };
 
 type GuestHandlers = { [K in GuestCmd["t"]]: (tables: Tables, player: PlayerId, cmd: GuestCmdOf<K>) => string | null };
@@ -84,6 +95,7 @@ export class Party extends DurableObject<Env> {
   private readonly photos: PhotoStore;
   private readonly contest: Contest;
   private readonly quiz: Quiz;
+  private readonly finale: Finale;
   private code = "";
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -92,6 +104,7 @@ export class Party extends DurableObject<Env> {
     this.photos = new PhotoStore(ctx.storage.sql);
     this.contest = new Contest(ctx.storage.sql, this.photos);
     this.quiz = new Quiz(ctx.storage);
+    this.finale = new Finale(ctx.storage.kv);
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
     void ctx.blockConcurrencyWhile(async () => {
       migrate(ctx.storage);
@@ -100,7 +113,7 @@ export class Party extends DurableObject<Env> {
   }
 
   join(name: PlayerName, reclaim: boolean): JoinResult {
-    const result = this.players.join(name, reclaim);
+    const result = this.players.join(name, reclaim, this.finale.joinsOpen());
     if (result.status === "joined") this.broadcast();
     return result;
   }
@@ -157,6 +170,17 @@ export class Party extends DurableObject<Env> {
     const result = this.ctx.storage.transactionSync(() => this.contest.upload(player.id, key, photo, thumb));
     if (result.status === "created") this.broadcast();
     return result;
+  }
+
+  // Every guest's next snapshot is "gone", so their phones leave for the neutral page.
+  async wipe(): Promise<string | null> {
+    if (this.finale.joinsOpen()) return "End the party before you wipe its data.";
+    await this.ctx.storage.deleteAll();
+    await this.ctx.storage.deleteAlarm();
+    migrate(this.ctx.storage);
+    this.broadcast();
+    await this.schedule();
+    return null;
   }
 
   tally(): TallyRow[] {
@@ -232,7 +256,7 @@ export class Party extends DurableObject<Env> {
   }
 
   private tables(): Tables {
-    return { players: this.players, contest: this.contest, quiz: this.quiz };
+    return { players: this.players, contest: this.contest, quiz: this.quiz, finale: this.finale };
   }
 
   override webSocketClose(ws: WebSocket): void {
@@ -251,6 +275,7 @@ export class Party extends DurableObject<Env> {
     const online = new Set(roles.flatMap((r) => (r.role === "guest" ? (roster.rootOf(r.playerId)?.id ?? []) : [])));
     const contest = this.contest.snapshot();
     const quiz = this.quiz.publish(roster, online, Date.now());
+    const finale = this.finale.guest(roster);
     const admin = this.adminState(roster, online, contest, quiz.admin);
     sockets.forEach((ws, i) => {
       const role = roles[i]!;
@@ -265,18 +290,21 @@ export class Party extends DurableObject<Env> {
         online: online.size,
         contest: guestContest(contest, you.id),
         quiz: quiz.guest(you.id),
+        finale,
       };
       send(ws, { t: "state", state });
     });
   }
 
-  private adminState(roster: Roster, online: Set<PlayerId>, contest: ContestSnapshot, quiz: AdminQuiz): AdminState {
+  private adminState(roster: Roster, online: Set<PlayerId>, snapshot: ContestSnapshot, quiz: AdminQuiz): AdminState {
+    const contest = adminContest(snapshot, roster);
     return {
       players: roster.roots.map((p) => ({ ...p, online: online.has(p.id) })),
       join: { secret: this.env.JOIN_SECRET, code: this.code },
       landingPhoto: this.landingPhoto(),
-      contest: adminContest(contest, roster),
+      contest,
       quiz,
+      finale: this.finale.admin(roster, contest.tally),
     };
   }
 }
