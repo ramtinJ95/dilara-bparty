@@ -10,6 +10,9 @@ After joining, the guest app greets the guest by name, shows how many guests are
 - `shell-quiz-locked` shows `Quizet är inte öppet än` on the Quiz tab until the quiz opens.
 - `shell-pill` shows `Ansluter…` before the first state and `Återansluter…` while reconnecting.
 - `shell-gate` redirects `/app` to `/` without a valid cookie.
+- `shell-quiz-dot` shows a dot labelled `En fråga väntar` on the Quiz tab while an unanswered question is open and the guest is on another tab.
+- `shell-finale` hides the greeting and the tabs while the finale runs, and shows only the finale screen (see [finale.md](./finale.md)).
+- `shell-gone` sends the phone to `/` when the host wipes the party.
 
 ## How to get to it (user POV)
 
@@ -32,6 +35,7 @@ Preconditions:
 
 ## Gotchas
 
+- While the quiz dot shows, the Quiz tab's accessible name is `Quiz En fråga väntar`, so `getByRole("button", { name: "Quiz", exact: true })` misses it. Match `/^Quiz/` inside the `Flikar` navigation.
 - The pill has `role="status"`. Use `reconnecting(page)` from `e2e/drive.ts`, which matches `Återansluter…` only.
 - The count includes every online player, including other test phones on the same instance. Derive the expected number from the admin view, not a constant.
 - Once the quiz is unlocked, the Quiz tab's header is compact and hides the guest count. Read the count on `Mitt foto` or `Galleri`.

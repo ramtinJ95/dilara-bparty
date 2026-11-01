@@ -5,7 +5,7 @@ The admin view lists every player with a live online dot and a join time. The ho
 ## Sub-features
 
 - `players-live` adds a row when a guest joins and turns the dot on or off as phones connect and leave.
-- `players-count` shows `Players <total>` and `· <n> online`.
+- `players-count` shows `Players <total>` and `· <n> online`, or `Nobody has joined yet.` on an empty party.
 - `players-rename` renames a player, and the phone's greeting follows.
 - `players-rename-taken` refuses a name another player has, with a toast.
 - `players-merge` merges one player into another: the row disappears, and the merged phone now greets with the kept name.
@@ -34,3 +34,4 @@ Preconditions:
 - Merge can't be undone on an instance. Start a fresh instance instead of trying to reverse it.
 - Escape cancels a rename. Clicking outside does not.
 - Row lookups use the exact visible name. After a rename, use the new name.
+- `Merge…` shows only when there are at least two players.

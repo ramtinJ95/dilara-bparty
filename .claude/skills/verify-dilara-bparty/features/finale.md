@@ -32,9 +32,11 @@ Preconditions:
 - **Reveal the quiz.** Press `Reveal quiz winner` or `Reveal quiz winners`. Every phone shows `Quizvinnaren` or `Quizvinnarna` and the names.
 - **Reconnect.** During a reveal, run `await line.cut("clean")` and `await line.restore()` (see [reconnect.md](./reconnect.md)). After `reconnecting(page)` goes away, the phone shows the same reveal.
 - **End the party.** Press `End the party`, then `Yes, end the party`. The card shows `The party has ended. New guests can't join.` A new phone that joins by link sees `Kalaset är slut. Tack för att du var med!`.
+- **Reclaim after the end.** On a phone that cleared its cookies, join with an existing name. `Är det du?` shows, and `Ja, det är jag` lands on the current finale step.
+- **Reopen.** Press `Reopen joins`. The card shows `New guests can join.` End the party again before the wipe.
 - **Wipe.** Press `Wipe all data…`. The warning starts `Download the photos first!` and has `Download all (zip, <n>)`. Press `Yes, wipe everything`. Every phone goes to `/`, and the players card shows `Players 0`.
 - **Proof.** `evidence()` on a phone for the suspense page and each reveal, and on the laptop for the tie picker, the revealed card and the wipe confirmation.
-- **At party scale.** `npm run rehearse` runs the finale with every phone and wipes the party at the end (`e2e/rehearsal/steps/finale.ts`).
+- **At party scale.** `npm run rehearse` runs the finale with every phone, checks that only the winners are congratulated, lets a cookieless guest back in by name after the end, reopens and ends again, and wipes the party (`e2e/rehearsal/steps/finale.ts`).
 
 ## Gotchas
 
@@ -43,3 +45,6 @@ Preconditions:
 - Winners are fixed at their reveal. Reopening voting or renaming a player afterwards doesn't change the photo or the quiz winner.
 - A photo reveal with no gallery photos shows `Inga bilder var med den här gången`, and a quiz where nobody scored shows `Ingen fick poäng den här gången`.
 - The reveal photo shows the cached thumbnail first and fades in the full photo when it loads, so check `.win-photo img.full.loaded` before a screenshot.
+- Under the finale button, `End the quiz first.` or `Photos are tied for first. Pick the winner below.` says why it is disabled.
+- `End quiz` turns the fast heartbeat off, so a phone that drops silently during the finale may take up to 70 s to come back. A clean drop reconnects at once.
+- A wiped phone leaves only when its `gone` message arrives. In the staging rehearsal of main 5c965d3 on WebKit, `Line` relayed the close before the delayed `gone`, so every shaped phone stayed on `/app`. `Line` now sends the close after the queued frames.

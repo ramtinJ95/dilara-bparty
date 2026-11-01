@@ -18,9 +18,9 @@ The host uploads a photo in the admin view, and the join page shows it in the ro
 
 Preconditions:
 
-- A laptop page on the admin view. A placeholder image generated on a canvas, never a real photo. `e2e/media.spec.ts` has `snowyPlaceholder(page)`, which draws a snowflake.
+- A laptop page on the admin view. A placeholder image generated on a canvas, never a real photo: `placeholder(admin, LOOKS.snow)` and `pngFile(name, buffer)` from `e2e/placeholder.ts`.
 
-- **Upload.** The file input is hidden, so set it directly. Run `await admin.locator('input[type="file"]').setInputFiles({ name: "snow.png", mimeType: "image/png", buffer })`. `admin.getByAltText("Current landing photo")` becomes visible, and the button reads `Replace photo`.
+- **Upload.** The file input is hidden, so set it directly. Run `await admin.locator('.landing-photo input[type="file"]').setInputFiles(pngFile("snow", await placeholder(admin, LOOKS.snow)))`. Scope it to the card, because the question editor has a file input too. `admin.getByAltText("Current landing photo")` becomes visible, and the button reads `Replace photo`.
 - **Shown to guests.** On a cookieless phone, run `await page.goto(\`/j/${JOIN_SECRET}\`)`. `page.getByAltText("Dilara")` is visible, and its `src` is `/j/<secret>/photos/<id>`.
 - **Remove.** Click `Remove`. The admin preview shows `No photo yet`. Reload the join page. No `Dilara` image is shown.
 - **Proof.** `evidence()` on the laptop card and the phone's join page, before and after.
@@ -30,3 +30,5 @@ Preconditions:
 - A guest who already joined is redirected from the join link to `/app` and never sees the landing page. Use a cookieless phone.
 - The join page reads the photo ID when it loads. A phone already on the page sees a new photo only after a reload.
 - The repository is public. Never upload a real photo, not even on a local instance whose screenshots might end up in a PR.
+- The admin's browser always sends a shrunk JPEG, so `landing-errors` can't be reached from the card. Only a direct `PUT /api/admin/landing-photo` shows them, and that skips the feature's path.
+- The wipe at the end of the party deletes the landing photo (see [finale.md](./finale.md)).
