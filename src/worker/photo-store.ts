@@ -5,7 +5,8 @@ const SQLITE_ROW_MAX_BYTES = 2_000_000;
 export const PHOTO_MAX_BYTES = SQLITE_ROW_MAX_BYTES - 10_000;
 
 export type PhotoUpload = { mime: PhotoMime; bytes: ArrayBuffer };
-export type StoredPhoto = { kind: PhotoKind; mime: PhotoMime; bytes: ArrayBuffer };
+// bytes is null when the viewer already holds the photo and gets a 304.
+export type StoredPhoto = { kind: PhotoKind; mime: PhotoMime; bytes: ArrayBuffer | null };
 
 export class PhotoStore {
   constructor(private readonly sql: SqlStorage) {}
@@ -19,8 +20,9 @@ export class PhotoStore {
     return id;
   }
 
-  get(id: PhotoId): StoredPhoto | null {
-    const [row] = this.sql.exec<StoredPhoto>("SELECT kind, mime, bytes FROM photos WHERE id = ?", id).toArray();
+  get(id: PhotoId, withBytes: boolean): StoredPhoto | null {
+    const columns = withBytes ? "kind, mime, bytes" : "kind, mime, NULL AS bytes";
+    const [row] = this.sql.exec<StoredPhoto>(`SELECT ${columns} FROM photos WHERE id = ?`, id).toArray();
     return row ?? null;
   }
 }
