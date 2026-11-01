@@ -6,8 +6,8 @@ export const DIRECTIONS = [
   { id: "storybook-globe", name: "Storybook · Snow globe", idea: "Fairy-tale book pages with a castle backdrop, and the photo inside a snow globe." },
   { id: "storybook-papercut", name: "Storybook · Paper-cut", idea: "A layered paper-cut winter forest and castle with depth, and paper snowflakes." },
   { id: "luxe", name: "Editorial luxe · original", idea: "A big display serif in silver and white, lots of space, refined motion." },
-  { id: "luxe-couture", name: "Editorial luxe · Ice palace couture", idea: "Silver foil, chandelier sparkle, a script name and a tiara monogram." },
-  { id: "luxe-ballet", name: "Editorial luxe · Winter ballet", idea: "Pale ice, satin ribbons, pearls and graceful motion." },
+  { id: "luxe-couture", name: "Editorial luxe · Ice palace couture", idea: "A crystal-curtain invitation: silver foil script, a tiara 'D' crest and every shape cut like a gem." },
+  { id: "luxe-ballet", name: "Editorial luxe · Winter ballet", idea: "A winter ballet programme: satin ribbons, pearls and pale curtains that open on the winner." },
 ] as const;
 
 export type DirectionMeta = (typeof DIRECTIONS)[number];
