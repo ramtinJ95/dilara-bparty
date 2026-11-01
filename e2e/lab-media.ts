@@ -30,32 +30,14 @@ async function sheet(browser: Browser, id: string) {
   await context.close();
 }
 
-async function tap(page: Page, name: string, nth: number) {
-  const button = page.getByRole("button", { name, exact: true }).nth(nth);
-  await button.scrollIntoViewIfNeeded({ timeout: 5_000 });
-  await button.click();
-  await page.waitForTimeout(1_100);
-}
-
-const scripts: Record<"quiz" | "reveal" | "gallery" | "finale", (page: Page) => Promise<void>> = {
-  quiz: (page) => page.waitForTimeout(7_000),
-  reveal: (page) => page.waitForTimeout(7_000),
-  gallery: async (page) => {
-    await page.waitForTimeout(1_400);
-    await tap(page, "Ge en röst", 1);
-    await tap(page, "Ta tillbaka en röst", 0);
-    await tap(page, "Ge en röst", 2);
-    await tap(page, "Ta tillbaka en röst", 0);
-    await page.waitForTimeout(1_000);
-  },
-  finale: (page) => page.waitForTimeout(7_000),
-};
+// The GIF shows the motion the host asked for: the countdown and the winner reveal. The rest is in the live lab.
+const clips = ["quiz", "finale"] as const;
 
 async function clip(browser: Browser, id: string) {
   const tmp = `${out}/tmp-${id}`;
   rmSync(tmp, { recursive: true, force: true });
   const parts = await Promise.all(
-    Object.entries(scripts).map(async ([screen, script]) => {
+    clips.map(async (screen) => {
       const dir = `${tmp}/${screen}`;
       const context = await browser.newContext({ viewport: phone, isMobile: true, hasTouch: true, recordVideo: { dir, size: phone } });
       const start = Date.now();
@@ -63,7 +45,7 @@ async function clip(browser: Browser, id: string) {
       await page.goto(`${base}/lab/${id}/${screen}?frame`, { timeout: 60_000 });
       await rendered(page);
       const skip = Math.max(0, (Date.now() - start) / 1000 - 0.1).toFixed(2);
-      await script(page);
+      await page.waitForTimeout(7_000);
       await context.close();
       const [file] = readdirSync(dir);
       if (!file) throw new Error(`no video for ${id}/${screen}`);
@@ -74,7 +56,7 @@ async function clip(browser: Browser, id: string) {
   rmSync(tmp, { recursive: true, force: true });
   const inputs = parts.flatMap((p) => ["-ss", p.skip, "-t", "6", "-i", p.file]);
   const pads = parts.map((_, i) => `[${i}:v]setpts=PTS-STARTPTS,pad=iw+${i < parts.length - 1 ? 16 : 0}:ih:0:0:color=white[v${i}]`).join(";");
-  const stack = `${parts.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${parts.length}:shortest=1,fps=12,scale=1200:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4`;
+  const stack = `${parts.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${parts.length}:shortest=1,fps=10,scale=780:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4`;
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...inputs, "-filter_complex", `${pads};${stack}`, `${out}/${id}.gif`]);
 }
 
