@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, expect, type Browser, type Frame, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -17,17 +17,14 @@ if (only && directions.length !== only.length) throw new Error(`unknown directio
 const phone = { width: 390, height: 844 };
 const settle = 2_500;
 
-async function loaded(page: Page) {
-  await page.waitForLoadState("networkidle");
-  await page.evaluate(() => document.fonts.ready);
-}
+const rendered = (page: Page | Frame) => page.waitForFunction(() => document.querySelector("#app > *") !== null && document.fonts.status === "loaded", undefined, { timeout: 60_000 });
 
 async function sheet(browser: Browser, id: string) {
   const context = await browser.newContext({ viewport: { width: 2150, height: 1000 } });
   const page = await context.newPage();
-  await page.goto(`${base}/lab/${id}`);
-  await loaded(page);
-  for (const frame of page.frames().slice(1)) await frame.evaluate(() => document.fonts.ready);
+  await page.goto(`${base}/lab/${id}`, { timeout: 60_000 });
+  await expect(page.locator(".lab-frames iframe")).toHaveCount(5);
+  for (const frame of page.frames().slice(1)) await rendered(frame);
   await page.waitForTimeout(settle);
   await page.locator(".lab-frames").screenshot({ path: `${out}/${id}.png` });
   await context.close();
@@ -62,7 +59,8 @@ async function clip(browser: Browser, id: string) {
       const dir = `${tmp}/${screen}`;
       const context = await browser.newContext({ viewport: phone, isMobile: true, hasTouch: true, recordVideo: { dir, size: phone } });
       const page = await context.newPage();
-      await page.goto(`${base}/lab/${id}/${screen}`);
+      await page.goto(`${base}/lab/${id}/${screen}`, { timeout: 60_000 });
+      await rendered(page);
       await script(page);
       await context.close();
       const [file] = readdirSync(dir);
