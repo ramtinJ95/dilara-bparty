@@ -2,8 +2,9 @@ import { useState } from "preact/hooks";
 import { FINALE_ORDER, nextStep, type AdminFinale, type FinaleStage, type FinaleStep } from "../../shared/finale";
 import type { AdminCmd, AdminEntrant, TallyRow } from "../../shared/protocol";
 import type { AdminQuiz } from "../../shared/quiz";
-import { DownloadAll } from "./contest";
 import { photoUrl } from "../api";
+import { DownloadAll } from "./contest";
+import { plural } from "./format";
 
 type Send = (cmd: AdminCmd) => void;
 type Props = { finale: AdminFinale; quiz: AdminQuiz; tally: TallyRow[]; send: Send; live: boolean };
@@ -29,7 +30,6 @@ function blocker(step: FinaleStep, { finale, quiz }: Props): string | null {
   return null;
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function FinaleControls(props: Props) {
   const { finale, quiz, tally, send, live } = props;

@@ -1,13 +1,12 @@
 import { useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
 import type { AdminCmd, AdminContest, AdminEntrant, TallyRow } from "../../shared/protocol";
-import { archiveFiles, BADGES, badgeOf, buildArchive, oldestFirst } from "./archive";
 import { photoUrl } from "../api";
+import { archiveFiles, BADGES, badgeOf, buildArchive, oldestFirst } from "./archive";
+import { clockTime, plural } from "./format";
 
 type Send = (cmd: AdminCmd) => void;
 type Download = { kind: "idle" } | { kind: "working"; done: number; total: number } | { kind: "failed"; error: string };
-
-const at = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 function Toggle({ label, open, live, onChange }: { label: string; open: boolean; live: boolean; onChange: (open: boolean) => void }) {
   return (
@@ -55,14 +54,14 @@ function Versions({ entrants, send, live, view }: { entrants: AdminEntrant[]; se
       {entrants.map((e) => (
         <li key={e.player}>
           <h4>
-            {e.name} <span class="muted">· {e.versions.length === 1 ? "1 version" : `${e.versions.length} versions`}</span>
+            {e.name} <span class="muted">· {plural(e.versions.length, "version", "versions")}</span>
           </h4>
           <ol class="versions">
             {oldestFirst(e.versions).map((v) => {
               const badge = badgeOf(v);
               return (
                 <li key={v.id} class={v.hidden ? "hidden-version" : undefined}>
-                  <button class="thumb-btn" type="button" onClick={() => view(v.id)} aria-label={`Open ${e.name}'s photo from ${at(v.createdAt)}`}>
+                  <button class="thumb-btn" type="button" onClick={() => view(v.id)} aria-label={`Open ${e.name}'s photo from ${clockTime(v.createdAt)}`}>
                     <img src={photoUrl(v.thumb)} alt="" loading="lazy" />
                   </button>
                   <div class="badges">
@@ -70,7 +69,7 @@ function Versions({ entrants, send, live, view }: { entrants: AdminEntrant[]; se
                     {v.hidden && <span class="badge hidden">hidden</span>}
                   </div>
                   <span class="meta">
-                    {v.votes} {v.votes === 1 ? "vote" : "votes"} · {at(v.createdAt)}
+                    {plural(v.votes, "vote", "votes")} · {clockTime(v.createdAt)}
                   </span>
                   <button class="link" type="button" disabled={!live} onClick={() => send({ t: "hide", photo: v.id, hidden: !v.hidden })}>
                     {v.hidden ? "Unhide" : "Hide"}

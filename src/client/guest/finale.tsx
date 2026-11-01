@@ -1,9 +1,10 @@
 import { useEffect } from "preact/hooks";
 import type { GuestFinale, PhotoWin } from "../../shared/finale";
 import type { PlayerId } from "../../shared/model";
+import { photoUrl } from "../api";
 import { Snowflake, Sparkle, Tiara } from "../icons";
 import "./finale.css";
-import { photoUrl } from "../api";
+import { votesText } from "./my-photo";
 
 type Of<S extends GuestFinale["stage"]> = Extract<GuestFinale, { stage: S }>;
 type Props<S extends GuestFinale["stage"]> = { finale: Of<S>; you: PlayerId };
@@ -21,7 +22,6 @@ export function Finale({ finale, you }: { finale: Of<Stage>; you: PlayerId }) {
 }
 
 const points = (n: number) => `${n.toLocaleString("sv-SE")} poäng`;
-const votes = (n: number) => (n === 1 ? "1 röst" : `${n} röster`);
 
 function Suspense() {
   return (
@@ -53,7 +53,7 @@ function PhotoReveal({ finale: { photo }, you }: Props<"photo">) {
           <h1 id="finale-title" class="finale-title">
             {photo.name}
           </h1>
-          <p class="finale-sub">tog vinnarbilden · {votes(photo.votes)}</p>
+          <p class="finale-sub">tog vinnarbilden · {votesText(photo.votes)}</p>
           {photo.owner === you && <p class="you">Grattis, det är din bild!</p>}
         </>
       ) : (
