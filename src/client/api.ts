@@ -1,3 +1,7 @@
+import type { PhotoId } from "../shared/model";
+
+export const photoUrl = (id: PhotoId) => `/photos/${id}`;
+
 export type Posted<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export async function postJson<T>(path: string, body: unknown): Promise<Posted<T>> {

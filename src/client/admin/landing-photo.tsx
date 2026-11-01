@@ -1,5 +1,6 @@
 import { useRef, useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
+import { photoUrl } from "../api";
 import { prepare } from "../photo-prep";
 
 export const uploadErrors: Record<number, string> = {
@@ -38,7 +39,7 @@ export function LandingPhoto({ photo }: { photo: PhotoId | null }) {
   return (
     <section class="card landing-photo" aria-labelledby="landing-title">
       <h2 id="landing-title">Landing photo</h2>
-      <div class="preview">{photo ? <img src={`/photos/${photo}`} alt="Current landing photo" /> : <span class="muted">No photo yet</span>}</div>
+      <div class="preview">{photo ? <img src={photoUrl(photo)} alt="Current landing photo" /> : <span class="muted">No photo yet</span>}</div>
       <div class="row">
         <button class="btn small" type="button" disabled={busy} onClick={() => picker.current?.click()}>
           {busy ? "Working…" : photo ? "Replace photo" : "Upload photo"}

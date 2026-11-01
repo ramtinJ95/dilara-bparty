@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
 import type { AdminCmd, AdminContest, AdminEntrant, TallyRow } from "../../shared/protocol";
 import { archiveFiles, BADGES, badgeOf, buildArchive, oldestFirst } from "./archive";
+import { photoUrl } from "../api";
 
 type Send = (cmd: AdminCmd) => void;
 type Download = { kind: "idle" } | { kind: "working"; done: number; total: number } | { kind: "failed"; error: string };
@@ -31,7 +32,7 @@ function Tally({ rows, view }: { rows: TallyRow[]; view: (id: PhotoId) => void }
         <li key={r.photo} class={r.rank === 1 ? "lead" : undefined}>
           <span class="rank">{r.rank}</span>
           <button class="thumb-btn" type="button" onClick={() => view(r.photo)} aria-label={`Open ${r.name}'s photo`}>
-            <img src={`/photos/${r.thumb}`} alt="" loading="lazy" />
+            <img src={photoUrl(r.thumb)} alt="" loading="lazy" />
           </button>
           <span class="who">
             <span class="name">{r.name}</span>
@@ -62,7 +63,7 @@ function Versions({ entrants, send, live, view }: { entrants: AdminEntrant[]; se
               return (
                 <li key={v.id} class={v.hidden ? "hidden-version" : undefined}>
                   <button class="thumb-btn" type="button" onClick={() => view(v.id)} aria-label={`Open ${e.name}'s photo from ${at(v.createdAt)}`}>
-                    <img src={`/photos/${v.thumb}`} alt="" loading="lazy" />
+                    <img src={photoUrl(v.thumb)} alt="" loading="lazy" />
                   </button>
                   <div class="badges">
                     <span class={`badge ${badge}`}>{BADGES[badge].label}</span>
@@ -140,7 +141,7 @@ export function Contest({ contest, send, live }: { contest: AdminContest; send: 
       </div>
       {full && (
         <div class="viewer" role="dialog" aria-label="Full-size photo" onClick={() => setFull(null)}>
-          <img src={`/photos/${full}`} alt="" />
+          <img src={photoUrl(full)} alt="" />
         </div>
       )}
     </section>

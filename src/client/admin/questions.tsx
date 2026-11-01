@@ -4,6 +4,7 @@ import type { QuestionId } from "../../shared/model";
 import type { AdminCmd } from "../../shared/protocol";
 import { OPTION_MAX, OPTIONS, SECONDS, TEXT_MAX, type Question, type QuestionBody, type QuestionKind } from "../../shared/quiz";
 import { LETTERS } from "../answers";
+import { photoUrl } from "../api";
 import { prepare } from "../photo-prep";
 import { uploadErrors } from "./landing-photo";
 import { blankDraft, draftOf, parseDraft, removeOption, type ChoiceDraft, type Draft } from "./question-draft";
@@ -72,7 +73,7 @@ export function Questions({ questions, played, send, live }: Props) {
                     </span>
                   </div>
                   <div class="q-body">
-                    {q.photo && <img class="thumb" src={`/photos/${q.photo}`} alt="" />}
+                    {q.photo && <img class="thumb" src={photoUrl(q.photo)} alt="" />}
                     <div>
                       <p class="q-text">{q.text}</p>
                       {q.kind === "choice" ? (
@@ -221,7 +222,7 @@ function Editor({ start, live, onSave, onCancel }: EditorProps) {
         <div class="stack">
           <span>Photo (optional)</span>
           <div class="row">
-            {draft.photo && <img class="thumb" src={`/photos/${draft.photo}`} alt="Question photo" />}
+            {draft.photo && <img class="thumb" src={photoUrl(draft.photo)} alt="Question photo" />}
             <button class="btn small secondary" type="button" disabled={uploading} onClick={() => picker.current?.click()}>
               {uploading ? "Uploading…" : draft.photo ? "Replace photo" : "Add photo"}
             </button>

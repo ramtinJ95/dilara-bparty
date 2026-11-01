@@ -3,7 +3,7 @@ import type { GuestFinale, PhotoWin } from "../../shared/finale";
 import type { PlayerId } from "../../shared/model";
 import { Snowflake, Sparkle, Tiara } from "../icons";
 import "./finale.css";
-import { photoUrl } from "./quiz";
+import { photoUrl } from "../api";
 
 type Of<S extends GuestFinale["stage"]> = Extract<GuestFinale, { stage: S }>;
 type Props<S extends GuestFinale["stage"]> = { finale: Of<S>; you: PlayerId };

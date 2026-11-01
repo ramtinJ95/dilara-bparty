@@ -4,6 +4,7 @@ import type { PhotoId } from "../../shared/model";
 import type { GuestCmd } from "../../shared/protocol";
 import type { GuestQuestion, GuestQuiz, Phase, RoundResult } from "../../shared/quiz";
 import { formatSv as fmt, LETTERS, parseNumber } from "../answers";
+import { photoUrl } from "../api";
 import { useSecondsLeft } from "../clock";
 import { CheckIcon, Snowflake, Sparkle, Tiara } from "../icons";
 import { elapsedMs, heldAnswer, holdAnswer, markShown, roundKey } from "./answer-clock";
@@ -14,8 +15,6 @@ type LiveQuiz = Exclude<GuestQuiz, { phase: "locked" }>;
 type Of<P extends Phase> = Extract<GuestQuiz, { phase: P }>;
 type Shared = { deadline: number | null; send: (cmd: GuestCmd) => boolean; live: boolean };
 export type ViewProps<P extends LiveQuiz["phase"]> = Shared & { quiz: Of<P> };
-
-export const photoUrl = (id: PhotoId) => `/photos/${id}`;
 
 const VIEWS: { [P in LiveQuiz["phase"]]: (props: ViewProps<P>) => JSX.Element } = {
   lobby: Lobby,

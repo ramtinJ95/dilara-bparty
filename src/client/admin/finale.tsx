@@ -3,6 +3,7 @@ import { FINALE_ORDER, nextStep, type AdminFinale, type FinaleStage, type Finale
 import type { AdminCmd, AdminEntrant, TallyRow } from "../../shared/protocol";
 import type { AdminQuiz } from "../../shared/quiz";
 import { DownloadAll } from "./contest";
+import { photoUrl } from "../api";
 
 type Send = (cmd: AdminCmd) => void;
 type Props = { finale: AdminFinale; quiz: AdminQuiz; tally: TallyRow[]; send: Send; live: boolean };
@@ -91,7 +92,7 @@ function TiePicker({ rows, pick, send, live }: { rows: TallyRow[]; pick: AdminFi
       <ul class="tie-photos">
         {rows.map((r) => (
           <li key={r.photo} class={r.photo === pick ? "picked" : undefined}>
-            <img src={`/photos/${r.thumb}`} alt={`${r.name}'s photo`} />
+            <img src={photoUrl(r.thumb)} alt={`${r.name}'s photo`} />
             <span class="name">{r.name}</span>
             <button
               class={r.photo === pick ? "btn small" : "btn small secondary"}
@@ -117,7 +118,7 @@ function Revealed({ finale }: { finale: AdminFinale }) {
       <dd>
         {finale.photo ? (
           <>
-            <img src={`/photos/${finale.photo.thumb}`} alt="" />
+            <img src={photoUrl(finale.photo.thumb)} alt="" />
             <b>{finale.photo.name}</b> · {plural(finale.photo.votes, "vote", "votes")}
           </>
         ) : (
