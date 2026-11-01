@@ -25,7 +25,7 @@ import { PhotoStore, type PhotoUpload, type StoredPhoto } from "./photo-store";
 import { Players, type JoinResult, type Roster } from "./players";
 import { Quiz } from "./quiz";
 import { migrate } from "./schema";
-import { readSettings, type Settings } from "./settings";
+import { deleteSetting, putSetting, readSettings, type Settings } from "./settings";
 
 export type SocketRole = { role: "guest"; playerId: PlayerId } | { role: "admin" };
 
@@ -139,17 +139,13 @@ export class Party extends DurableObject<Env> {
 
   setLandingPhoto(upload: PhotoUpload): PhotoId {
     const id = this.photos.put({ ...upload, kind: "landing", owner: null });
-    this.ctx.storage.sql.exec(
-      "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-      LANDING_PHOTO,
-      id,
-    );
+    putSetting(this.ctx.storage.sql, LANDING_PHOTO, id);
     this.broadcast();
     return id;
   }
 
   clearLandingPhoto(): void {
-    this.ctx.storage.sql.exec("DELETE FROM settings WHERE key = ?", LANDING_PHOTO);
+    deleteSetting(this.ctx.storage.sql, LANDING_PHOTO);
     this.broadcast();
   }
 
@@ -197,8 +193,8 @@ export class Party extends DurableObject<Env> {
   // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.
   private setLiveMode(on: boolean): void {
     if (on === (this.heartbeat() === "fast")) return;
-    if (on) this.ctx.storage.sql.exec("INSERT INTO settings (key, value) VALUES (?, 'on')", LIVE_MODE);
-    else this.ctx.storage.sql.exec("DELETE FROM settings WHERE key = ?", LIVE_MODE);
+    if (on) putSetting(this.ctx.storage.sql, LIVE_MODE, "on");
+    else deleteSetting(this.ctx.storage.sql, LIVE_MODE);
   }
 
   private heartbeat(settings: Settings = readSettings(this.ctx.storage.sql)): Heartbeat {

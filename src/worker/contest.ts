@@ -2,7 +2,7 @@ import { VOTES_PER_GUEST, type PhotoId, type PlayerId, type UploadKey } from "..
 import type { AdminContest, EntryStatus, GuestContest, TallyRow } from "../shared/protocol";
 import type { PhotoStore, PhotoUpload } from "./photo-store";
 import type { Roster } from "./players";
-import { readSettings, type Settings } from "./settings";
+import { putSetting, readSettings, type Settings } from "./settings";
 
 export type Entry = {
   photo: PhotoId;
@@ -67,11 +67,7 @@ export class Contest {
   }
 
   setOpen(setting: Setting, open: boolean): void {
-    this.sql.exec(
-      "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-      SETTINGS[setting],
-      open ? "1" : "0",
-    );
+    putSetting(this.sql, SETTINGS[setting], open ? "1" : "0");
   }
 
   entry(photo: PhotoId): Entry | undefined {
