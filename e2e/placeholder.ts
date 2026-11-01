@@ -88,4 +88,18 @@ export async function placeholder(page: Page, look: Look, size: [number, number]
   return Buffer.from(dataUrl.split(",")[1]!, "base64");
 }
 
+/** Random pixels compress badly, so the phone's JPEG lands near its 400 KB budget and takes a while to send on a slow line. */
+export async function noise(page: Page, edge = 900): Promise<Buffer> {
+  const dataUrl = await page.evaluate((edge) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = edge;
+    const ctx = canvas.getContext("2d")!;
+    const pixels = ctx.createImageData(edge, edge);
+    for (let i = 0; i < pixels.data.length; i++) pixels.data[i] = i % 4 === 3 ? 255 : Math.random() * 256;
+    ctx.putImageData(pixels, 0, 0);
+    return canvas.toDataURL("image/png");
+  }, edge);
+  return Buffer.from(dataUrl.split(",")[1]!, "base64");
+}
+
 export const pngFile = (name: string, buffer: Buffer) => ({ name: `${name}.png`, mimeType: "image/png", buffer });

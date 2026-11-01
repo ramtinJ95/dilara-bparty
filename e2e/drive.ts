@@ -15,6 +15,9 @@ export const redact = (text: string, { join, admin }: { join: string; admin: str
   text.replaceAll(join, "<JOIN_SECRET>").replaceAll(admin, "<ADMIN_SECRET>");
 
 export const adminRow = (admin: Page, name: string): Locator => admin.locator(".players li").filter({ has: admin.getByText(name, { exact: true }) });
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const versionsOf = (admin: Page, name: string): Locator =>
+  admin.locator(".entrants > li").filter({ has: admin.locator("h4", { hasText: new RegExp(`^${escape(name)} ·`) }) }).locator(".versions > li");
 export const heartbeatState = (admin: Page): Locator => admin.locator("header .toggle .state");
 export const onlineDot = (admin: Page, name: string): Locator => adminRow(admin, name).locator(".dot.on");
 export const greeting = (phone: Page, name: string): Locator => phone.getByRole("heading", { name: `Hej, ${name}!`, exact: true });
