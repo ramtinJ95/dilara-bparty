@@ -45,6 +45,6 @@ Preconditions:
 - Winners are fixed at their reveal. Reopening voting or renaming a player afterwards doesn't change the photo or the quiz winner.
 - A photo reveal with no gallery photos shows `Inga bilder var med den här gången`, and a quiz where nobody scored shows `Ingen fick poäng den här gången`.
 - The reveal photo shows the cached thumbnail first and fades in the full photo when it loads, so check `.win-photo img.full.loaded` before a screenshot.
-- Under the finale button, `End the quiz first.` or `Photos are tied for first. Pick the winner below.` says why it is disabled.
+- Under the finale button, `End the quiz before you open the finale.` or `Photos are tied for first. Pick the winner before you reveal it.` says why it is disabled. The server refuses the step with the same text, from `FINALE_BLOCKERS` in `src/shared/finale.ts`.
 - `End quiz` turns the fast heartbeat off, so a phone that drops silently during the finale may take up to 70 s to come back. A clean drop reconnects at once.
 - A wiped phone leaves only when its `gone` message arrives. In the staging rehearsal of main 5c965d3 on WebKit, `Line` relayed the close before the delayed `gone`, so every shaped phone stayed on `/app`. `Line` now sends the close after the queued frames.
