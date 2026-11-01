@@ -7,9 +7,9 @@ import { chromiumLaunchOptions } from "../../../../e2e/drive.ts";
 import { readSecrets, repoRoot } from "./verify.ts";
 
 const USAGE = `Usage: node .claude/skills/verify-dilara-bparty/scripts/instance.ts <command>
-  start [port]          start an isolated dev server with in-memory state and print BASE_URL
-  doctor <base-url>     read-only checks: is this instance worth driving?
-  stop <port>|--all     stop instances this script started; logs and evidence stay`;
+  start [port] [--build]  start an isolated dev server (or, with --build, a built Worker) with in-memory state and print BASE_URL
+  doctor <base-url>       read-only checks: is this instance worth driving?
+  stop <port>|--all       stop instances this script started; logs and evidence stay`;
 
 const instancesDir = `${repoRoot}artifacts/verify/instances`;
 type Instance = { port: number; pid: number; baseUrl: string; log: string; startedAt: string };
@@ -39,7 +39,7 @@ function claimPort(port = 0): Promise<number | null> {
 // A recorded PID may have been reused after a restart, so signal it only while it still runs this instance's dev server.
 function ownsPort(pid: number, port: number): boolean {
   try {
-    return new RegExp(`vite dev --port ${port}( |$)`, "m").test(execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8" }));
+    return new RegExp(`vite (dev|preview) --port ${port}( |$)`, "m").test(execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8" }));
   } catch {
     return false;
   }
@@ -53,7 +53,9 @@ async function status(url: string): Promise<number> {
   }
 }
 
-async function start([portArg]: string[]): Promise<number> {
+async function start(args: string[]): Promise<number> {
+  const build = args.includes("--build");
+  const portArg = args.find((a) => a !== "--build");
   const secrets = readSecrets();
   const port = await claimPort(portArg ? Number(portArg) : 0);
   if (!port) {
@@ -76,11 +78,22 @@ async function start([portArg]: string[]): Promise<number> {
   }
   const log = `${instancesDir}/${port}.log`;
   const out = openSync(log, "w");
-  const child = spawn("npx", ["vite", "dev", "--port", String(port), "--host", "127.0.0.1", "--strictPort"], {
+  const env = { ...process.env, WRANGLER_SEND_METRICS: "false", CLOUDFLARE_CF_FETCH_ENABLED: "false", PARTY_EPHEMERAL_STATE: "1" };
+  if (build) {
+    try {
+      // The build copies .dev.vars into dist/, where vite preview reads the secrets.
+      execFileSync("npx", ["vite", "build", "--logLevel", "warn"], { cwd: repoRoot, stdio: ["ignore", out, out], env });
+    } catch {
+      rmSync(instanceFile(port));
+      console.error(`The build failed. Log: ${log}`);
+      return 1;
+    }
+  }
+  const child = spawn("npx", ["vite", build ? "preview" : "dev", "--port", String(port), "--host", "127.0.0.1", "--strictPort"], {
     cwd: repoRoot,
     detached: true,
     stdio: ["ignore", out, out],
-    env: { ...process.env, WRANGLER_SEND_METRICS: "false", CLOUDFLARE_CF_FETCH_ENABLED: "false", PARTY_EPHEMERAL_STATE: "1" },
+    env,
   });
   child.unref();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -120,6 +133,22 @@ async function doctor([baseUrl]: string[]): Promise<number> {
     ["ADMIN_SECRET gives the admin cookie", async () => {
       const res = await fetch(`${baseUrl}/admin/${secrets.admin}`, { redirect: "manual" }).catch(() => null);
       return res?.status === 302 && res.headers.getSetCookie().some((c) => c.startsWith("admin=")) ? null : `HTTP ${res?.status ?? "no answer"}: wrong ADMIN_SECRET?`;
+    }],
+    ["the admin page's scripts load (a blank page otherwise)", async () => {
+      const login = await fetch(`${baseUrl}/admin/${secrets.admin}`, { redirect: "manual" }).catch(() => null);
+      const cookie = login?.headers.getSetCookie().find((c) => c.startsWith("admin="))?.split(";")[0];
+      if (!cookie) return "no admin cookie";
+      const html = await fetch(`${baseUrl}/admin`, { headers: { cookie } }).then((r) => r.text()).catch(() => "");
+      const dev = (await status(`${baseUrl}/@vite/client`)) === 200;
+      const scripts = [...html.matchAll(/<script[^>]* src="(\/[^"]+)"/g)].map((m) => m[1]!);
+      // On the dev server the entry's own imports are what fail, so check those too.
+      const sources = dev ? await Promise.all(scripts.map((path) => fetch(`${baseUrl}${path}`).then((r) => r.text()).catch(() => ""))) : [];
+      const paths = [...scripts, ...sources.flatMap((source) => [...source.matchAll(/from "(\/[^"]+)"/g)].map((m) => m[1]!))];
+      if (!paths.length) return "the admin page names no script";
+      const broken = (await Promise.all(paths.map(async (path) => [path.split("?")[0], await status(`${baseUrl}${path}`)] as const))).filter(([, code]) => code !== 200);
+      if (!broken.length) return null;
+      const list = [...new Set(broken.map(([path, code]) => `${path} HTTP ${code}`))].join(", ");
+      return dev ? `${list}: see issue #11, or start with --build` : `${list}: dist/ was rebuilt under this instance (npm test, test:e2e or another --build); stop and start it again`;
     }],
     ["Chromium for Playwright", async () => {
       const path = chromiumLaunchOptions().executablePath ?? chromium.executablePath();
