@@ -31,6 +31,13 @@ export async function renameFromAdmin(admin: Page, from: string, to: string): Pr
   await expect(adminRow(admin, to)).toBeVisible();
 }
 
+export async function setFastHeartbeat(admin: Page, on: boolean): Promise<void> {
+  const state = admin.locator("header .toggle .state");
+  if ((await state.textContent())?.endsWith(on ? "on" : "off")) return;
+  await admin.getByRole("button", { name: on ? "Turn on" : "Turn off" }).click();
+  await expect(state).toHaveText(`Fast heartbeat ${on ? "on" : "off"}`);
+}
+
 export async function joinByCode(phone: Page, code: string, name: string): Promise<void> {
   await phone.goto("/");
   await phone.getByLabel("Kod").fill(code);
