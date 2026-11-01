@@ -20,8 +20,6 @@ const guest = (ctx: Ctx) => playerFromCookie(readCookie(ctx.req, "pid"), ctx.env
 
 const isAdmin = (ctx: Ctx) => isAdminCookie(readCookie(ctx.req, "admin"), ctx.env.ADMIN_SECRET);
 
-const adminOnly = (handler: Route["handler"]): Route["handler"] => async (ctx) => ((await isAdmin(ctx)) ? handler(ctx) : notFound());
-
 const joinSecretMatches = (ctx: Ctx, given: unknown) => typeof given === "string" && secretMatches(given, ctx.env.JOIN_SECRET);
 
 type Page = "neutral" | "guest" | "admin";
@@ -88,6 +86,7 @@ async function uploadContest(ctx: Ctx): Promise<Response> {
 }
 
 async function adminPhoto(ctx: Ctx, store: (upload: PhotoUpload) => Promise<PhotoId>): Promise<Response> {
+  if (!(await isAdmin(ctx))) return notFound();
   const mime = parsePhotoMime(ctx.req.headers.get("Content-Type"));
   if (!mime) return status(415);
   const bytes = await readBody(ctx.req, PHOTO_MAX_BYTES);
@@ -157,25 +156,27 @@ export const routes: Route[] = [
     return redirect("/admin", setCookie("admin", await adminCookieValue(ctx.env.ADMIN_SECRET)));
   }),
 
-  route("GET", "/admin", adminOnly((ctx) => entry(ctx, "admin"))),
+  route("GET", "/admin", async (ctx) => ((await isAdmin(ctx)) ? entry(ctx, "admin") : notFound())),
 
-  route("GET", "/ws/admin", adminOnly((ctx) => socket(ctx, { role: "admin" }))),
+  route("GET", "/ws/admin", async (ctx) => ((await isAdmin(ctx)) ? socket(ctx, { role: "admin" }) : notFound())),
 
-  route("PUT", "/api/admin/landing-photo", adminOnly((ctx) => adminPhoto(ctx, (upload) => party(ctx.env).setLandingPhoto(upload)))),
+  route("PUT", "/api/admin/landing-photo", (ctx) => adminPhoto(ctx, (upload) => party(ctx.env).setLandingPhoto(upload))),
 
-  route("DELETE", "/api/admin/landing-photo", adminOnly(async (ctx) => {
+  route("DELETE", "/api/admin/landing-photo", async (ctx) => {
+    if (!(await isAdmin(ctx))) return notFound();
     await party(ctx.env).clearLandingPhoto();
     return status(204);
-  })),
+  }),
 
-  route("DELETE", "/api/admin/party", adminOnly(async (ctx) => {
+  route("DELETE", "/api/admin/party", async (ctx) => {
+    if (!(await isAdmin(ctx))) return notFound();
     const error = await party(ctx.env).wipe();
     return error ? Response.json({ error }, { status: 409 }) : status(204);
-  })),
+  }),
 
   route("POST", CONTEST_UPLOAD_PATH, uploadContest),
 
-  route("PUT", "/api/admin/question-photo", adminOnly((ctx) => adminPhoto(ctx, (upload) => party(ctx.env).addQuestionPhoto(upload)))),
+  route("PUT", "/api/admin/question-photo", (ctx) => adminPhoto(ctx, (upload) => party(ctx.env).addQuestionPhoto(upload))),
 
   route("GET", "/photos/:id", async (ctx) => {
     const admin = await isAdmin(ctx);
