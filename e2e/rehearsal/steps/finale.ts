@@ -46,6 +46,8 @@ const photo: Step = {
     ]);
     const winner = (await finaleCard(r).locator(".revealed dd b").first().textContent())!;
     await Promise.all(r.guests.map((g) => r.check(`${g.name} shows ${winner} as the photographer`, () => expect(g.page.getByRole("heading", { name: winner, exact: true })).toBeVisible(), g.page)));
+    await Promise.all(r.guests.map((g) => r.check(`${g.name} ${g.name === winner ? "is" : "isn't"} congratulated on the photo`, () =>
+      expect(g.page.getByText("Grattis, det är din bild!")).toHaveCount(g.name === winner ? 1 : 0), g.page)));
 
     const dropper = r.guests.find((g) => g.profile === "flaky") ?? r.guests[0]!;
     await dropper.line.cut("clean");
@@ -66,12 +68,17 @@ const quiz: Step = {
       press(r, /^Reveal quiz winners?$/, "Quiz winner on phones"),
       ...r.guests.map((g) => r.time("quiz winner shows", g, () => expect(g.page.getByText(/^Quizvinnar(en|na)$/)).toBeVisible({ timeout: SEE_TIMEOUT }))),
     ]);
+    const named = finaleCard(r).locator(".revealed dd").last().locator("b");
+    const winners = (await named.count()) ? (await named.textContent())!.split(" & ") : [];
+    const cheer = winners.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!";
+    await Promise.all(r.guests.map((g) => r.check(`${g.name} ${winners.includes(g.name) ? "is" : "isn't"} congratulated on the quiz`, () =>
+      expect(g.page.getByText(cheer)).toHaveCount(winners.includes(g.name) ? 1 : 0), g.page)));
   },
 };
 
 const wipe: Step = {
   id: "party-end",
-  title: "The host ends the party, which refuses a new guest, then wipes it; every phone leaves, and the cast joins the empty party again",
+  title: "The host ends the party, which refuses a new guest but lets one who lost their cookie back in by name, reopens and ends it again, then wipes it; every phone leaves, and the cast joins the empty party again",
   async run(r) {
     await r.check("admin ends the party", async () => {
       await partyEnd(r).getByRole("button", { name: "End the party" }).click();
@@ -83,6 +90,21 @@ const wipe: Step = {
       await joinByLink(r.probe.page, r.secrets.join, `${r.probe.name} sen`);
       await expect(r.probe.page.getByText("Kalaset är slut. Tack för att du var med!")).toBeVisible({ timeout: SEE_TIMEOUT });
     }, r.probe.page);
+    const returning = r.guests.find((g) => g.profile === "good") ?? r.guests[0]!;
+    await r.time("guest without a cookie gets back in by name after the end", returning, async () => {
+      await returning.page.context().clearCookies();
+      await joinByLink(returning.page, r.secrets.join, returning.name.toLowerCase());
+      await expect(returning.page.getByRole("heading", { name: "Är det du?" })).toBeVisible({ timeout: SEE_TIMEOUT });
+      await returning.page.getByRole("button", { name: "Ja, det är jag" }).click();
+      await expect(returning.page.getByText(/^Quizvinnar(en|na)$/)).toBeVisible({ timeout: SEE_TIMEOUT });
+    });
+    await r.check("admin reopens joins and ends the party again", async () => {
+      await partyEnd(r).getByRole("button", { name: "Reopen joins" }).click();
+      await expect(partyEnd(r).getByText("New guests can join.")).toBeVisible();
+      await partyEnd(r).getByRole("button", { name: "End the party" }).click();
+      await partyEnd(r).getByRole("button", { name: "Yes, end the party" }).click();
+      await expect(partyEnd(r).getByText("The party has ended. New guests can't join.")).toBeVisible();
+    }, r.admin);
 
     await Promise.all([
       r.check("admin wipes the party", async () => {
