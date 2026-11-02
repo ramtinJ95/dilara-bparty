@@ -1,4 +1,5 @@
 import type { BrowserContext, CDPSession, Page, WebSocketRoute } from "@playwright/test";
+import { CONTEST_UPLOAD_PATH } from "../src/shared/api.ts";
 
 export type ProfileName = "good" | "slow-4g" | "bad-3g" | "flaky";
 export type NetworkProfile = { latencyMs: number; downKbps: number; upKbps: number };
@@ -39,10 +40,12 @@ function pipe(latencyMs: number, kbps: number) {
 }
 
 // CDP network emulation throttles HTTP but not WebSocket frames, so the party socket goes through a Playwright route that delays its frames.
-async function routeSocket(page: Page, profile: NetworkProfile, links: Set<Link>): Promise<void> {
+// WebKit's offline mode doesn't stop sockets, so the route refuses new ones while the line is cut.
+async function routeSocket(page: Page, profile: NetworkProfile, links: Set<Link>, isCut: () => boolean): Promise<void> {
   const up = pipe(profile.latencyMs, profile.upKbps);
   const down = pipe(profile.latencyMs, profile.downKbps);
   await page.routeWebSocket(PARTY_SOCKET, (ws) => {
+    if (isCut()) return void ws.close({ code: 1006 });
     const link: Link = { page: ws, server: ws.connectToServer(), dead: false };
     links.add(link);
     ws.onMessage((m) => up(link, m.length, () => link.server.send(m)));
@@ -69,7 +72,8 @@ async function throttleHttp(page: Page, profile: NetworkProfile, cdp: CDPSession
     await apply(false);
     return apply;
   }
-  await page.route("**/*", async (route) => {
+  // WebKit loses the blob parts of a multipart body it held for a route: some uploads reached the server with an empty photo and thumb.
+  await page.route((url) => url.pathname !== CONTEST_UPLOAD_PATH, async (route) => {
     await new Promise((r) => setTimeout(r, profile.latencyMs));
     await route.fallback();
   });
@@ -82,12 +86,14 @@ export async function shapeNetwork(context: BrowserContext, page: Page, name: Pr
   const links = new Set<Link>();
   // Silently cut links keep their server end open until the network is back, when the dead connection finally resets.
   const silenced: Link[] = [];
-  await routeSocket(page, profile, links);
+  let cut = false;
+  await routeSocket(page, profile, links, () => cut);
   const setOffline = await throttleHttp(page, profile, cdp);
   return {
     profile: name,
     // A clean cut closes the socket before going offline, so its close frame still reaches the server, as when the phone's OS drops it.
     async cut(outage) {
+      cut = true;
       for (const link of links) {
         link.dead = true;
         if (outage === "clean") {
@@ -100,6 +106,7 @@ export async function shapeNetwork(context: BrowserContext, page: Page, name: Pr
       await setOffline(true);
     },
     async restore() {
+      cut = false;
       await context.setOffline(false);
       await setOffline(false);
       await Promise.all(silenced.splice(0).map((link) => link.server.close({ code: 1000 })));

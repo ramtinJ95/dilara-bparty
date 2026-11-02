@@ -59,7 +59,8 @@ test("a phone that drops off mid-session reconnects on its own and shows what ch
   await expect(onlineDot(host, back)).toBeVisible();
 });
 
-test("a frozen background tab catches up when it resumes, with or without its socket", async ({ browser }) => {
+test("a frozen background tab catches up when it resumes, with or without its socket", async ({ browser, browserName }) => {
+  test.skip(browserName === "webkit", "WebKit has no CDP page freeze.");
   const [pocket, bag, locked] = [tagged("Gäst Ficka"), tagged("Gäst Väska"), tagged("Gäst Låst")];
   const host = await admin(browser);
   const { page, line } = await phone(browser, "slow-4g", pocket);
@@ -111,7 +112,8 @@ function countUploads(page: Page): () => number {
 
 // Chromium's offline emulation lets a request it has started finish, so the route plays the tunnel: the first try reaches the server and
 // stores the photo, but its response never comes back and the line goes down with it.
-test("a phone that loses the network mid-upload knows within seconds and lands exactly one version once it is back", async ({ browser }) => {
+test("a phone that loses the network mid-upload knows within seconds and lands exactly one version once it is back", async ({ browser, browserName }) => {
+  test.skip(browserName === "webkit", "WebKit hands a route the upload without its photo and thumb, so route.fetch would store an empty photo.");
   const tunnel = tagged("Gäst Uppladdning");
   const host = await admin(browser);
   const { page, line } = await phone(browser, "slow-4g", tunnel);
@@ -146,7 +148,8 @@ test("a phone that loses the network mid-upload knows within seconds and lands e
   await expect(dropped(page)).toHaveCount(0);
 });
 
-test("a slow upload on bad 3G that keeps moving is never cut off as stalled", async ({ browser }) => {
+test("a slow upload on bad 3G that keeps moving is never cut off as stalled", async ({ browser, browserName }) => {
+  test.skip(browserName === "webkit", "The WebKit line has no bandwidth limit, so no upload there is slow.");
   const slow = tagged("Gäst Trög");
   const host = await admin(browser);
   const { page } = await phone(browser, "bad-3g", slow);

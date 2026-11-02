@@ -5,12 +5,12 @@ import { parseArgs } from "node:util";
 import { chromiumLaunchOptions, laptop, openAdmin, redact } from "../drive.ts";
 import { shapeNetwork, type ProfileName } from "../phone-network.ts";
 import type { AdminState, ServerMsg } from "../../src/shared/protocol.ts";
-import { contentRefusal, existingContent, partyDayRefusal } from "./guards.ts";
+import { contentRefusal, existingContent, isLocal, partyDayRefusal } from "./guards.ts";
 import { passed, toHtml, toMarkdown, type StepOutcome, type Summary } from "./report.ts";
 import type { BrowserName, CheckResult, DeviceName, Guest, Rehearsal, Timing } from "./rehearsal.ts";
 import { steps } from "./steps/index.ts";
 
-const USAGE = "Usage: JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium|webkit] [--guests 20] [--out <dir>] [--force]";
+const USAGE = "Usage: JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium|webkit] [--guests 20] [--out <dir>] [--reduced-motion] [--force]";
 const PROFILES: ProfileName[] = ["good", "slow-4g", "bad-3g", "flaky"];
 const DEVICES: DeviceName[] = ["iPhone 15", "Pixel 7"];
 // The GIF shows the first phone to lock (bad 3G), the first clean drop (flaky) and the first phone to lose its cookie (good).
@@ -45,7 +45,7 @@ function usage(problem: string): never {
 }
 
 const { values: args } = parseArgs({
-  options: { "base-url": { type: "string" }, browser: { type: "string", default: "chromium" }, guests: { type: "string", default: "20" }, out: { type: "string" }, force: { type: "boolean", default: false } },
+  options: { "base-url": { type: "string" }, browser: { type: "string", default: "chromium" }, guests: { type: "string", default: "20" }, out: { type: "string" }, "reduced-motion": { type: "boolean", default: false }, force: { type: "boolean", default: false } },
 });
 const baseUrl = args["base-url"] ?? usage("Missing --base-url.");
 const refusal = partyDayRefusal(baseUrl, new Date(), args.force);
@@ -54,6 +54,9 @@ const browserName: BrowserName = args.browser === "chromium" || args.browser ===
 const guestCount = Number(args.guests);
 if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 40) usage("--guests must be a whole number from 1 to 40.");
 const secrets = { join: process.env.JOIN_SECRET ?? usage("Set JOIN_SECRET."), admin: process.env.ADMIN_SECRET ?? usage("Set ADMIN_SECRET.") };
+// A local target may be e2e/server.ts, whose HTTPS certificate is self-signed.
+const ignoreHTTPSErrors = isLocal(baseUrl);
+if (ignoreHTTPSErrors) process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const found = await adminSnapshot(baseUrl, secrets.admin).then(existingContent, (e: unknown) => usage(`Could not read the party at ${baseUrl} through the admin socket: ${e instanceof Error ? e.message : e}`));
 const crowded = contentRefusal(baseUrl, found, args.force);
 if (crowded) usage(crowded);
@@ -66,9 +69,11 @@ async function launch(name: BrowserName): Promise<Browser> {
   return name === "webkit" ? webkit.launch() : chromium.launch(chromiumLaunchOptions());
 }
 
+const reducedMotion = args["reduced-motion"] ? ("reduce" as const) : ("no-preference" as const);
+
 function phoneOptions(device: DeviceName) {
   const { defaultBrowserType: _, ...descriptor } = devices[device];
-  return descriptor;
+  return { ...descriptor, reducedMotion };
 }
 
 const checks: CheckResult[] = [];
@@ -96,7 +101,7 @@ async function check(label: string, run: () => Promise<unknown>, evidence?: Page
 }
 
 const browser = await launch(browserName);
-const adminContext = await browser.newContext({ baseURL: baseUrl, viewport: laptop.viewport, recordVideo: { dir: videoDir, size: laptop.viewport } });
+const adminContext = await browser.newContext({ baseURL: baseUrl, ignoreHTTPSErrors, viewport: laptop.viewport, recordVideo: { dir: videoDir, size: laptop.viewport } });
 const admin = await adminContext.newPage();
 try {
   await openAdmin(admin, secrets.admin);
@@ -109,6 +114,7 @@ const baselineOnline = Number(/· (\d+) online/.exec((await admin.locator("#play
 if ((await adminContext.request.get("/@vite/client")).ok()) {
   notes.push("The target is a Vite dev server, which serves the client as many unbundled modules, so page loads on slow profiles take far longer than on a deployed build.");
 }
+if (args["reduced-motion"]) notes.push("Every phone ran with reduced motion, so the page's CSS animations were off.");
 const runTag = Math.random().toString(36).slice(2, 5);
 
 const guests: Guest[] = await Promise.all(
@@ -116,13 +122,13 @@ const guests: Guest[] = await Promise.all(
     const device = DEVICES[Math.floor(i / PROFILES.length) % DEVICES.length]!;
     const options = phoneOptions(device);
     const filmed = FILMED.has(i);
-    const context: BrowserContext = await browser.newContext({ ...options, baseURL: baseUrl, ...(filmed && { recordVideo: { dir: videoDir, size: options.viewport } }) });
+    const context: BrowserContext = await browser.newContext({ ...options, baseURL: baseUrl, ignoreHTTPSErrors, ...(filmed && { recordVideo: { dir: videoDir, size: options.viewport } }) });
     const page = await context.newPage();
     const profile = PROFILES[i % PROFILES.length]!;
     return { name: `Gäst ${String(i + 1).padStart(2, "0")} ${runTag}`, profile, device, context, page, line: await shapeNetwork(context, page, profile), filmed };
   }),
 );
-const probeContext = await browser.newContext({ ...phoneOptions("Pixel 7"), baseURL: baseUrl });
+const probeContext = await browser.newContext({ ...phoneOptions("Pixel 7"), baseURL: baseUrl, ignoreHTTPSErrors });
 const probe = { name: `Gäst prov ${runTag}`, page: await probeContext.newPage(), joined: false };
 const cast = guests.map(({ name, profile, device }) => ({ name, profile, device }));
 

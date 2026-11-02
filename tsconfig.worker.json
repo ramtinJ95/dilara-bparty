@@ -2,6 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ESNext"],
+    "allowImportingTsExtensions": true,
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"],
     "tsBuildInfoFile": "node_modules/.tmp/worker.tsbuildinfo"
   },

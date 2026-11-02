@@ -60,6 +60,8 @@ test("the bare page stays neutral for a joined guest and wrong links look like n
   await page.getByLabel("Vad heter du?").fill("Astrid");
   await page.getByRole("button", { name: "Gå med" }).click();
   await expect(page).toHaveURL(/\/app$/);
+  // On WebKit, leaving while the party socket still connects can leave it open on the server, and the guest counted online in later tests.
+  await expect(page.getByRole("heading", { name: "Hej, Astrid!" })).toBeVisible();
 
   await page.goto("/");
   await expect(page.getByLabel("Kod")).toBeVisible();

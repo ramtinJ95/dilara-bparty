@@ -67,7 +67,7 @@ async function photoPart(form: FormData, field: string): Promise<PhotoUpload | R
   if (!(part instanceof File)) return status(400);
   if (part.size > PHOTO_MAX_BYTES) return status(413);
   const mime = parsePhotoMime(part.type);
-  if (!mime) return status(415);
+  if (!mime || part.size === 0) return status(415);
   return { mime, bytes: await part.arrayBuffer() };
 }
 
@@ -105,6 +105,7 @@ async function adminPhoto(ctx: Ctx, store: (upload: PhotoUpload) => Promise<Phot
   if (!mime) return status(415);
   const bytes = await readBody(ctx.req, PHOTO_MAX_BYTES);
   if (!bytes) return status(413);
+  if (bytes.byteLength === 0) return status(415);
   return Response.json({ id: await store({ mime, bytes }) } satisfies PhotoUploadResponse);
 }
 

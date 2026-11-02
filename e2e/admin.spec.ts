@@ -10,7 +10,6 @@ import { joinViaApi, laptop, openAdmin, openShell, phone } from "./support";
 type LookName = keyof typeof LOOKS;
 
 test.describe.configure({ mode: "serial" });
-test.setTimeout(90_000);
 
 let admin: Page;
 let astrid: Page;
@@ -32,7 +31,11 @@ test.beforeAll(async ({ browser }) => {
   }
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await end.getByRole("button", { name: "Yes, wipe everything" }).click();
-  await expect(admin.getByText("Nobody has joined yet."), "the other projects' party is wiped first").toBeVisible();
+  // A failed wipe shows its reason in an alert, so the test reports that rather than a missing empty list.
+  const wiped = admin.getByText("Nobody has joined yet.");
+  await expect(wiped.or(end.getByRole("alert")).first(), "the other projects' party is wiped first").toBeVisible({ timeout: 15_000 });
+  expect(await end.getByRole("alert").allTextContents(), "the wipe succeeds").toEqual([]);
+  await expect(wiped).toBeVisible();
   await expect(end.getByText("New guests can join.")).toBeVisible();
   const join = async (name: string) => openShell(await joinViaApi(browser, name));
   [astrid, olle, kim] = await Promise.all([join("Astrid"), join("Olle"), join("Kim Testsson")]);
@@ -44,14 +47,14 @@ test.afterAll(async ({ browser }) => {
 
 // The placeholder looks differ in their sky colour, which survives the phones' JPEG re-encode, so a corner pixel names the photo.
 async function lookAt(page: Page, src: string): Promise<string> {
+  // Its own decode of the bytes, because in WebKit an <img> for a photo already on the page sometimes drew nothing, and read as black.
   const rgb = await page.evaluate(async (src) => {
-    const img = new Image();
-    img.src = src;
-    if (!(await img.decode().then(() => true, () => false))) return null;
-    const canvas = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight });
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    return [...ctx.getImageData(4, 4, 1, 1).data.slice(0, 3)];
+    const res = await fetch(src).catch(() => null);
+    const img = res?.ok ? await createImageBitmap(await res.blob()).catch(() => null) : null;
+    if (!img) return null;
+    const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d")!;
+    ctx.drawImage(img, 4, 4, 1, 1, 0, 0, 1, 1);
+    return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
   }, src);
   if (!rgb) return `an image that doesn't load (${src.slice(0, 40)})`;
   const distance = (hex: string) => Math.max(...[1, 3, 5].map((at, i) => Math.abs(parseInt(hex.slice(at, at + 2), 16) - rgb[i]!)));
@@ -63,6 +66,9 @@ async function lookOf(img: Locator): Promise<string> {
   await expect(img).toBeVisible();
   return lookAt(img.page(), await img.evaluate((el: HTMLImageElement) => el.currentSrc || el.src));
 }
+
+// expect.poll gives up at the first throw, so a polled read reports a missing image instead of failing on it.
+const polledLook = async (img: Locator): Promise<string> => ((await img.isVisible()) ? lookOf(img) : "no image shown yet");
 
 async function readQr(qr: Locator): Promise<string | undefined> {
   const png = (await qr.screenshot()).toString("base64");
@@ -125,7 +131,7 @@ async function uploadContestPhoto(guest: Page, look: LookName) {
   const confirm = guest.getByRole("button", { name: "Välj ny bild", exact: true });
   await Promise.race([chooser, confirm.waitFor().then(() => confirm.click(), () => {})]);
   await (await chooser).setFiles(file);
-  await expect.poll(() => lookOf(guest.getByAltText("Din bild")), { ...uploaded, message: "the phone shows its new photo" }).toBe(look);
+  await expect.poll(() => polledLook(guest.getByAltText("Din bild")), { ...uploaded, message: "the phone shows its new photo" }).toBe(look);
   await expect(guest.getByText("Inga röster än"), "the upload finished").toBeVisible(uploaded);
 }
 
@@ -167,12 +173,12 @@ test("the landing photo the host uploads, replaces and removes is what the join 
   const joinPhoto = visitor.getByAltText("Dilara");
 
   await upload("rose");
-  await expect.poll(() => lookOf(landing.getByAltText("Current landing photo")), uploaded).toBe("rose");
+  await expect.poll(() => polledLook(landing.getByAltText("Current landing photo")), uploaded).toBe("rose");
   await visitor.goto(`/j/${secrets.join}`);
   expect(await lookOf(joinPhoto), "the join page shows the uploaded photo").toBe("rose");
 
   await upload("snow");
-  await expect.poll(() => lookOf(landing.getByAltText("Current landing photo")), uploaded).toBe("snow");
+  await expect.poll(() => polledLook(landing.getByAltText("Current landing photo")), uploaded).toBe("snow");
   await visitor.reload();
   expect(await lookOf(joinPhoto), "the join page shows the replacement").toBe("snow");
 

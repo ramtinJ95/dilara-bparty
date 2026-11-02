@@ -89,9 +89,9 @@ This kills only the process group that `start` created (npx, vite and workerd), 
 | `scripts/instance.ts start --build` | the same, on a built Worker served by `vite preview` |
 | `scripts/journeys/<journey>.ts` | `node .claude/skills/verify-dilara-bparty/scripts/journeys/<journey>.ts <base-url> [evidence-dir]`, for `join-by-link`, `quiz-finale`, `heartbeat` and `admin-tools`. Each needs a fresh instance, because it asserts exact counts. |
 | `scripts/verify.ts` | imported by journeys: `import { openVerify, readSecrets } from "../verify.ts"` |
-| Network tests | `npm run test:e2e` (builds the Worker, serves it on port 4317 with test secrets) |
+| Network tests | `npm run test:e2e` in Chromium and `npm run test:e2e:webkit` in WebKit (each builds the Worker and serves it over HTTPS on port 4317 with test secrets; `node e2e/server.ts <port>` does the same on its own) |
 | Staging deploy (Mac) | `scripts/deploy-staging.sh [--dry-run]` |
-| Party rehearsal | `JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium\|webkit] [--guests 20] [--out <dir>] [--force]` |
+| Party rehearsal | `JOIN_SECRET=… ADMIN_SECRET=… npm run rehearse -- --base-url <url> [--browser chromium\|webkit] [--guests 20] [--out <dir>] [--reduced-motion] [--force]` |
 
 ## Party rehearsal
 
@@ -107,7 +107,12 @@ npm run rehearse -- --base-url "$BASE_URL"                     # local, chromium
 npm run rehearse -- --base-url "$BASE_URL" --guests 6          # quicker, and what fits on the pylon
 ```
 
-`--browser webkit` uses Playwright's WebKit with the same device profiles. WebKit has no CDP, so a phone there gets route-based HTTP latency without a bandwidth cap, and a locked phone only loses its socket (no page freeze). The report notes this. Run WebKit on the Mac. On the pylon, `npx playwright install webkit` downloads it and `sudo npx playwright install-deps webkit` adds its libraries, but it drops the `Secure` admin and guest cookies on `http://127.0.0.1` and `http://localhost`, and even behind a local TLS proxy its pages stall on clicks and screenshots once a few are open.
+`--browser webkit` uses Playwright's WebKit with the same device profiles. WebKit has no CDP, so a phone there gets route-based HTTP latency without a bandwidth cap, and a locked phone only loses its socket (no page freeze). The report notes this. Two more limits of that line:
+
+- WebKit loses the photo and thumb of a multipart upload that a route holds, and the server then stores an empty photo, so the latency route leaves `/api/photo` alone. Uploads in WebKit get neither latency nor a bandwidth cap, and "Skickar bilden…" shows for 70 to 400 ms. The mid-send step holds its first try with its own route and aborts it after the cut, so it never needs that try's body.
+- WebKit's offline mode stops HTTP but not sockets, so a cut line refuses new party sockets itself.
+
+WebKit drops the `Secure` admin and guest cookies on `http://127.0.0.1` and `http://localhost`, so locally it needs HTTPS. Serve a build with `node e2e/server.ts <port>` (self-signed certificate, test secrets `e2e-join-secret` and `e2e-admin-secret`) and rehearse against `https://127.0.0.1:<port>`. The rehearsal ignores certificate errors for a local target. On the pylon, `npx playwright install webkit` and `sudo npx playwright install-deps webkit` install it (`.nexus/setup` does both). Headless WebKit draws in software: three idle phones with the snow falling kept 90% of the pylon's 4 CPUs busy, and each WebKit phone takes about 650 to 850 MB. So the WebKit Playwright projects run with reduced motion. On the pylon, a WebKit rehearsal with the animations on overloaded the machine at 6 guests and at 8. Rehearse WebKit there with `--reduced-motion`, which the report notes, and at least 8 guests, the fewest with two flaky phones, which the mid-send upload needs. On the Mac, leave the flag off.
 
 The pylon has 4 GB and no swap. With the `web` service running, 8 phones were enough for the kernel to kill Chromium mid-rehearsal, and the report then shows timeouts with no failure screenshots. Use `--guests 6` there, run nothing else at the same time, and check `sudo dmesg | grep -i 'killed process'` before you believe a failed run.
 

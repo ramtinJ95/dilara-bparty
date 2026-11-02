@@ -3,7 +3,7 @@ import type { AdminState } from "../../src/shared/protocol";
 // Staging and production share the Cloudflare account's free daily Durable Object allowance, and it resets at 00:00 UTC.
 export const PARTY_DAY_UTC = "2026-11-07";
 
-function isLocal(baseUrl: string): boolean {
+export function isLocal(baseUrl: string): boolean {
   try {
     const host = new URL(baseUrl).hostname;
     return host === "localhost" || host.endsWith(".localhost") || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host);
