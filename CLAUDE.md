@@ -22,6 +22,7 @@ npm run typecheck        # wrangler types --check, then tsc
 npm test                 # Worker tests (vitest)
 npm run test:e2e         # Playwright smoke and network tests against a fresh build
 npm run media            # screenshots and videos into artifacts/
+npm run seed -- [--base-url <local url>] [--bots]   # placeholder players, questions and photos, then bots that play; the `seed` service runs it against `web`, and it skips what the party already has
 npm run rehearse -- --base-url <url>   # 20 phones on mixed networks; JOIN_SECRET and ADMIN_SECRET from the environment; refuses on the party day and on a party with content
 .nexus/check             # what a PR must pass: install, typecheck, test, test:e2e
 ```
