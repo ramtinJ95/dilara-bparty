@@ -55,7 +55,8 @@
 .admin textarea.field { padding: 10px 12px; resize: vertical; font-family: inherit; }
 
 .link {
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 9px;
   border: 2px solid transparent;
   border-radius: 8px;
@@ -270,7 +271,6 @@ h2 .muted { font: 600 14px var(--text); }
   .admin header .status { margin-left: auto; }
   .admin .card { padding: 16px; }
   .qr { width: min(100%, 420px); }
-  .link { min-width: 44px; min-height: 44px; }
   .players li { grid-template-columns: 14px minmax(0, 1fr) auto; }
   .players .when { display: none; }
   .q-head .actions { margin-left: 0; width: 100%; }

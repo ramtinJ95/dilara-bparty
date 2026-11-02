@@ -150,15 +150,10 @@
 .lb.mine::before { content: "Din plats"; margin: 6px 0 2px; font-family: var(--display); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .quiz-top, .q-frame, .q-text, .verdict, .room, .board-title { animation: drop 0.5s var(--spring) var(--d, 0.05s) backwards; }
-  .q-frame { --d: 0.08s; }
-  .q-text { --d: 0.14s; }
+  /* The answer clock starts once the question is on screen, so the question, its photo and the choices never animate in. */
+  .verdict, .room, .board-title { animation: drop 0.5s var(--spring) var(--d, 0.05s) backwards; }
   .room { --d: 0.2s; }
   .secs > span:last-child { animation: tick 0.32s var(--spring) backwards; }
-  .choice { animation: slide 0.45s var(--spring) calc(0.25s + var(--i, 0) * 0.07s) backwards; }
-  .choice:nth-child(2) { --i: 1; }
-  .choice:nth-child(3) { --i: 2; }
-  .choice:nth-child(4) { --i: 3; }
   .choice.picked { animation: press 0.3s var(--spring) backwards; }
   .check { animation: pop 0.35s var(--spring) backwards; }
   .answer-note.sent { animation: pop 0.4s var(--spring) backwards; }

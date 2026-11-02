@@ -392,7 +392,7 @@
   .shell header { animation: slam 0.4s var(--spring) backwards; }
   .tabs button { transition: transform 0.14s var(--spring), box-shadow 0.14s var(--spring); }
   .tab-dot { animation: throb 1.2s ease-in-out infinite; }
-  .shell main > * { animation: drop 0.5s var(--spring) 0.05s backwards; }
+  .shell main > :not(.quiz-card) { animation: drop 0.5s var(--spring) 0.05s backwards; }
   /* The gallery reorders by votes, and a moved tile restarts its animations, so tiles stay still. */
   .tile .cap { animation: none; }
   .stamp { animation: stamp 0.4s var(--spring) backwards; }
