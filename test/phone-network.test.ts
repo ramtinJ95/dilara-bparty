@@ -25,7 +25,13 @@ async function shapedLink(profile: ProfileName) {
   const context = { browser: () => null, setOffline: async () => {} } as unknown as BrowserContext;
   const line = await shapeNetwork(context, fakePage, profile);
   open!(Object.assign(page.route, { connectToServer: () => server.route }));
-  return { log, line, page: page.peer, server: server.peer, settled: () => new Promise((r) => setTimeout(r, profiles[profile].latencyMs * 3 + 50)) };
+  // The phone opens another socket, as it does to reconnect, and the result says whether the route connected it to the server.
+  const reconnect = (name: string) => {
+    let reached = false;
+    open!(Object.assign(end(name, log).route, { connectToServer: () => ((reached = true), end(`${name}'s server`, log).route) }));
+    return reached;
+  };
+  return { log, line, reconnect, page: page.peer, server: server.peer, settled: () => new Promise((r) => setTimeout(r, profiles[profile].latencyMs * 3 + 50)) };
 }
 
 describe("a shaped party socket", () => {
@@ -44,6 +50,15 @@ describe("a shaped party socket", () => {
     await link.line.cut("silent");
     await link.settled();
     expect(link.log).toEqual([]);
+  });
+
+  it.each(["clean", "silent"] as const)("refuses a socket opened during a %s cut, and connects the next one once the line is back", async (outage) => {
+    const link = await shapedLink("good");
+    await link.line.cut(outage);
+    expect(link.reconnect("retry")).toBe(false);
+    expect(link.log).toContain("retry closed 1006");
+    await link.line.restore();
+    expect(link.reconnect("after restore")).toBe(true);
   });
 
   it.each(Object.keys(profiles) as ProfileName[])("on %s delivers the phone's last frames before its close", async (profile) => {
