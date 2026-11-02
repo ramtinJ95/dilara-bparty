@@ -190,6 +190,8 @@ describe("contest upload", () => {
     expect((await uploadContest(astrid.cookie, { photo: { bytes: new Uint8Array(PHOTO_MAX_BYTES + 1), type: "image/jpeg" } })).status).toBe(413);
     expect((await uploadContest(astrid.cookie, { thumb: { bytes: new Uint8Array([1]), type: "image/gif" } })).status).toBe(415);
     expect((await uploadContest(astrid.cookie, { photo: { bytes: new Uint8Array([1]), type: "text/html" } })).status).toBe(415);
+    expect((await uploadContest(astrid.cookie, { photo: { bytes: new Uint8Array(0), type: "image/jpeg" } })).status).toBe(415);
+    expect((await uploadContest(astrid.cookie, { thumb: { bytes: new Uint8Array(0), type: "image/jpeg" } })).status).toBe(415);
     expect((await uploadContest(astrid.cookie, { photo: { bytes: new Uint8Array(PHOTO_MAX_BYTES), type: "image/webp" } })).status).toBe(200);
 
     expect((await (await admin()).state()).contest.entrants.map((e) => e.versions.length)).toEqual([1]);

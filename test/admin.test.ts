@@ -89,8 +89,9 @@ describe("landing photo upload", () => {
     expect(res.status).toBe(413);
   });
 
-  it("refuses types other than JPEG, PNG and WebP", async () => {
+  it("refuses types other than JPEG, PNG and WebP, and an empty photo", async () => {
     expect((await uploadLanding(new Uint8Array([1]), "image/gif")).status).toBe(415);
     expect((await uploadLanding(new Uint8Array([1]), "text/html")).status).toBe(415);
+    expect((await uploadLanding(new Uint8Array(0), "image/jpeg")).status).toBe(415);
   });
 });
