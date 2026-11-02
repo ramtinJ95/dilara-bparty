@@ -146,8 +146,10 @@ test("an upload whose photo was gone before its response arrived settles to what
   test.skip(browserName === "webkit", "WebKit hands a route the upload without its photo and thumb, so route.fetch would store an empty photo.");
   const guest = await joinedPhone(browser, "Borttagen gäst");
   let server!: WebSocketRoute;
+  let page!: WebSocketRoute;
   const frames: string[] = [];
   await guest.routeWebSocket(/\/ws$/, (ws) => {
+    page = ws;
     server = ws.connectToServer();
     server.onMessage((m) => (frames.push(String(m)), ws.send(m)));
   });
@@ -163,7 +165,14 @@ test("an upload whose photo was gone before its response arrived settles to what
   await guest.getByRole("button", { name: "Mitt foto" }).click();
   await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
   await expect(guest.getByText("Klart!")).toBeVisible();
-  await expect(guest.getByRole("button", { name: "Välj bild" }), "not stuck on Klart! waiting for a snapshot that never comes").toBeVisible({ timeout: 5_000 });
+  // A busy party: the same state again, more often than the grace, as other guests' changes would send it.
+  const last = frames.findLast((f) => f.includes('"t":"state"'))!;
+  const busy = setInterval(() => page.send(last), 500);
+  try {
+    await expect(guest.getByRole("button", { name: "Välj bild" }), "not stuck on Klart! while snapshots keep coming").toBeVisible({ timeout: 5_000 });
+  } finally {
+    clearInterval(busy);
+  }
   await guest.context().close();
 });
 

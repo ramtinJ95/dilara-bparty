@@ -51,18 +51,21 @@ export function useUploader(snapshot: object | null, mine: PhotoId | null, live:
     setCurrent(null);
   };
 
+  // A boolean, not the snapshot itself, so a busy party's broadcasts don't keep restarting the grace.
+  const newSnapshot = snapshot !== atDone.current;
+
   useEffect(() => clear, []);
   useEffect(() => {
     if (live) upload.current?.resume();
   }, [live]);
   useEffect(() => {
     if (current?.progress.phase !== "done") return;
-    const wait = settleDelay(current.progress.id, mine, live, snapshot !== atDone.current);
+    const wait = settleDelay(current.progress.id, mine, live, newSnapshot);
     if (wait === null) return;
     if (wait === 0) return clear();
     const timer = setTimeout(clear, wait);
     return () => clearTimeout(timer);
-  }, [current, snapshot, mine, live]);
+  }, [current, newSnapshot, mine, live]);
 
   async function pick(file: File) {
     clear();
