@@ -2,6 +2,7 @@ import { useRef, useState } from "preact/hooks";
 import type { GuestCmd, GuestContest, MyPhoto as Mine } from "../../shared/protocol";
 import { photoUrl } from "../api";
 import { CameraIcon, Snowflake, Sparkle } from "../icons";
+import { Cap, Icicles } from "../ice";
 import { percent, type Progress, type Uploader, type Uploading } from "./use-upload";
 
 export const votesText = (n: number) => (n === 1 ? "1 röst" : `${n} röster`);
@@ -20,7 +21,10 @@ function UploadingView({ upload, retry }: { upload: Uploading; retry: () => void
   const waiting = progress.phase === "waiting" || progress.phase === "stuck";
   return (
     <div class="photo-stage" aria-live="polite">
-      <div class={waiting ? "photo-frame waiting" : "photo-frame"}>{upload.preview ? <img src={upload.preview} alt="Din bild" /> : <Snowflake />}</div>
+      <div class={waiting ? "photo-frame waiting" : "photo-frame"}>
+        <Cap />
+        {upload.preview ? <img src={upload.preview} alt="Din bild" /> : <Snowflake />}
+      </div>
       {!waiting && (
         <div class="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Uppladdning">
           <span style={{ width: `${pct}%` }} />
@@ -105,9 +109,12 @@ const VoteCount = ({ votes }: { votes: number }) => <p class="vote-count">{votes
 function PhotoFrame({ mine }: { mine: Mine }) {
   return (
     <div class="photo-frame">
+      <Cap />
       <img src={photoUrl(mine.id)} alt="Din bild" style={{ backgroundImage: `url(${photoUrl(mine.thumb)})` }} />
       <Sparkle class="sparkle a" />
       <Sparkle class="sparkle b" />
+      <Icicles class="a" />
+      <Icicles class="b" />
     </div>
   );
 }
@@ -134,11 +141,14 @@ export function MyPhotoPanel({ contest, upload, live, send }: { contest: GuestCo
 
   return (
     <section class="panel card my-photo" aria-labelledby="panel-title">
+      <Cap />
       <h2 id="panel-title">Mitt foto</h2>
       {view.kind === "empty" && (
         <>
           <button class="drop-frame" type="button" onClick={open}>
-            <CameraIcon />
+            <span class="badge-icon">
+              <CameraIcon />
+            </span>
             <span>Ladda upp din finaste bild med Dilara</span>
           </button>
           <button class="btn" type="button" onClick={open}>

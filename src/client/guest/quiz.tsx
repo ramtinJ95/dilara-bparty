@@ -7,6 +7,7 @@ import { formatSv as fmt, LETTERS, parseNumber } from "../answers";
 import { photoUrl } from "../api";
 import { useSecondsLeft } from "../clock";
 import { CheckIcon, Snowflake, Sparkle, Tiara } from "../icons";
+import { Cap, Icicles } from "../ice";
 import { elapsedMs, heldAnswer, holdAnswer, markShown, roundKey } from "./answer-clock";
 import { Leaderboard } from "./board";
 import "./quiz.css";
@@ -34,6 +35,7 @@ export function Quiz(props: Shared & { quiz: LiveQuiz }) {
 function Calm({ title, children }: { title: string; children: ComponentChildren }) {
   return (
     <section class="panel card calm" aria-labelledby="quiz-title">
+      <Cap />
       <Tiara />
       <h2 id="quiz-title">{title}</h2>
       {children}
@@ -112,10 +114,10 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
   };
 
   return (
-    <section class="quiz-card card" aria-labelledby="quiz-title">
+    <section class="quiz-card" aria-labelledby="quiz-title">
       <div class="quiz-top">
         <Progress n={quiz.n} total={quiz.total} />
-        <Countdown deadline={deadline} seconds={q.seconds} left={left} />
+        <Countdown seconds={q.seconds} left={left} />
       </div>
       {!ready ? (
         <div class="loading" role="status">
@@ -124,7 +126,12 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
         </div>
       ) : (
         <>
-          {photo === "shown" && q.photo && <img class="q-photo" src={photoUrl(q.photo)} alt="" />}
+          {photo === "shown" && q.photo && (
+            <figure class="q-frame card">
+              <Cap />
+              <img class="q-photo" src={photoUrl(q.photo)} alt="" />
+            </figure>
+          )}
           <h2 id="quiz-title" class="q-text">
             {q.text}
           </h2>
@@ -134,6 +141,11 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
                 <button key={i} type="button" class={pick === i ? "choice picked" : "choice"} disabled={locked} aria-pressed={pick === i} onClick={() => answer(i)}>
                   <span class="letter">{LETTERS[i]}</span>
                   <span>{o}</span>
+                  {pick === i && (
+                    <span class="check">
+                      <CheckIcon />
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -165,19 +177,21 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
   );
 }
 
-function Countdown({ deadline, seconds, left }: { deadline: number | null; seconds: number; left: number | null }) {
-  const [bar] = useState(() => {
-    const ms = deadline === null ? 0 : Math.max(0, deadline - performance.now());
-    return { ms, from: Math.min(1, ms / (seconds * 1000)) };
-  });
+const ICICLES = 20;
+
+function Countdown({ seconds, left }: { seconds: number; left: number | null }) {
+  const hanging = left === null ? ICICLES : Math.ceil((left / seconds) * ICICLES);
   return (
     <div class="countdown">
-      <div class="track" aria-hidden="true">
-        <i style={{ animationDuration: `${bar.ms}ms`, "--from": bar.from }} />
-      </div>
-      <span class="secs" aria-label={`${left ?? 0} sekunder kvar`}>
-        {left ?? 0}
+      <span class={left !== null && left <= 5 ? "secs card low" : "secs card"} aria-label={`${left ?? 0} sekunder kvar`}>
+        <Cap />
+        <span key={left}>{left ?? 0}</span>
       </span>
+      <div class="rail" aria-hidden="true">
+        {Array.from({ length: ICICLES }, (_, i) => (
+          <i key={i} class={i < hanging ? "on" : undefined} style={{ "--h": `${16 + ((i * 7) % 3) * 6}px` }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -216,7 +230,8 @@ function pickText(q: GuestQuestion, pick: number) {
 
 function Closed({ quiz }: ViewProps<"closed">) {
   return (
-    <section class="quiz-card card" aria-labelledby="quiz-title">
+    <section class="quiz-card card waiting" aria-labelledby="quiz-title">
+      <Cap />
       <Progress n={quiz.n} total={quiz.total} />
       <h2 id="quiz-title" class="q-text small">
         {quiz.question.text}
@@ -247,9 +262,10 @@ const VERDICT: Record<RoundResult["kind"], Record<Outcome, string>> = {
 function Reveal({ quiz }: ViewProps<"reveal">) {
   const outcome: Outcome = quiz.pick === null ? "none" : quiz.points > 0 ? "right" : "wrong";
   return (
-    <section class="quiz-card card" aria-labelledby="quiz-title">
+    <section class="quiz-card" aria-labelledby="quiz-title">
       <Progress n={quiz.n} total={quiz.total} />
-      <div class={`verdict ${outcome}`}>
+      <div class={`verdict card ${outcome}`}>
+        <Cap />
         {outcome === "right" && (
           <>
             <Sparkle class="sparkle a" />
@@ -260,6 +276,7 @@ function Reveal({ quiz }: ViewProps<"reveal">) {
         <h2 id="quiz-title">{VERDICT[quiz.result.kind][outcome]}</h2>
         <p class="points">+{fmt(quiz.points)} poäng</p>
         <p class="total">Totalt {fmt(quiz.score)} poäng</p>
+        <Icicles />
       </div>
       <p class="q-text small">{quiz.question.text}</p>
       {quiz.result.kind === "choice" && quiz.question.kind === "choice" ? (
@@ -274,7 +291,7 @@ function Reveal({ quiz }: ViewProps<"reveal">) {
 function RoomChoice({ options, result, pick }: { options: string[]; result: ChoiceResult; pick: number | null }) {
   const most = Math.max(1, ...result.counts);
   return (
-    <div class="room">
+    <div class="room card">
       <h3>Så svarade alla</h3>
       <ul class="tally">
         {options.map((o, i) => (
@@ -298,7 +315,7 @@ function RoomChoice({ options, result, pick }: { options: string[]; result: Choi
 
 function RoomNumber({ result, pick }: { result: NumberResult; pick: number | null }) {
   return (
-    <div class="room">
+    <div class="room card">
       <h3>Så svarade alla</h3>
       <dl class="facts">
         <dt>Rätt svar</dt>

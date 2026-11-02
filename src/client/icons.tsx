@@ -16,19 +16,21 @@ export const Sparkle = ({ class: className }: { class?: string }) => (
   </svg>
 );
 
-export const Tiara = () => (
-  <svg class="tiara" viewBox="0 0 74 38" aria-hidden="true">
+export const Tiara = ({ class: className }: { class?: string }) => (
+  <svg class={className ? `tiara ${className}` : "tiara"} viewBox="0 0 124 68" aria-hidden="true">
     <defs>
-      <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="ice-tiara" x1="0" y1="0" x2="0.4" y2="1">
         <stop offset="0" stop-color="#fff" />
-        <stop offset="1" stop-color="#a9bccd" />
+        <stop offset="0.5" stop-color="#cdeaff" />
+        <stop offset="1" stop-color="#8fd0ff" />
       </linearGradient>
     </defs>
-    <path d="M4 34 L10 14 L22 26 L37 4 L52 26 L64 14 L70 34 Q37 26 4 34Z" fill="url(#silver)" stroke="#8fa7bd" stroke-width="1.2" stroke-linejoin="round" />
-    <circle cx="37" cy="5" r="3.4" fill="#7cc0f2" />
-    <circle cx="10" cy="14" r="2.6" fill="#a9d2f3" />
-    <circle cx="64" cy="14" r="2.6" fill="#a9d2f3" />
-    <circle cx="37" cy="24" r="3" fill="#4f9be0" />
+    <path d="M12 62L7 32L28 45L38 18L52 39L62 4L72 39L86 18L96 45L117 32L112 62Q62 51 12 62Z" fill="url(#ice-tiara)" stroke="#10204a" stroke-width="4.5" stroke-linejoin="round" />
+    <path d="M62 10L62 46M38 24L42 50M86 24L82 50M18 40L22 56M106 40L102 56" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.9" />
+    <circle cx="62" cy="40" r="7" fill="#ff9cc8" stroke="#10204a" stroke-width="3.5" />
+    <circle cx="38" cy="18" r="4.5" fill="#8fd0ff" stroke="#10204a" stroke-width="3" />
+    <circle cx="86" cy="18" r="4.5" fill="#8fd0ff" stroke="#10204a" stroke-width="3" />
+    <circle cx="62" cy="5" r="4" fill="#fff" stroke="#10204a" stroke-width="3" />
   </svg>
 );
 

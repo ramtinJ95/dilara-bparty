@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { GuestCmd, GuestState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
+import { Cap, Icicles } from "../ice";
 import { useLive } from "../live";
 import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
 import { Finale } from "./finale";
@@ -26,7 +27,10 @@ type Tab = { id: TabId; label: string; Icon: ComponentType; Panel: ComponentType
 const QuizPanel = ({ state, live, send, deadline }: PanelProps) =>
   state.quiz.phase === "locked" ? (
     <section class="panel card" aria-labelledby="panel-title">
-      <LockIcon />
+      <Cap />
+      <span class="badge-icon">
+        <LockIcon />
+      </span>
       <h2 id="panel-title">Quizet är inte öppet än</h2>
       <p>Vi säger till när det är dags!</p>
     </section>
@@ -133,6 +137,8 @@ export function Shell() {
       <header class={onQuizTab && unlocked ? "compact" : undefined}>
         <h1>{state ? `Hej, ${state.you.name}!` : "Hej!"}</h1>
         {state && <p class="online">{state.online === 1 ? "1 gäst här just nu" : `${state.online} gäster här just nu`}</p>}
+        <Icicles class="a" />
+        <Icicles class="b" />
       </header>
       <main>
         {state && (
@@ -149,6 +155,7 @@ export function Shell() {
           const Icon = t.id === "quiz" && unlocked ? QuizIcon : t.Icon;
           return (
             <button key={t.id} type="button" aria-current={t.id === tab.id ? "page" : undefined} onClick={() => choose(t)}>
+              {t.id === tab.id && <Cap />}
               <Icon />
               {t.label}
               {t.id === "quiz" && waitingForYou && <span class="tab-dot" aria-label="En fråga väntar" />}

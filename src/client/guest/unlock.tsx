@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { Snowflake, Sparkle, Tiara } from "../icons";
+import { Cap, Icicles } from "../ice";
 
 const SEEN_KEY = "quiz-unlock-seen";
 
@@ -37,6 +38,7 @@ export function UnlockPopup({ onGo, onLater }: { onGo: () => void; onLater: () =
   return (
     <div class="scrim">
       <div class="popup card" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
+        <Cap />
         <div class="flakes" aria-hidden="true">
           <Snowflake />
           <Snowflake />
@@ -54,6 +56,8 @@ export function UnlockPopup({ onGo, onLater }: { onGo: () => void; onLater: () =
         <Sparkle class="sparkle a" />
         <Sparkle class="sparkle b" />
         <Sparkle class="sparkle c" />
+        <Icicles class="a" />
+        <Icicles class="b" />
       </div>
     </div>
   );
