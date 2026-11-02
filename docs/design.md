@@ -10,6 +10,17 @@ code and runs the admin view; it is not a shared game screen.
 - The guest UI is in Swedish. The admin view can stay in English.
 - The theme matches the party: snow, ice and princess, in light blue, white and
   silver, with snowflakes and a bit of sparkle.
+- The look is "Ice block", a playful neo-brutalist style. Cards and buttons are
+  chunky frozen blocks with thick navy outlines, hard offset shadows, snow caps
+  on top and icicles dripping from the edges. Pink is the small princess
+  accent, with a tiara for the leader and the winners.
+- Headings use Archivo Black and body text Space Grotesk, self-hosted as small
+  subsets that cover Swedish (`scripts/subset-fonts.sh`).
+- Motion is CSS only: blocks drop in and squash, caps plop, icicles grow, snow
+  falls, and the finale cracks a block of ice open. Animations stop while the
+  page is hidden, and with reduced motion the pages are still.
+- The admin view uses the same language with thinner lines and less decoration,
+  so it stays dense. The bare domain page stays plain.
 
 ## Pages
 
