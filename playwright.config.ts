@@ -26,12 +26,13 @@ export default defineConfig({
     // test:e2e otherwise drives only a build, where Vite's dev-only paths never reach the Worker. dev.spec.ts starts its server.
     { name: "dev", testMatch: "dev.spec.ts", use: { baseURL: `http://127.0.0.1:${devPort}` } },
     // It ends and wipes the one party every project shares, so it runs last, on its own.
-    { name: "admin", testMatch: "admin.spec.ts", dependencies: ["network"] },
+    { name: "admin", testMatch: "admin.spec.ts", timeout: 90_000, dependencies: ["network"] },
     // The same specs in WebKit, run as their own `playwright test`, so they get their own server and party and never meet the admin wipe above.
-    // The quiz smoke test took 9 s in Chromium and 20 to 27 s in WebKit.
-    { name: "webkit-smoke", testMatch: "smoke.spec.ts", use: webkit, timeout: 60_000 },
-    { name: "webkit-network", testMatch: "network.spec.ts", use: webkit, timeout: 60_000, dependencies: ["webkit-smoke"], fullyParallel: true, workers: 2 },
-    { name: "webkit-admin", testMatch: "admin.spec.ts", use: webkit, timeout: 60_000, dependencies: ["webkit-network"] },
+    // The quiz smoke test took 9 s in Chromium and 20 to 27 s in WebKit, and a loaded .nexus/check ran WebKit twice as slow again,
+    // so a phone's 5 s wait for a live update ran out there. The checks stay the same; WebKit waits longer for them.
+    { name: "webkit-smoke", testMatch: "smoke.spec.ts", use: webkit, timeout: 90_000, expect: { timeout: 15_000 } },
+    { name: "webkit-network", testMatch: "network.spec.ts", use: webkit, timeout: 90_000, expect: { timeout: 15_000 }, dependencies: ["webkit-smoke"], fullyParallel: true, workers: 2 },
+    { name: "webkit-admin", testMatch: "admin.spec.ts", use: webkit, timeout: 180_000, expect: { timeout: 15_000 }, dependencies: ["webkit-network"] },
   ],
   webServer: {
     command: `node e2e/server.ts ${port}`,

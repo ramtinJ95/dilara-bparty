@@ -10,7 +10,6 @@ import { joinViaApi, laptop, openAdmin, openShell, phone } from "./support";
 type LookName = keyof typeof LOOKS;
 
 test.describe.configure({ mode: "serial" });
-test.setTimeout(90_000);
 
 let admin: Page;
 let astrid: Page;
