@@ -32,7 +32,11 @@ test.beforeAll(async ({ browser }) => {
   }
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await end.getByRole("button", { name: "Yes, wipe everything" }).click();
-  await expect(admin.getByText("Nobody has joined yet."), "the other projects' party is wiped first").toBeVisible();
+  // A failed wipe shows its reason in an alert, so the test reports that rather than a missing empty list.
+  const wiped = admin.getByText("Nobody has joined yet.");
+  await expect(wiped.or(end.getByRole("alert")).first(), "the other projects' party is wiped first").toBeVisible({ timeout: 15_000 });
+  expect(await end.getByRole("alert").allTextContents(), "the wipe succeeds").toEqual([]);
+  await expect(wiped).toBeVisible();
   await expect(end.getByText("New guests can join.")).toBeVisible();
   const join = async (name: string) => openShell(await joinViaApi(browser, name));
   [astrid, olle, kim] = await Promise.all([join("Astrid"), join("Olle"), join("Kim Testsson")]);
