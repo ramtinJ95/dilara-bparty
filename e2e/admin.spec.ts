@@ -64,6 +64,9 @@ async function lookOf(img: Locator): Promise<string> {
   return lookAt(img.page(), await img.evaluate((el: HTMLImageElement) => el.currentSrc || el.src));
 }
 
+// expect.poll gives up at the first throw, so a polled read reports a missing image instead of failing on it.
+const polledLook = async (img: Locator): Promise<string> => ((await img.isVisible()) ? lookOf(img) : "no image shown yet");
+
 async function readQr(qr: Locator): Promise<string | undefined> {
   const png = (await qr.screenshot()).toString("base64");
   const { width, height, rgba } = await qr.page().evaluate(async (png) => {
@@ -125,7 +128,7 @@ async function uploadContestPhoto(guest: Page, look: LookName) {
   const confirm = guest.getByRole("button", { name: "Välj ny bild", exact: true });
   await Promise.race([chooser, confirm.waitFor().then(() => confirm.click(), () => {})]);
   await (await chooser).setFiles(file);
-  await expect.poll(() => lookOf(guest.getByAltText("Din bild")), { ...uploaded, message: "the phone shows its new photo" }).toBe(look);
+  await expect.poll(() => polledLook(guest.getByAltText("Din bild")), { ...uploaded, message: "the phone shows its new photo" }).toBe(look);
   await expect(guest.getByText("Inga röster än"), "the upload finished").toBeVisible(uploaded);
 }
 
@@ -167,12 +170,12 @@ test("the landing photo the host uploads, replaces and removes is what the join 
   const joinPhoto = visitor.getByAltText("Dilara");
 
   await upload("rose");
-  await expect.poll(() => lookOf(landing.getByAltText("Current landing photo")), uploaded).toBe("rose");
+  await expect.poll(() => polledLook(landing.getByAltText("Current landing photo")), uploaded).toBe("rose");
   await visitor.goto(`/j/${secrets.join}`);
   expect(await lookOf(joinPhoto), "the join page shows the uploaded photo").toBe("rose");
 
   await upload("snow");
-  await expect.poll(() => lookOf(landing.getByAltText("Current landing photo")), uploaded).toBe("snow");
+  await expect.poll(() => polledLook(landing.getByAltText("Current landing photo")), uploaded).toBe("snow");
   await visitor.reload();
   expect(await lookOf(joinPhoto), "the join page shows the replacement").toBe("snow");
 
