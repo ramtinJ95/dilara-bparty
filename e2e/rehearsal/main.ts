@@ -94,8 +94,11 @@ async function check(label: string, run: () => Promise<unknown>, evidence?: Page
     // Checks fail concurrently and push only after their screenshot, so number the screenshots from their own counter.
     const screenshot = evidence && `failures/${String(++failureShots).padStart(3, "0")}-${currentStep}.png`;
     if (screenshot) await evidence.screenshot({ path: `${out}/${screenshot}` }).catch(() => {});
-    checks.push({ step: currentStep, label, ok: false, ms: Date.now() - start, error: firstLine(e), ...(screenshot && { screenshot }) });
-    console.log(`  ✘ ${label}: ${firstLine(e)}`);
+    // An alert can sit outside the screenshot, behind a fixed bar or below the fold, so its text goes into the report.
+    const alerts = evidence ? await evidence.getByRole("alert").allInnerTexts().catch(() => []) : [];
+    const error = [firstLine(e), ...alerts.map((a) => `alert on the page: “${a.trim()}”`)].join("; ");
+    checks.push({ step: currentStep, label, ok: false, ms: Date.now() - start, error, ...(screenshot && { screenshot }) });
+    console.log(`  ✘ ${label}: ${error}`);
     return false;
   }
 }
@@ -115,6 +118,7 @@ if ((await adminContext.request.get("/@vite/client")).ok()) {
   notes.push("The target is a Vite dev server, which serves the client as many unbundled modules, so page loads on slow profiles take far longer than on a deployed build.");
 }
 if (args["reduced-motion"]) notes.push("Every phone ran with reduced motion, so the page's CSS animations were off.");
+if (browserName === "webkit") notes.push("WebKit phones had no HTTP latency or bandwidth cap; only their party socket was shaped.");
 const runTag = Math.random().toString(36).slice(2, 5);
 
 const guests: Guest[] = await Promise.all(
