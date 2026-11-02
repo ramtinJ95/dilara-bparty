@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type FileChooser, type Locator, type Page } from "@playwright/test";
 import jsQR from "jsqr";
 import { readFileSync } from "node:fs";
 import { crc32 } from "node:zlib";
@@ -110,9 +110,21 @@ function unzip(zip: Buffer): ZipFile[] {
   return files;
 }
 
+// Through the visible button and the browser's file chooser, as a person picks a file, so a broken button fails the test.
+async function choose(page: Page, button: Locator, file: Parameters<FileChooser["setFiles"]>[0]) {
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), button.click()]);
+  await chooser.setFiles(file);
+}
+
 async function uploadContestPhoto(guest: Page, look: LookName) {
   await tab(guest, "Mitt foto");
-  await guest.locator('input[type="file"]').setInputFiles(pngFile(look, await placeholder(guest, LOOKS[look])));
+  const file = pngFile(look, await placeholder(guest, LOOKS[look]));
+  const chooser = guest.waitForEvent("filechooser");
+  const pick = guest.getByRole("button", { name: "Välj bild", exact: true });
+  await ((await pick.isVisible()) ? pick : guest.getByRole("button", { name: "Byt bild", exact: true })).click();
+  const confirm = guest.getByRole("button", { name: "Välj ny bild", exact: true });
+  await Promise.race([chooser, confirm.waitFor().then(() => confirm.click(), () => {})]);
+  await (await chooser).setFiles(file);
   await expect.poll(() => lookOf(guest.getByAltText("Din bild")), { ...uploaded, message: "the phone shows its new photo" }).toBe(look);
   await expect(guest.getByText("Inga röster än"), "the upload finished").toBeVisible(uploaded);
 }
@@ -149,16 +161,17 @@ test("the QR code and the short join code each bring a phone into the party", as
 
 test("the landing photo the host uploads, replaces and removes is what the join page shows", async ({ browser }) => {
   const landing = card(".landing-photo");
-  const picker = landing.locator('input[type="file"]');
+  const upload = async (look: LookName) =>
+    choose(admin, landing.getByRole("button", { name: /^(Upload|Replace) photo$/ }), pngFile(look, await placeholder(admin, LOOKS[look])));
   const { context, page: visitor } = await newPhone(browser);
   const joinPhoto = visitor.getByAltText("Dilara");
 
-  await picker.setInputFiles(pngFile("rose", await placeholder(admin, LOOKS.rose)));
+  await upload("rose");
   await expect.poll(() => lookOf(landing.getByAltText("Current landing photo")), uploaded).toBe("rose");
   await visitor.goto(`/j/${secrets.join}`);
   expect(await lookOf(joinPhoto), "the join page shows the uploaded photo").toBe("rose");
 
-  await picker.setInputFiles(pngFile("snow", await placeholder(admin, LOOKS.snow)));
+  await upload("snow");
   await expect.poll(() => lookOf(landing.getByAltText("Current landing photo")), uploaded).toBe("snow");
   await visitor.reload();
   expect(await lookOf(joinPhoto), "the join page shows the replacement").toBe("snow");
@@ -169,7 +182,7 @@ test("the landing photo the host uploads, replaces and removes is what the join 
   await expect(visitor.getByRole("heading", { name: "Dilara fyller 3!" })).toBeVisible();
   await expect(joinPhoto, "the join page falls back to the snowflake").toHaveCount(0);
 
-  await picker.setInputFiles(pngFile("snow", await placeholder(admin, LOOKS.snow)));
+  await upload("snow");
   await expect(landing.getByAltText("Current landing photo")).toBeVisible(uploaded);
   await context.close();
 });
@@ -195,7 +208,7 @@ test("the host adds both kinds of question, edits, reorders and deletes them, an
   await editor.getByRole("button", { name: "+ Add option" }).click();
   await editor.getByLabel("Option C", { exact: true }).fill("Grön");
   await editor.getByLabel("Option B is correct").check();
-  await editor.getByLabel("Question photo file").setInputFiles(pngFile("question", await placeholder(admin, LOOKS.sea)));
+  await choose(admin, editor.getByRole("button", { name: "Add photo", exact: true }), pngFile("question", await placeholder(admin, LOOKS.sea)));
   await expect(editor.getByAltText("Question photo")).toBeVisible(uploaded);
   await editor.getByRole("button", { name: "Save question" }).click();
   await expect(row(3).locator(".q-text")).toHaveText("Vilken färg har snöflingan på bilden?");
