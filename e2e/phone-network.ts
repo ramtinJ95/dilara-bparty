@@ -1,4 +1,5 @@
 import type { BrowserContext, CDPSession, Page, WebSocketRoute } from "@playwright/test";
+import { CONTEST_UPLOAD_PATH } from "../src/shared/api.ts";
 
 export type ProfileName = "good" | "slow-4g" | "bad-3g" | "flaky";
 export type NetworkProfile = { latencyMs: number; downKbps: number; upKbps: number };
@@ -71,7 +72,8 @@ async function throttleHttp(page: Page, profile: NetworkProfile, cdp: CDPSession
     await apply(false);
     return apply;
   }
-  await page.route("**/*", async (route) => {
+  // WebKit loses the blob parts of a multipart body it held for a route: some uploads reached the server with an empty photo and thumb.
+  await page.route((url) => url.pathname !== CONTEST_UPLOAD_PATH, async (route) => {
     await new Promise((r) => setTimeout(r, profile.latencyMs));
     await route.fallback();
   });
