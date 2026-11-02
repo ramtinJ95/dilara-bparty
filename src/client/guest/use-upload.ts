@@ -40,6 +40,8 @@ export function useUploader(snapshot: object | null, mine: PhotoId | null, live:
   const latest = useRef(snapshot);
   latest.current = snapshot;
   const atDone = useRef<object | null>(null);
+  const seen = useRef(new Set<PhotoId>());
+  if (current && mine) seen.current.add(mine);
 
   const clear = () => {
     upload.current?.cancel();
@@ -64,6 +66,7 @@ export function useUploader(snapshot: object | null, mine: PhotoId | null, live:
 
   async function pick(file: File) {
     clear();
+    seen.current.clear();
     const pickNo = ++picks.current;
     setError(null);
     setCurrent({ preview: null, progress: { phase: "preparing" } });
@@ -79,7 +82,8 @@ export function useUploader(snapshot: object | null, mine: PhotoId | null, live:
     const url = URL.createObjectURL(prepared.thumb);
     preview.current = url;
     upload.current = startUpload(prepared, (phase) => {
-      if (phase.phase === "done") atDone.current = latest.current;
+      // A snapshot that already showed this id came after the photo was stored, so the one shown now is newer still.
+      if (phase.phase === "done") atDone.current = seen.current.has(phase.id) ? null : latest.current;
       if (phase.phase !== "failed") return setCurrent((prev) => nextUploading(prev, { preview: url, progress: phase }));
       clear();
       setError(phase.error);

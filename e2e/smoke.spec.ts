@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page, type WebSocketRoute } from "@playwright/test";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { secrets } from "./server";
 import { addQuestion, answer, reconnecting, unlockPopup } from "./drive";
@@ -138,6 +138,32 @@ test("after a stored upload the photo stays on screen until a snapshot shows it,
   held = null;
   for (const send of late) send();
   await expect(guest.getByText("Inga röster än")).toBeVisible();
+  await guest.context().close();
+});
+
+// A retry the server recognises answers without a new snapshot, so one that showed the photo gone may be the last before the response.
+test("an upload whose photo was gone before its response arrived settles to what the phone was last told", async ({ browser, browserName }) => {
+  test.skip(browserName === "webkit", "WebKit hands a route the upload without its photo and thumb, so route.fetch would store an empty photo.");
+  const guest = await joinedPhone(browser, "Borttagen gäst");
+  let server!: WebSocketRoute;
+  const frames: string[] = [];
+  await guest.routeWebSocket(/\/ws$/, (ws) => {
+    server = ws.connectToServer();
+    server.onMessage((m) => (frames.push(String(m)), ws.send(m)));
+  });
+  await guest.reload();
+  await guest.route("**/api/photo", async (route) => {
+    const response = await route.fetch();
+    const { id } = await response.json();
+    const sent = frames.length;
+    server.send(JSON.stringify({ t: "remove", photo: id }));
+    await expect.poll(() => frames.slice(sent).some((f) => f.includes('"t":"state"') && !f.includes(id))).toBe(true);
+    await route.fulfill({ response });
+  });
+  await guest.getByRole("button", { name: "Mitt foto" }).click();
+  await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
+  await expect(guest.getByText("Klart!")).toBeVisible();
+  await expect(guest.getByRole("button", { name: "Välj bild" }), "not stuck on Klart! waiting for a snapshot that never comes").toBeVisible({ timeout: 5_000 });
   await guest.context().close();
 });
 
