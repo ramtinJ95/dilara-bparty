@@ -44,14 +44,14 @@ test.afterAll(async ({ browser }) => {
 
 // The placeholder looks differ in their sky colour, which survives the phones' JPEG re-encode, so a corner pixel names the photo.
 async function lookAt(page: Page, src: string): Promise<string> {
+  // Its own decode of the bytes, because in WebKit an <img> for a photo already on the page sometimes drew nothing, and read as black.
   const rgb = await page.evaluate(async (src) => {
-    const img = new Image();
-    img.src = src;
-    if (!(await img.decode().then(() => true, () => false))) return null;
-    const canvas = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight });
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    return [...ctx.getImageData(4, 4, 1, 1).data.slice(0, 3)];
+    const res = await fetch(src).catch(() => null);
+    const img = res?.ok ? await createImageBitmap(await res.blob()).catch(() => null) : null;
+    if (!img) return null;
+    const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d")!;
+    ctx.drawImage(img, 4, 4, 1, 1, 0, 0, 1, 1);
+    return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
   }, src);
   if (!rgb) return `an image that doesn't load (${src.slice(0, 40)})`;
   const distance = (hex: string) => Math.max(...[1, 3, 5].map((at, i) => Math.abs(parseInt(hex.slice(at, at + 2), 16) - rgb[i]!)));
