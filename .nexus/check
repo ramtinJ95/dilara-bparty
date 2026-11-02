@@ -1,5 +1,5 @@
 #!/bin/sh
-# The check a pull request must pass: a clean install, the typecheck, the worker tests and the browser smoke test.
+# The check a pull request must pass: a clean install, the typecheck, the worker tests and the browser tests in Chromium, then WebKit.
 set -e
 cd "$(dirname "$0")/.."
 export WRANGLER_SEND_METRICS=false
@@ -7,3 +7,4 @@ npm ci --no-audit --no-fund
 npm run typecheck
 npm test
 npm run test:e2e
+npm run test:e2e:webkit

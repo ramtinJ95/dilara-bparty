@@ -1,8 +1,9 @@
 #!/bin/sh
-# Runs once per template, as user. Playwright's own Chromium download is blocked here, so the smoke test uses Debian's.
+# Runs once per template, as user. The Chromium tests use Debian's Chromium; the WebKit tests use Playwright's WebKit and its libraries.
 set -e
 cd "$(dirname "$0")/.."
 .nexus/resume --setup
 sudo DEBIAN_FRONTEND=noninteractive apt-get update -q
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q chromium fonts-dejavu-core fonts-roboto-unhinted ffmpeg
-npx playwright install ffmpeg
+npx playwright install ffmpeg webkit
+sudo env "PATH=$PATH" DEBIAN_FRONTEND=noninteractive npx playwright install-deps webkit
