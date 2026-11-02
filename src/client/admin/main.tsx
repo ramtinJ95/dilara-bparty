@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { formatJoinCode } from "../../shared/join-code";
 import type { AdminCmd, AdminState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
+import { Icicles } from "../ice";
 import { useLive } from "../live";
 import "../theme.css";
 import "./admin.css";
@@ -32,6 +33,8 @@ function Admin() {
   return (
     <div class="admin">
       <header>
+        <Icicles class="i1" />
+        <Icicles class="i2" />
         <h1>Party admin</h1>
         {heartbeat && (
           <div class="toggle" title="For the quiz: the server ticks every 4 s instead of 30 s, so phones reconnect within about 11 s instead of 70 s.">
