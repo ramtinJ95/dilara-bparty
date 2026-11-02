@@ -16,15 +16,16 @@ Photos are blobs in the Durable Object's SQLite, one row per version, at most ab
 ## Run, test, typecheck
 
 ```sh
-.nexus/setup             # once: npm install, Chromium, fonts, ffmpeg
+.nexus/setup             # once: npm install, Chromium, WebKit, fonts, ffmpeg
 npm run dev              # Vite dev server; secrets come from .dev.vars (see .dev.vars.example)
 npm run typecheck        # wrangler types --check, then tsc
 npm test                 # Worker tests (vitest)
-npm run test:e2e         # Playwright smoke, network and admin tests against a fresh build
+npm run test:e2e         # Playwright smoke, network and admin tests in Chromium against a fresh build, served over HTTPS
+npm run test:e2e:webkit  # the same specs in WebKit, with their own server; WebKit sends the Secure cookies only over HTTPS
 npm run media            # screenshots and videos into artifacts/
 npm run seed -- [--base-url <local url>] [--bots]   # placeholder players, questions and photos, then bots that play; the `seed` service runs it against `web`, and it skips what the party already has
 npm run rehearse -- --base-url <url>   # 20 phones on mixed networks; JOIN_SECRET and ADMIN_SECRET from the environment; refuses on the party day and on a party with content
-.nexus/check             # what a PR must pass: install, typecheck, test, test:e2e
+.nexus/check             # what a PR must pass: install, typecheck, test, test:e2e, test:e2e:webkit
 ```
 
 Set `WRANGLER_SEND_METRICS=false`. Never deploy from a pylon; everything runs locally under miniflare. Open `/admin/<ADMIN_SECRET>` to get the admin cookie, and `/j/<JOIN_SECRET>` to join.
