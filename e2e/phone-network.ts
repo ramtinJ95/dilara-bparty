@@ -1,5 +1,4 @@
 import type { BrowserContext, CDPSession, Page, WebSocketRoute } from "@playwright/test";
-import { CONTEST_UPLOAD_PATH } from "../src/shared/api.ts";
 
 export type ProfileName = "good" | "slow-4g" | "bad-3g" | "flaky";
 export type NetworkProfile = { latencyMs: number; downKbps: number; upKbps: number };
@@ -58,7 +57,7 @@ async function routeSocket(page: Page, profile: NetworkProfile, links: Set<Link>
 }
 
 // The CDP conditions override Playwright's own offline flag for the page, so on Chromium the session that throttles must also go offline.
-async function throttleHttp(page: Page, profile: NetworkProfile, cdp: CDPSession | null): Promise<(offline: boolean) => Promise<void>> {
+async function throttleHttp(profile: NetworkProfile, cdp: CDPSession | null): Promise<(offline: boolean) => Promise<void>> {
   if (cdp) {
     const apply = async (offline: boolean) => {
       await cdp.send("Network.emulateNetworkConditions", {
@@ -72,11 +71,8 @@ async function throttleHttp(page: Page, profile: NetworkProfile, cdp: CDPSession
     await apply(false);
     return apply;
   }
-  // WebKit loses the blob parts of a multipart body it held for a route: some uploads reached the server with an empty photo and thumb.
-  await page.route((url) => url.pathname !== CONTEST_UPLOAD_PATH, async (route) => {
-    await new Promise((r) => setTimeout(r, profile.latencyMs));
-    await route.fallback();
-  });
+  // No HTTP latency in WebKit. Any route makes WebKit hand every request to Playwright, the upload too, whatever the route matches,
+  // and an upload held there, even by a busy test process, can lose its photo and thumb parts: the Worker then refuses it with 415.
   return async () => {};
 }
 
@@ -88,7 +84,7 @@ export async function shapeNetwork(context: BrowserContext, page: Page, name: Pr
   const silenced: Link[] = [];
   let cut = false;
   await routeSocket(page, profile, links, () => cut);
-  const setOffline = await throttleHttp(page, profile, cdp);
+  const setOffline = await throttleHttp(profile, cdp);
   return {
     profile: name,
     // A clean cut closes the socket before going offline, so its close frame still reaches the server, as when the phone's OS drops it.
