@@ -12,7 +12,7 @@ const workerDir = "dist/dilara_bparty";
 // The Worker's cookies are Secure, and WebKit sends them back only over HTTPS, even to 127.0.0.1. The browsers ignore the certificate's errors.
 function selfSigned(): { key: Buffer; cert: Buffer } {
   const dir = mkdtempSync(join(tmpdir(), "e2e-tls-"));
-  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1", "-keyout", `${dir}/key.pem`, "-out", `${dir}/cert.pem`], { stdio: "ignore" });
+  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=127.0.0.1", "-keyout", `${dir}/key.pem`, "-out", `${dir}/cert.pem`], { stdio: "ignore" });
   return { key: readFileSync(`${dir}/key.pem`), cert: readFileSync(`${dir}/cert.pem`) };
 }
 
