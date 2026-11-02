@@ -2,7 +2,8 @@ import { useState } from "preact/hooks";
 import type { JoinResponse } from "../../shared/api";
 import { PLAYER_NAME_MAX } from "../../shared/model";
 import { postJson } from "../api";
-import { Snowflake, Sparkle, Tiara } from "../icons";
+import { Snowflake, Tiara } from "../icons";
+import { Cap, Drift, Icicles, Sheen } from "../ice";
 
 type Step = { kind: "name"; error: string | null } | { kind: "is-it-you"; existing: string };
 
@@ -32,10 +33,23 @@ export function Landing({ secret, photoId }: { secret: string; photoId: string |
 
   return (
     <main class="landing">
-      <Tiara />
-      <h1 class="title">Dilara fyller 3!</h1>
+      <h1 class="title">
+        <span class="dilara">
+          <Tiara />
+          Dilara{" "}
+        </span>
+        <span class="line2">
+          <span>fyller </span>
+          <span class="three">
+            <Cap />
+            <Sheen />
+            <span>3!</span>
+          </span>
+        </span>
+      </h1>
       <p class="subtitle">Välkommen på kalaset</p>
       <div class="frame">
+        <Cap />
         <div class="frame-inner">
           {photoId && !photoFailed ? (
             <img src={`/j/${secret}/photos/${photoId}`} alt="Dilara" onError={() => setPhotoFailed(true)} />
@@ -43,14 +57,14 @@ export function Landing({ secret, photoId }: { secret: string; photoId: string |
             <Snowflake />
           )}
         </div>
-        <Sparkle class="sparkle a" />
-        <Sparkle class="sparkle b" />
-        <Sparkle class="sparkle c" />
+        <Sheen />
+        <Icicles class="a" />
+        <Icicles class="b" />
       </div>
 
       {step.kind === "name" ? (
         <form
-          class="join card"
+          class="join"
           onSubmit={(e) => {
             e.preventDefault();
             void join(false);
@@ -72,12 +86,14 @@ export function Landing({ secret, photoId }: { secret: string; photoId: string |
               {step.error}
             </p>
           )}
-          <button class="btn" type="submit" disabled={busy || name.trim() === ""}>
+          <button class="btn go" type="submit" disabled={busy || name.trim() === ""}>
+            <Sheen />
             Gå med
           </button>
         </form>
       ) : (
         <section class="join card" aria-live="polite">
+          <Cap />
           <h2>Är det du?</h2>
           <p class="existing">
             Någon har redan gått med som
@@ -91,6 +107,7 @@ export function Landing({ secret, photoId }: { secret: string; photoId: string |
           </button>
         </section>
       )}
+      <Drift />
     </main>
   );
 }

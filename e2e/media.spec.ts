@@ -39,7 +39,11 @@ function sideBySideGif(inputs: [string, string], output: string) {
   ]);
 }
 
-const shot = (page: Page, name: string) => page.screenshot({ path: `${out}/${name}.png` });
+// Waits for the entrance animations (drops, caps, icicles, stamps) to land; the snow and other endless loops keep going.
+async function shot(page: Page, name: string) {
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.effect?.getTiming().iterations === Infinity || a.playState !== "running"));
+  await page.screenshot({ path: `${out}/${name}.png` });
+}
 
 test("screenshots", async ({ browser }) => {
   const adminContext = await browser.newContext(laptop);
@@ -133,7 +137,7 @@ test("contest screenshots", async ({ browser }) => {
   await shot(majaPage, "08b-mitt-foto-stuck");
 
   await majaPage.unroute(CONTEST_UPLOAD_PATH);
-  const unthrottle = await throttleUploads(majaPage, 40_000);
+  const unthrottle = await throttleUploads(majaPage, 15_000);
   await majaPage.getByRole("button", { name: "Försök igen" }).click();
   await expect(progress(majaPage)).toHaveAttribute("aria-valuenow", /^(3\d|4\d|5\d|6\d)$/, { timeout: 30_000 });
   await shot(majaPage, "09-mitt-foto-uploading");

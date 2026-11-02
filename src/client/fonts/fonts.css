@@ -1,0 +1,35 @@
+/* Subsets from scripts/subset-fonts.sh. The unicode-range matches its UNICODES, so any other character falls back per glyph. */
+@font-face {
+  font-family: "Archivo Black";
+  src: url("./archivo-black.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0, U+00B7, U+00C4-00C5, U+00C9, U+00D6, U+00D7, U+00DC, U+00E4-00E5, U+00E9, U+00F6, U+00FC, U+2013-2014, U+2019, U+201D, U+2026, U+2212;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("./space-grotesk.woff2") format("woff2");
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0, U+00B7, U+00C4-00C5, U+00C9, U+00D6, U+00D7, U+00DC, U+00E4-00E5, U+00E9, U+00F6, U+00FC, U+2013-2014, U+2019, U+201D, U+2026, U+2212;
+}
+
+/* Arial-metric fallbacks sized to the webfonts (measured on the app's own copy), so the swap barely moves the text. */
+@font-face {
+  font-family: "Archivo Black Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Roboto Bold"), local("Roboto-Bold");
+  size-adjust: 115.6%;
+  ascent-override: 75.9%;
+  descent-override: 18.2%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Space Grotesk Fallback";
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Roboto"), local("Roboto-Regular");
+  size-adjust: 100.8%;
+  ascent-override: 97.6%;
+  descent-override: 29%;
+  line-gap-override: 0%;
+}

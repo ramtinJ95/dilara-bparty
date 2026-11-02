@@ -61,7 +61,7 @@ Network facts to know before you write a network journey. They were measured in 
 - The server ticks every socket: every 4 s with the fast heartbeat, every 30 s with the slow one. Unlocking the quiz turns the fast heartbeat on, and `End quiz` or `Reset quiz` turns it off. The admin header shows `Fast heartbeat on` or `off`, and its `Turn on` and `Turn off` buttons override it (`setFastHeartbeat`).
 - A silent outage (`cut("silent")`) is noticed only by the phone: after 11 s without a tick with the fast heartbeat, after 70 s with the slow one. With the slow heartbeat, a tab change, a photo pick, the page becoming visible or the browser's `online` event also sends one ping (at most every 15 s), and no reply within 5 s means reconnect. `Line.restore()` fires `online`, so a slow-heartbeat phone recovers about 5 s after it. Only replies to the phone's own socket count.
 
-For checks that must run on every PR, add a test to `e2e/network.spec.ts` or `e2e/smoke.spec.ts` instead of a journey. `.nexus/check` runs both through `npm run test:e2e`.
+For checks that must run on every PR, add a test to `e2e/network.spec.ts` or `e2e/smoke.spec.ts`, or to `e2e/admin.spec.ts` for an admin function, instead of a journey. `.nexus/check` runs all three through `npm run test:e2e`.
 
 ## Evidence
 

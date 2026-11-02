@@ -1,6 +1,7 @@
 import type { BoardRow } from "../../shared/quiz";
 import { formatSv as fmt } from "../answers";
 import { Sparkle, Tiara } from "../icons";
+import { Cap } from "../ice";
 import type { ViewProps } from "./quiz";
 
 // FLIP without measuring: every row has the same height, so a row that moved from
@@ -10,6 +11,7 @@ function Row({ row, you, outside }: { row: BoardRow; you: boolean; outside: bool
   const cls = ["row", outside ? "arrive" : shift > 0 ? "up" : shift < 0 ? "down" : "", row.rank === 1 ? "first" : "", you ? "you" : ""];
   return (
     <li class={cls.filter(Boolean).join(" ")} style={outside ? undefined : { "--shift": shift }}>
+      {row.rank === 1 && <Cap />}
       <span class="rank">
         {row.rank === 1 && <Tiara />}
         {row.rank}
@@ -35,7 +37,7 @@ export function Leaderboard({ quiz }: ViewProps<"leaderboard">) {
   const fromOutside = (r: BoardRow) => r.prev > top.length;
   const youBelow = you !== null && !top.some((r) => r.id === you.id);
   return (
-    <section class="quiz-card card board-card" aria-labelledby="quiz-title">
+    <section class="quiz-card board-card" aria-labelledby="quiz-title">
       <h2 id="quiz-title" class="board-title">
         Topplistan
       </h2>

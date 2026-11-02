@@ -3,6 +3,7 @@ import type { GuestFinale, PhotoWin } from "../../shared/finale";
 import type { PlayerId } from "../../shared/model";
 import { photoUrl } from "../api";
 import { Snowflake, Sparkle, Tiara } from "../icons";
+import { Cap, Drift, Icicles, Sheen } from "../ice";
 import "./finale.css";
 import { votesText } from "./my-photo";
 
@@ -26,17 +27,14 @@ const points = (n: number) => `${n.toLocaleString("sv-SE")} poäng`;
 function Suspense() {
   return (
     <section class="finale suspense" aria-labelledby="finale-title">
-      <Flurry />
-      <div class="orb">
+      <Ice />
+      <div class="sus-box">
         <Tiara />
-        <Sparkle class="sparkle a" />
-        <Sparkle class="sparkle b" />
-        <Sparkle class="sparkle c" />
+        <h1 id="finale-title" class="finale-title">
+          Och vinnarna är…
+        </h1>
+        <p class="finale-sub">Håll i er, snart får vi veta!</p>
       </div>
-      <h1 id="finale-title" class="finale-title">
-        Och vinnarna är…
-      </h1>
-      <p class="finale-sub">Håll i er, snart får vi veta!</p>
     </section>
   );
 }
@@ -45,22 +43,25 @@ function PhotoReveal({ finale: { photo }, you }: Props<"photo">) {
   useCheer();
   return (
     <section class="finale reveal" aria-labelledby="finale-title">
+      <Ice opening />
+      <BigFlake />
       <Burst />
-      <p class="kicker">Bästa fotot</p>
+      <Kicker>Bästa fotot</Kicker>
       {photo ? (
         <>
           <WinningPhoto photo={photo} />
-          <h1 id="finale-title" class="finale-title">
+          <h1 id="finale-title" class="finale-title" style={fit(photo.name)}>
             {photo.name}
           </h1>
           <p class="finale-sub">tog vinnarbilden · {votesText(photo.votes)}</p>
-          {photo.owner === you && <p class="you">Grattis, det är din bild!</p>}
+          {photo.owner === you && <You>Grattis, det är din bild!</You>}
         </>
       ) : (
         <h1 id="finale-title" class="finale-title small">
           Inga bilder var med den här gången
         </h1>
       )}
+      <Drift />
     </section>
   );
 }
@@ -70,18 +71,21 @@ function QuizReveal({ finale: { quiz, photo }, you }: Props<"quiz">) {
   const mine = quiz.some((w) => w.id === you);
   return (
     <section class="finale reveal" aria-labelledby="finale-title">
+      <Ice opening />
+      <BigFlake />
       <Burst />
-      <p class="kicker">{quiz.length > 1 ? "Quizvinnarna" : "Quizvinnaren"}</p>
-      <div class="medal">
-        <Tiara />
-      </div>
+      <Kicker>{quiz.length > 1 ? "Quizvinnarna" : "Quizvinnaren"}</Kicker>
+      <Tiara class="medal" />
       {quiz.length > 0 ? (
         <>
-          <h1 id="finale-title" class="finale-title">
+          <h1 id="finale-title" class="finale-title" style={fit(quiz.map((w) => w.name).join(" & "))}>
             {quiz.map((w) => w.name).join(" & ")}
           </h1>
-          <p class="finale-sub">{quiz.length > 1 ? `delar segern med ${points(quiz[0]!.score)}` : points(quiz[0]!.score)}</p>
-          {mine && <p class="you">{quiz.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!"}</p>}
+          <p class="finale-sub card">
+            <span>{quiz.length > 1 ? `delar segern med ${points(quiz[0]!.score)}` : points(quiz[0]!.score)}</span>
+            <Icicles />
+          </p>
+          {mine && <You>{quiz.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!"}</You>}
         </>
       ) : (
         <h1 id="finale-title" class="finale-title small">
@@ -89,6 +93,7 @@ function QuizReveal({ finale: { quiz, photo }, you }: Props<"quiz">) {
         </h1>
       )}
       {photo && <PhotoRecap photo={photo} />}
+      <Drift />
     </section>
   );
 }
@@ -96,11 +101,14 @@ function QuizReveal({ finale: { quiz, photo }, you }: Props<"quiz">) {
 function WinningPhoto({ photo }: { photo: PhotoWin }) {
   // The thumbnail is usually cached from the gallery, so it shows at once while the full photo loads.
   return (
-    <div class="win-photo">
+    <div class="win-photo card">
+      <Cap />
       <img src={photoUrl(photo.thumb)} alt="" />
       <img class="full" src={photoUrl(photo.photo)} alt={`Vinnarbilden av ${photo.name}`} onLoad={(e) => e.currentTarget.classList.add("loaded")} />
       <Sparkle class="sparkle a" />
       <Sparkle class="sparkle b" />
+      <Icicles class="a" />
+      <Icicles class="b" />
     </div>
   );
 }
@@ -108,6 +116,7 @@ function WinningPhoto({ photo }: { photo: PhotoWin }) {
 function PhotoRecap({ photo }: { photo: PhotoWin }) {
   return (
     <div class="recap card">
+      <Cap />
       <img src={photoUrl(photo.thumb)} alt="" />
       <p>
         Bästa fotot
@@ -121,34 +130,58 @@ function useCheer() {
   useEffect(() => void navigator.vibrate?.([120, 60, 240]), []);
 }
 
-const FLAKES = 10;
+// Sized by the longest word, so long names wrap between words instead of breaking mid-word at display size.
+const fit = (text: string) => ({ "--len": Math.max(5, ...text.split(/\s+/).map((w) => w.length)) });
 
-function Flurry() {
-  return (
-    <div class="flurry" aria-hidden="true">
-      {Array.from({ length: FLAKES }, (_, i) => (
-        <span key={i} style={{ "--x": `${(i * 37) % 100}%`, "--d": `${(i * 0.7) % 5}s`, "--s": `${0.6 + ((i * 3) % 5) / 10}` }}>
-          <Snowflake />
-        </span>
-      ))}
-    </div>
-  );
-}
+const Kicker = ({ children }: { children: string }) => (
+  <p class="kicker card">
+    <Cap />
+    <span>{children}</span>
+  </p>
+);
 
-const PIECES = 16;
+const You = ({ children }: { children: string }) => (
+  <p class="you">
+    <Sheen />
+    <Sparkle class="sparkle a" />
+    <span>{children}</span>
+  </p>
+);
+
+// The suspense page shows the block whole, and each reveal opens with it cracking apart.
+const Ice = ({ opening = false }: { opening?: boolean }) => (
+  <div class={opening ? "ice-wall opening" : "ice-wall"} aria-hidden="true">
+    <div class="half l" />
+    <div class="half r" />
+    <svg class="crack" viewBox="0 0 40 844" preserveAspectRatio="none">
+      <path d="M20 0L26 90L14 180L28 270L12 360L26 450L14 540L28 630L16 720L22 844" vector-effect="non-scaling-stroke" />
+    </svg>
+  </div>
+);
+
+const BigFlake = () => (
+  <span class="big-flake" aria-hidden="true">
+    <Snowflake />
+  </span>
+);
+
+const PIECES = 24;
+const KINDS = ["shard", "flake", "gem", "spark"] as const;
 
 // Transform and opacity only, a fixed handful of pieces, and one run per reveal, so a cheap phone keeps up.
 function Burst() {
   return (
     <div class="burst" aria-hidden="true">
       {Array.from({ length: PIECES }, (_, i) => {
+        const kind = KINDS[i % KINDS.length]!;
         const angle = (i / PIECES) * 2 * Math.PI;
-        const reach = 120 + ((i * 53) % 90);
-        const style = { "--x": `${Math.cos(angle) * reach}px`, "--y": `${Math.sin(angle) * reach}px`, "--r": `${(i * 47) % 360}deg` };
+        const reach = 110 + (i % 4) * 45;
+        const style = { "--x": `${Math.round(Math.cos(angle) * reach)}px`, "--y": `${Math.round(Math.sin(angle) * reach * 1.1)}px`, "--r": `${(i % 2 ? 1 : -1) * (120 + (i % 4) * 70)}deg`, "--dl": `${0.75 + (i % 5) * 0.04}s` };
         return (
-          <span key={i} style={style}>
-            {i % 2 ? <Sparkle /> : <Snowflake />}
-          </span>
+          <i key={i} class={`${kind} c${i % 3}`} style={style}>
+            {kind === "flake" && <Snowflake />}
+            {kind === "spark" && <Sparkle />}
+          </i>
         );
       })}
     </div>

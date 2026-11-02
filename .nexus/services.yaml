@@ -6,3 +6,6 @@ services:
     env:
       WRANGLER_SEND_METRICS: "false"
       CLOUDFLARE_CF_FETCH_ENABLED: "false"
+  seed:
+    command: npm run seed -- --bots
+    health: process
