@@ -99,7 +99,7 @@ export function Shell() {
     msg.t === "gone" ? location.replace("/") : msg.t === "error" && showToast(msg.message),
   );
   const live = status.kind === "open";
-  const uploader = useUploader(state?.contest.mine?.id ?? null, live);
+  const uploader = useUploader(state, state?.contest.mine?.id ?? null, live);
   const upload = { ...uploader, pick: (file: File) => (check(), uploader.pick(file)), retry: () => (check(), uploader.retry()) };
   const choose = (t: Tab) => (check(), select(t));
   const pill = live ? null : state ? "Återansluter…" : "Ansluter…";

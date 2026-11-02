@@ -114,6 +114,33 @@ test("a guest uploads a photo, another guest votes for it, and the admin sees th
   await Promise.all([adminContext.close(), uploader.context().close(), voter.context().close()]);
 });
 
+// A phone's socket can stay open but carry nothing, as in a tunnel, for longer than the grace that lets a superseded upload settle.
+test("after a stored upload the photo stays on screen until a snapshot shows it, however late that comes", async ({ browser }) => {
+  const guest = await joinedPhone(browser, "Tyst gäst");
+  let held: (() => void)[] | null = null;
+  await guest.routeWebSocket(/\/ws$/, (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((m) => (held ? held.push(() => ws.send(m)) : ws.send(m)));
+  });
+  await guest.reload();
+  await guest.getByRole("button", { name: "Mitt foto" }).click();
+  await expect(guest.getByRole("button", { name: "Välj bild" })).toBeVisible();
+
+  held = [];
+  const stored = guest.waitForResponse((r) => new URL(r.url()).pathname === "/api/photo" && r.ok());
+  await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
+  await stored;
+  await guest.waitForTimeout(3_000);
+  await expect(guest.getByAltText("Din bild"), "the photo, not the empty picker, while no snapshot comes").toBeVisible();
+  await expect(guest.getByRole("button", { name: "Välj bild" })).toHaveCount(0);
+
+  const late = held;
+  held = null;
+  for (const send of late) send();
+  await expect(guest.getByText("Inga röster än")).toBeVisible();
+  await guest.context().close();
+});
+
 // Playwright's iPhone 15 is 659 px tall, and the refusal of a staging rehearsal's upload sat there behind the tab bar.
 test("a refused upload says why where a short phone screen shows it", async ({ browser }) => {
   const guest = await joinedPhone(browser, "Nekad gäst", { ...phone, viewport: { width: 393, height: 659 } });

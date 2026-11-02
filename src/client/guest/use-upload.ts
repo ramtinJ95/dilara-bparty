@@ -25,16 +25,21 @@ export const nextUploading = (prev: Uploading | null, next: Uploading): Uploadin
     : next;
 
 // A retried upload can succeed after the photo was already replaced, removed or merged away, so its id may never become ours.
-// Without the socket no snapshot can show the photo, and an empty frame would invite the guest to pick it again as a second version.
-export const settleDelay = (uploaded: PhotoId, mine: PhotoId | null, live: boolean) => (!live ? null : uploaded === mine ? 0 : SUPERSEDED_GRACE_MS);
+// Until a snapshot newer than the response arrives, none can show the photo: the socket may be down or silently dead,
+// and an empty frame would invite the guest to pick it again as a second version.
+export const settleDelay = (uploaded: PhotoId, mine: PhotoId | null, live: boolean, newSnapshot: boolean) =>
+  !live ? null : uploaded === mine ? 0 : newSnapshot ? SUPERSEDED_GRACE_MS : null;
 
 /** One upload at a time, kept above the tabs so switching tab doesn't stop it. It ends once the snapshot shows the new photo. */
-export function useUploader(mine: PhotoId | null, live: boolean): Uploader {
+export function useUploader(snapshot: object | null, mine: PhotoId | null, live: boolean): Uploader {
   const [current, setCurrent] = useState<Uploading | null>(null);
   const [error, setError] = useState<string | null>(null);
   const upload = useRef<Upload | null>(null);
   const preview = useRef<string | null>(null);
   const picks = useRef(0);
+  const latest = useRef(snapshot);
+  latest.current = snapshot;
+  const atDone = useRef<object | null>(null);
 
   const clear = () => {
     upload.current?.cancel();
@@ -50,12 +55,12 @@ export function useUploader(mine: PhotoId | null, live: boolean): Uploader {
   }, [live]);
   useEffect(() => {
     if (current?.progress.phase !== "done") return;
-    const wait = settleDelay(current.progress.id, mine, live);
+    const wait = settleDelay(current.progress.id, mine, live, snapshot !== atDone.current);
     if (wait === null) return;
     if (wait === 0) return clear();
     const timer = setTimeout(clear, wait);
     return () => clearTimeout(timer);
-  }, [current, mine, live]);
+  }, [current, snapshot, mine, live]);
 
   async function pick(file: File) {
     clear();
@@ -74,6 +79,7 @@ export function useUploader(mine: PhotoId | null, live: boolean): Uploader {
     const url = URL.createObjectURL(prepared.thumb);
     preview.current = url;
     upload.current = startUpload(prepared, (phase) => {
+      if (phase.phase === "done") atDone.current = latest.current;
       if (phase.phase !== "failed") return setCurrent((prev) => nextUploading(prev, { preview: url, progress: phase }));
       clear();
       setError(phase.error);
