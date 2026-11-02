@@ -76,8 +76,8 @@ test("the bare page stays neutral for a joined guest and wrong links look like n
   await context.close();
 });
 
-async function joinedPhone(browser: Browser, name: string): Promise<Page> {
-  const context = await browser.newContext(phone);
+async function joinedPhone(browser: Browser, name: string, options = phone): Promise<Page> {
+  const context = await browser.newContext(options);
   const res = await context.request.post("/api/join", { data: { secret: secrets.join, name } });
   expect(await res.json()).toEqual({ status: "joined" });
   const page = await context.newPage();
@@ -112,6 +112,23 @@ test("a guest uploads a photo, another guest votes for it, and the admin sees th
   await expect(admin.locator(".versions li")).toHaveCount(1);
 
   await Promise.all([adminContext.close(), uploader.context().close(), voter.context().close()]);
+});
+
+// Playwright's iPhone 15 is 659 px tall, and the refusal of a staging rehearsal's upload sat there behind the tab bar.
+test("a refused upload says why where a short phone screen shows it", async ({ browser }) => {
+  const guest = await joinedPhone(browser, "Nekad gäst", { ...phone, viewport: { width: 393, height: 659 } });
+  await guest.route("**/api/photo", (route) => route.fulfill({ status: 415 }));
+  await guest.getByRole("button", { name: "Mitt foto" }).click();
+  await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
+  const refusal = guest.getByRole("alert").filter({ hasText: "Den bilden gick inte att läsa. Prova en annan." });
+  await expect(refusal).toBeInViewport();
+  const onTop = await refusal.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+  });
+  expect(onTop, "nothing, such as the tab bar, covers the refusal").toBe(true);
+  await expect(guest.getByRole("button", { name: "Välj bild" })).toBeVisible();
+  await guest.context().close();
 });
 
 test("the host runs a question; a guest on another tab is called in, answers, and sees the result and the board", async ({ browser }) => {

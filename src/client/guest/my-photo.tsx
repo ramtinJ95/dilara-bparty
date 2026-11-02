@@ -143,6 +143,12 @@ export function MyPhotoPanel({ contest, upload, live, send }: { contest: GuestCo
     <section class="panel card my-photo" aria-labelledby="panel-title">
       <Cap />
       <h2 id="panel-title">Mitt foto</h2>
+      {/* Under the heading, because below the picker a phone-sized screen puts it behind the tab bar. */}
+      {upload.error && (
+        <p class="error" role="alert">
+          {upload.error}
+        </p>
+      )}
       {view.kind === "empty" && (
         <>
           <button class="drop-frame" type="button" onClick={open}>
@@ -169,11 +175,6 @@ export function MyPhotoPanel({ contest, upload, live, send }: { contest: GuestCo
           )}
           <p class="note">Uppladdningen är stängd. Tack för alla fina bilder!</p>
         </>
-      )}
-      {upload.error && (
-        <p class="error" role="alert">
-          {upload.error}
-        </p>
       )}
       {contest.inFame > 0 && <p class="fame-line">{fameText(contest.inFame)}</p>}
       <input
