@@ -22,6 +22,8 @@ export default defineConfig({
     { name: "media", testMatch: "media.spec.ts" },
     // test:e2e otherwise drives only a build, where Vite's dev-only paths never reach the Worker. dev.spec.ts starts its server.
     { name: "dev", testMatch: "dev.spec.ts", use: { baseURL: `http://127.0.0.1:${devPort}` } },
+    // It ends and wipes the one party every project shares, so it runs last, on its own.
+    { name: "admin", testMatch: "admin.spec.ts", dependencies: ["network"] },
   ],
   webServer: {
     command: `node e2e/server.ts ${port}`,

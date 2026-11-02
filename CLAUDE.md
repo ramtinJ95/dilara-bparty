@@ -9,7 +9,7 @@ TypeScript on Cloudflare Workers with static assets, one Durable Object (`Party`
 - `src/worker/`: the Worker and the Durable Object. `routes.ts` is the route table. `auth.ts` signs the `pid` and `admin` cookies. `party.ts` is the Durable Object. `players.ts`, `photo-store.ts`, `contest.ts`, `quiz.ts` and `finale.ts` hold its state, and `scoring.ts` has the pure scoring rules. `schema.ts` has its migrations (append a step, never edit one).
 - `src/shared/`: types used on both sides. `model.ts` has the branded ids and parsers. `protocol.ts` has the WebSocket messages.
 - `src/client/`: three pages, one per HTML entry (`neutral.html`, `guest.html`, `admin.html`). `live.ts` is the reconnecting WebSocket.
-- `test/`: Worker tests in the Workers runtime. `test/client/` drives `live.ts` with fake timers and a stub WebSocket. `e2e/`: the Playwright smoke and network tests, the PR media script, and the party rehearsal in `e2e/rehearsal/`.
+- `test/`: Worker tests in the Workers runtime. `test/client/` drives `live.ts` with fake timers and a stub WebSocket. `e2e/`: the Playwright smoke, network and admin tests (`admin.spec.ts` drives every admin function through the admin UI and runs last, because it wipes the party), the PR media script, and the party rehearsal in `e2e/rehearsal/`.
 
 Photos are blobs in the Durable Object's SQLite, one row per version, at most about 2 MB each. There is no R2. Serve them only through `/photos/<id>`, which checks the cookie and sends an immutable cache header.
 
@@ -20,7 +20,7 @@ Photos are blobs in the Durable Object's SQLite, one row per version, at most ab
 npm run dev              # Vite dev server; secrets come from .dev.vars (see .dev.vars.example)
 npm run typecheck        # wrangler types --check, then tsc
 npm test                 # Worker tests (vitest)
-npm run test:e2e         # Playwright smoke and network tests against a fresh build
+npm run test:e2e         # Playwright smoke, network and admin tests against a fresh build
 npm run media            # screenshots and videos into artifacts/
 npm run seed -- [--base-url <local url>] [--bots]   # placeholder players, questions and photos, then bots that play; the `seed` service runs it against `web`, and it skips what the party already has
 npm run rehearse -- --base-url <url>   # 20 phones on mixed networks; JOIN_SECRET and ADMIN_SECRET from the environment; refuses on the party day and on a party with content
