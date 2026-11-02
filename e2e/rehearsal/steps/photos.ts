@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page, type Route } from "@playwright/test";
+import { CONTEST_UPLOAD_PATH } from "../../../src/shared/api.ts";
 import { LOOKS, placeholder, pngFile } from "../../placeholder.ts";
 import { versionsOf } from "../../drive.ts";
 import type { Guest, Rehearsal, Step } from "../rehearsal.ts";
@@ -11,6 +12,19 @@ const looks = Object.values(LOOKS);
 const tallyRow = (admin: Page, name: string): Locator => admin.locator(".tally li").filter({ has: admin.locator(".name").getByText(name, { exact: true }) });
 const votesText = (n: number) => (n === 0 ? "Inga röster än" : `Din bild har ${n === 1 ? "1 röst" : `${n} röster`}`);
 const tab = (page: Page, name: "Mitt foto" | "Galleri") => page.getByRole("button", { name, exact: true }).click();
+
+// The decoded size, because a photo that failed to load is still a visible element.
+const photoShows = (page: Page) =>
+  expect.poll(() => page.getByRole("img", { name: "Din bild" }).evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), { timeout: LIVE_TIMEOUT }).toBe(true);
+
+// A try shows "Skickar bilden…" for 70 to 400 ms on WebKit, whose line leaves uploads alone, so a poll can miss it.
+// Holding the first try keeps it in flight until the line is cut, and the retries go straight through.
+async function holdFirstUpload(page: Page) {
+  let arrive!: (route: Route) => void;
+  const held = new Promise<Route>((resolve) => (arrive = resolve));
+  await page.route(`**${CONTEST_UPLOAD_PATH}`, (route) => arrive(route), { times: 1 });
+  return { drop: async () => (await held).abort("internetdisconnected") };
+}
 
 async function photoFor(guest: Guest, i: number) {
   return pngFile(`placeholder-${i}`, await placeholder(guest.page, looks[i % looks.length]!));
@@ -47,29 +61,24 @@ const upload: Step = {
         const kind = outage === "before" ? "upload while offline, sent on reconnect" : outage === "mid-send" ? "upload cut mid-send" : "upload";
         await r.time(kind, g, async () => {
           if (outage === "before") await g.line.cut("clean");
+          const firstTry = outage === "mid-send" ? await holdFirstUpload(g.page) : null;
           await g.page.locator('input[type="file"]').setInputFiles(file);
           if (outage === "before") {
             await expect(g.page.getByText(DROPPED, { exact: false })).toBeVisible({ timeout: LIVE_TIMEOUT });
             await g.page.waitForTimeout(2_000);
             await g.line.restore();
           }
-          if (outage === "mid-send") {
+          if (firstTry) {
             await expect(g.page.getByText("Skickar bilden…", { exact: false })).toBeVisible({ timeout: LIVE_TIMEOUT });
             await g.line.cut("clean");
             const cutAt = Date.now();
-            const waiting = g.page.getByText(DROPPED, { exact: false });
-            const done = g.page.getByText(votesText(0)).or(g.page.getByText("Klart!"));
-            await expect(waiting.or(done)).toBeVisible({ timeout: 15_000 }).catch(() => {});
-            const after = `${((Date.now() - cutAt) / 1000).toFixed(1)} s`;
-            const seen = (await done.isVisible())
-              ? "finished anyway: the request already in flight kept going"
-              : (await waiting.isVisible())
-                ? `showed “${DROPPED}” after ${after} and waited`
-                : "was still sending 15 s later";
-            r.note(`${g.name} lost the network mid-send, and the upload ${seen}.`);
+            await firstTry.drop();
+            await expect(g.page.getByText(DROPPED, { exact: false })).toBeVisible({ timeout: LIVE_TIMEOUT });
+            r.note(`${g.name} lost the network mid-send and showed “${DROPPED}” after ${((Date.now() - cutAt) / 1000).toFixed(1)} s.`);
             await g.line.restore();
           }
           await expect(g.page.getByText(votesText(0))).toBeVisible({ timeout: UPLOAD_TIMEOUT });
+          await photoShows(g.page);
         });
       }),
     );
@@ -129,6 +138,7 @@ const fame: Step = {
       await (await chooser).setFiles(await photoFor(top, 5));
       await expect(top.page.getByText("Din tidigare bild är kvar i Hall of fame och kan fortfarande vinna.")).toBeVisible({ timeout: UPLOAD_TIMEOUT });
       await expect(top.page.getByText(votesText(0))).toBeVisible();
+      await photoShows(top.page);
     });
     await r.check(`admin keeps ${top.name}'s old photo in the hall of fame with its ${topVotes} votes`, async () => {
       await expect(versionsOf(r.admin, top.name)).toHaveCount(2);
