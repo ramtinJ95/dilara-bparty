@@ -7,15 +7,19 @@ const other = "BBBBBBBBBBBBBBBBBBBBBB" as PhotoId;
 
 describe("a finished upload", () => {
   it("settles at once when the snapshot shows it as the guest's photo", () => {
-    expect(settleDelay(uploaded, uploaded, true)).toBe(0);
+    for (const fresh of [true, false]) expect(settleDelay(uploaded, uploaded, true, fresh)).toBe(0);
   });
 
-  it("still settles when it was superseded before its response arrived", () => {
-    for (const mine of [other, null]) expect(settleDelay(uploaded, mine, true)).toBeGreaterThan(0);
+  it("still settles when a snapshot after its response shows it was superseded", () => {
+    for (const mine of [other, null]) expect(settleDelay(uploaded, mine, true, true)).toBeGreaterThan(0);
+  });
+
+  it("stays on Klart! until a snapshot after its response arrives, however long an open socket stays silent", () => {
+    for (const mine of [other, null]) expect(settleDelay(uploaded, mine, true, false)).toBeNull();
   });
 
   it("stays on Klart! while the socket is down, so the guest never sees an empty frame and picks the photo again", () => {
-    for (const mine of [uploaded, other, null]) expect(settleDelay(uploaded, mine, false)).toBeNull();
+    for (const mine of [uploaded, other, null]) for (const fresh of [true, false]) expect(settleDelay(uploaded, mine, false, fresh)).toBeNull();
   });
 });
 

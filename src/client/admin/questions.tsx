@@ -1,4 +1,4 @@
-import { useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { QuestionId } from "../../shared/model";
 import type { AdminCmd } from "../../shared/protocol";
 import { OPTION_MAX, OPTIONS, SECONDS, TEXT_MAX, type Question, type QuestionBody, type QuestionKind } from "../../shared/quiz";
@@ -135,6 +135,9 @@ function Editor({ start, live, onSave, onCancel }: EditorProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const question = useRef<HTMLTextAreaElement>(null);
+  // Not autofocus: WebKit applies that at a later rendering update and can pull focus back while the host types elsewhere.
+  useLayoutEffect(() => question.current?.focus(), []);
   const parsed = parseDraft(draft);
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }) as Draft);
   const setChoice = (fn: (d: ChoiceDraft) => ChoiceDraft) => setDraft((d) => (d.kind === "choice" ? fn(d) : d));
@@ -160,7 +163,7 @@ function Editor({ start, live, onSave, onCancel }: EditorProps) {
       <p class="badge kind">{KIND_LABEL[draft.kind]}</p>
       <label class="stack">
         <span>Question</span>
-        <textarea class="field" rows={2} maxLength={TEXT_MAX} value={draft.text} onInput={(e) => set({ text: e.currentTarget.value })} autoFocus />
+        <textarea class="field" rows={2} maxLength={TEXT_MAX} value={draft.text} onInput={(e) => set({ text: e.currentTarget.value })} ref={question} />
       </label>
 
       {draft.kind === "choice" ? (

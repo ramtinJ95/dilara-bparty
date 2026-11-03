@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page, type WebSocketRoute } from "@playwright/test";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { secrets } from "./server";
 import { addQuestion, answer, reconnecting, unlockPopup } from "./drive";
@@ -76,8 +76,8 @@ test("the bare page stays neutral for a joined guest and wrong links look like n
   await context.close();
 });
 
-async function joinedPhone(browser: Browser, name: string): Promise<Page> {
-  const context = await browser.newContext(phone);
+async function joinedPhone(browser: Browser, name: string, options = phone): Promise<Page> {
+  const context = await browser.newContext(options);
   const res = await context.request.post("/api/join", { data: { secret: secrets.join, name } });
   expect(await res.json()).toEqual({ status: "joined" });
   const page = await context.newPage();
@@ -112,6 +112,105 @@ test("a guest uploads a photo, another guest votes for it, and the admin sees th
   await expect(admin.locator(".versions li")).toHaveCount(1);
 
   await Promise.all([adminContext.close(), uploader.context().close(), voter.context().close()]);
+});
+
+// A phone's socket can stay open but carry nothing, as in a tunnel, for longer than the grace that lets a superseded upload settle.
+test("after a stored upload the photo stays on screen until a snapshot shows it, however late that comes", async ({ browser }) => {
+  const guest = await joinedPhone(browser, "Tyst gäst");
+  let held: (() => void)[] | null = null;
+  await guest.routeWebSocket(/\/ws$/, (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((m) => (held ? held.push(() => ws.send(m)) : ws.send(m)));
+  });
+  await guest.reload();
+  await guest.getByRole("button", { name: "Mitt foto" }).click();
+  await expect(guest.getByRole("button", { name: "Välj bild" })).toBeVisible();
+
+  held = [];
+  const stored = guest.waitForResponse((r) => new URL(r.url()).pathname === "/api/photo" && r.ok());
+  await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
+  await stored;
+  await guest.waitForTimeout(3_000);
+  await expect(guest.getByAltText("Din bild"), "the photo, not the empty picker, while no snapshot comes").toBeVisible();
+  await expect(guest.getByRole("button", { name: "Välj bild" })).toHaveCount(0);
+
+  const late = held;
+  held = null;
+  for (const send of late) send();
+  await expect(guest.getByText("Inga röster än")).toBeVisible();
+  await guest.context().close();
+});
+
+// A retry the server recognises answers without a new snapshot, so one that showed the photo gone may be the last before the response.
+test("an upload whose photo was gone before its response arrived settles to what the phone was last told", async ({ browser, browserName }) => {
+  test.skip(browserName === "webkit", "WebKit hands a route the upload without its photo and thumb, so route.fetch would store an empty photo.");
+  const guest = await joinedPhone(browser, "Borttagen gäst");
+  let server!: WebSocketRoute;
+  let page!: WebSocketRoute;
+  const frames: string[] = [];
+  await guest.routeWebSocket(/\/ws$/, (ws) => {
+    page = ws;
+    server = ws.connectToServer();
+    server.onMessage((m) => (frames.push(String(m)), ws.send(m)));
+  });
+  await guest.reload();
+  await guest.route("**/api/photo", async (route) => {
+    const response = await route.fetch();
+    const { id } = await response.json();
+    const sent = frames.length;
+    server.send(JSON.stringify({ t: "remove", photo: id }));
+    await expect.poll(() => frames.slice(sent).some((f) => f.includes('"t":"state"') && !f.includes(id))).toBe(true);
+    await route.fulfill({ response });
+  });
+  await guest.getByRole("button", { name: "Mitt foto" }).click();
+  await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
+  await expect(guest.getByText("Klart!")).toBeVisible();
+  // A busy party: the same state again, more often than the grace, as other guests' changes would send it.
+  const last = frames.findLast((f) => f.includes('"t":"state"'))!;
+  const busy = setInterval(() => page.send(last), 500);
+  try {
+    await expect(guest.getByRole("button", { name: "Välj bild" }), "not stuck on Klart! while snapshots keep coming").toBeVisible({ timeout: 5_000 });
+  } finally {
+    clearInterval(busy);
+  }
+  await guest.context().close();
+});
+
+// Playwright's iPhone 15 is 659 px tall, and the refusal of a staging rehearsal's upload sat there behind the tab bar.
+test("a refused upload says why where a short phone screen shows it", async ({ browser }) => {
+  const guest = await joinedPhone(browser, "Nekad gäst", { ...phone, viewport: { width: 393, height: 659 } });
+  await guest.route("**/api/photo", (route) => route.fulfill({ status: 415 }));
+  await guest.getByRole("button", { name: "Mitt foto" }).click();
+  await guest.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(guest, LOOKS.snow)));
+  const refusal = guest.getByRole("alert").filter({ hasText: "Den bilden gick inte att läsa. Prova en annan." });
+  await expect(refusal).toBeInViewport();
+  const onTop = await refusal.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+  });
+  expect(onTop, "nothing, such as the tab bar, covers the refusal").toBe(true);
+  await expect(guest.getByRole("button", { name: "Välj bild" })).toBeVisible();
+  await guest.context().close();
+});
+
+// With autofocus, WebKit focused the Question field at a later rendering update, after the host had moved on, and their next keys landed there.
+test("the question form has its Question field focused as it appears, before any frame", async ({ browser }) => {
+  const adminContext = await browser.newContext(laptop);
+  const admin = await openAdmin(adminContext);
+  const focused = await admin.evaluate(async () => {
+    const add = [...document.querySelectorAll("button")].find((b) => b.textContent === "+ Multiple choice")!;
+    add.click();
+    let question: HTMLTextAreaElement | null = null;
+    // Microtasks only: the form renders, but no frame has been drawn yet.
+    for (let i = 0; i < 100 && !question; i++) {
+      await Promise.resolve();
+      question = document.querySelector<HTMLTextAreaElement>(".questions form.editor textarea");
+    }
+    return question !== null && document.activeElement === question;
+  });
+  expect(focused, "no window in which a late focus can move the host's typing").toBe(true);
+  await expect(admin.getByLabel("Question", { exact: true })).toBeFocused();
+  await adminContext.close();
 });
 
 test("the host runs a question; a guest on another tab is called in, answers, and sees the result and the board", async ({ browser }) => {
