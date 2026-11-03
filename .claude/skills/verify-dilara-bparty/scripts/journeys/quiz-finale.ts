@@ -86,7 +86,7 @@ try {
   for (const p of [a, b, c]) await expect(heading(p.page, CHOICE.text)).toBeVisible(SEE);
   await v.evidence(c.page, "04-phone-question-bad-3g");
   await answer(a.page, "Sex armar");
-  // B answers last, so the round is still open while C is away; a round whose last answerer drops closes without them.
+  // B answers last, so the round is still open while C is away; a round whose last answerer drops is revealed without them.
   await c.page.locator(".choice", { hasText: "Sex armar" }).click();
   await c.line.cut("clean");
   await expect(reconnecting(c.page)).toBeVisible(SEE);
@@ -95,15 +95,13 @@ try {
   await expect(c.page.locator(".choice.picked")).toContainText("Sex armar");
   await expect(c.page.getByText("Svar skickat!")).toBeVisible(SEE);
   await answer(b.page, "Fyra armar");
-  await expect(phase).toHaveText("Answers closed", SEE);
-  await expect(c.page.getByText("Ditt svar: A. Sex armar")).toBeVisible(SEE);
-
-  await admin.getByRole("button", { name: "Reveal answer", exact: true }).click();
+  await expect(phase, "the last answer reveals at once").toHaveText("Answer revealed", SEE);
+  await expect(admin.getByText("The leaderboard follows on its own in a few seconds.")).toBeVisible();
   await expect(heading(a.page, "Rätt!")).toBeVisible(SEE);
   await expect(heading(b.page, "Tyvärr fel")).toBeVisible(SEE);
   await expect(heading(c.page, "Rätt!")).toBeVisible(SEE);
   await v.evidence(a.page, "04-phone-reveal-right");
-  await admin.getByRole("button", { name: "Show leaderboard", exact: true }).click();
+  await expect(phase, "the leaderboard follows on its own").toHaveText("Leaderboard on phones", SEE);
   for (const p of [a, b, c]) {
     await expect(heading(p.page, "Topplistan")).toBeVisible(SEE);
     await expect(p.page.locator(".lb .row.you")).toContainText(p.name);
@@ -114,13 +112,18 @@ try {
   for (const p of [a, b, c]) await expect(heading(p.page, NUMBER.text)).toBeVisible(SEE);
   await answer(a.page, "7");
   await answer(b.page, "3");
-  await expect(heading(c.page, "Tiden är ute!").or(c.page.getByText("Du hann inte svara den här gången."))).toBeVisible({ timeout: NUMBER.seconds * 1000 + 10_000 });
-  await expect(phase).toHaveText("Answers closed", SEE);
-  await expect(c.page.getByText("Du hann inte svara den här gången.")).toBeVisible(SEE);
+  await expect(admin.getByText("2 of 3 answered")).toBeVisible(SEE);
   await admin.getByRole("button", { name: "Reveal answer", exact: true }).click();
+  await expect(admin.getByText("Close answers now? 1 guest hasn't answered.")).toBeVisible();
+  await v.evidence(admin, "05-admin-early-reveal");
+  await admin.getByRole("button", { name: "Yes, reveal answer", exact: true }).click();
+  await expect(phase, "the host cuts the question short").toHaveText("Answer revealed");
   await expect(heading(a.page, "Närmast!")).toBeVisible(SEE);
   await expect(heading(b.page, "Inte närmast den här gången")).toBeVisible(SEE);
   await expect(heading(c.page, "Inget svar")).toBeVisible(SEE);
+  await admin.getByRole("button", { name: "Show leaderboard", exact: true }).click();
+  await expect(phase, "the host skips the wait").toHaveText("Leaderboard on phones");
+  for (const p of [a, b, c]) await expect(heading(p.page, "Topplistan")).toBeVisible(SEE);
 
   await admin.getByRole("button", { name: "End quiz", exact: true }).click();
   await expect(phase).toHaveText("Quiz ended");
@@ -137,17 +140,26 @@ try {
   await expect(admin.getByRole("button", { name: "Reset quiz", exact: true })).toBeDisabled();
   await v.evidence(a.page, "07-phone-suspense");
 
+  await finale.getByRole("button", { name: "Reveal quiz winner" }).click();
+  await expect(finale.locator(".phase")).toHaveText("Quiz winner on phones");
+  for (const p of [a, b, c]) {
+    await expect(p.page.getByText("Quizvinnaren", { exact: true })).toBeVisible(SEE);
+    await expect(p.page.getByText("Grattis, du vann!")).toHaveCount(p === a ? 1 : 0);
+  }
+  await v.evidence(a.page, "08-phone-quiz-winner");
+
   await expect(finale.getByRole("button", { name: "Reveal photo winner" })).toBeDisabled();
   await expect(finale.getByText("Photos are tied for first. Pick the winner before you reveal it.")).toBeVisible();
   await finale.locator(".tie-photos").getByRole("button", { name: "Pick as winner" }).first().click();
   await expect(finale.getByRole("button", { name: "Winner ✓" })).toBeVisible();
-  await v.evidence(admin, "08-admin-tie-picked");
+  await v.evidence(admin, "09-admin-tie-picked");
   await finale.getByRole("button", { name: "Reveal photo winner" }).click();
   await expect(finale.locator(".phase")).toHaveText("Photo winner on phones");
-  const photographer = (await finale.locator(".revealed dd b").first().textContent())!;
+  const photographer = (await finale.locator(".revealed dd").last().locator("b").textContent())!;
   for (const p of [a, b, c]) {
     await expect(heading(p.page, photographer)).toBeVisible(SEE);
     await expect(p.page.getByText("Grattis, det är din bild!")).toHaveCount(p.name === photographer ? 1 : 0);
+    await expect(p.page.locator(".recap"), "the quiz winner stays as a recap").toHaveText(`Quizvinnaren${a.name}`);
   }
   await c.line.cut("clean");
   await expect(reconnecting(c.page)).toBeVisible(SEE);
@@ -156,15 +168,7 @@ try {
   await expect(heading(c.page, photographer)).toBeVisible();
   const winnerPhone = [a, b].find((p) => p.name === photographer)!;
   await expect(winnerPhone.page.locator(".win-photo img.full.loaded")).toBeVisible(SEE);
-  await v.evidence(winnerPhone.page, "09-phone-photo-winner");
-
-  await finale.getByRole("button", { name: "Reveal quiz winner" }).click();
-  await expect(finale.locator(".phase")).toHaveText("Quiz winner on phones");
-  for (const p of [a, b, c]) {
-    await expect(p.page.getByText("Quizvinnaren", { exact: true })).toBeVisible(SEE);
-    await expect(p.page.getByText("Grattis, du vann!")).toHaveCount(p === a ? 1 : 0);
-  }
-  await v.evidence(a.page, "10-phone-quiz-winner");
+  await v.evidence(winnerPhone.page, "10-phone-photo-winner");
 
   const end = admin.locator(".party-end");
   await end.getByRole("button", { name: "End the party" }).click();
@@ -178,7 +182,7 @@ try {
   await joinByLink(b.page, secrets.join, b.name.toLowerCase());
   await expect(heading(b.page, "Är det du?")).toBeVisible(SEE);
   await b.page.getByRole("button", { name: "Ja, det är jag" }).click();
-  await expect(b.page.getByText("Quizvinnaren", { exact: true })).toBeVisible(SEE);
+  await expect(heading(b.page, photographer)).toBeVisible(SEE);
 
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await expect(end.getByText(/^Download the photos first!/)).toBeVisible();
@@ -190,7 +194,7 @@ try {
   await expect(end.getByText("New guests can join.")).toBeVisible();
   await v.evidence(c.page, "13-phone-after-wipe");
 
-  console.log(`PASS quiz-finale: two rounds, a photo tie, both reveals, a drop on bad 3G, the end of the party and the wipe, with the heartbeat following the quiz. Evidence: ${out}`);
+  console.log(`PASS quiz-finale: an automatic and an early round, a photo tie, both reveals, a drop on bad 3G, the end of the party and the wipe, with the heartbeat following the quiz. Evidence: ${out}`);
 } catch (e) {
   console.error(`FAIL quiz-finale: ${redact(String(e instanceof Error ? e.message : e), secrets)}\nEvidence so far: ${out}`);
   process.exitCode = 1;
