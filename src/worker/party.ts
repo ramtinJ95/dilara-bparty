@@ -344,7 +344,8 @@ export class Party extends DurableObject<Env> {
     const online = new Set(roles.flatMap((r) => (r.role === "guest" ? (roster.rootOf(r.playerId)?.id ?? []) : [])));
     const quiz = this.quiz.publish(roster, online, now);
     const phase = quiz.admin.stage.phase;
-    if (this.finale.settle(now) && (phase === "locked" || phase === "ended")) this.setLiveMode(false);
+    const onPhones = Object.values(this.finale.stages(now)).some((s) => s === "suspense" || s === "reveal");
+    if (this.finale.settle(now) && (phase === "locked" || phase === "ended") && !onPhones) this.setLiveMode(false);
     const settings = readSettings(this.ctx.storage.sql);
     const contest = this.contest.snapshot(settings);
     const finale = this.finale.guest(roster, now);

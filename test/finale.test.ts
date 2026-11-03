@@ -282,6 +282,26 @@ describe("reveal on the phones", () => {
     closeAll(admin, ...all.map((p) => p.socket));
   });
 
+  it("keeps the fast heartbeat when the reveal ends while the other finale's suspense page is on the phones", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    await playQuiz(admin, all);
+    press(admin, "quiz", "suspense");
+    press(admin, "quiz", "reveal");
+    await adminAt(admin, "quiz", "reveal");
+    press(admin, "photo", "suspense");
+    await adminAt(admin, "photo", "suspense");
+
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS);
+    await fireAlarm();
+    for (const p of all) {
+      expect(await p.socket.next((m) => m.t === "state" && m.state.finale.quiz.stage === "done")).toMatchObject({ heartbeat: "fast", state: { finale: { photo: { stage: "suspense" } } } });
+    }
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+
   it("ends on time when nobody is connected", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const t0 = Date.now();
