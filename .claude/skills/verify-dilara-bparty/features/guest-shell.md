@@ -12,7 +12,7 @@ After joining, the guest app greets the guest by name, shows how many guests are
 - `shell-gate` redirects `/app` to `/` without a valid cookie.
 - `shell-quiz-dot` shows a dot labelled `En fråga väntar` on the Quiz tab while an unanswered question is open and the guest is on another tab.
 - `shell-finale` hides the greeting and the tabs while the finale runs, and shows only the finale screen (see [finale.md](./finale.md)).
-- `shell-gone` sends the phone to `/` when the host wipes or resets the party.
+- `shell-gone` sends the phone to `/` when the host wipes or resets the party, and forgets its saved identity, so it stays on `/`.
 
 ## How to get to it (user POV)
 
@@ -30,7 +30,7 @@ Preconditions:
 - **Tabs.** Run `await page.getByRole("button", { name: "Mitt foto" }).click()`. The URL ends in `#mitt-foto`, the `Mitt foto` heading shows, and the button has `aria-current="page"`. Do the same for `Galleri` (`#galleri`).
 - **Tab survives reload.** On `Galleri`, run `await page.reload()`. `Galleri` still has `aria-current="page"`.
 - **Quiz locked.** On `Quiz`, the heading `Quizet är inte öppet än` and `Vi säger till när det är dags!` show.
-- **Gate.** In a fresh context, run `await page.goto("/app")`. The URL becomes `/` and the `Kod` field shows.
+- **Gate.** In a fresh context (no cookie and no saved identity), run `await page.goto("/app")`. The URL becomes `/` and the `Kod` field shows.
 - **Proof.** `evidence()` on each tab at 390x844.
 
 ## Gotchas

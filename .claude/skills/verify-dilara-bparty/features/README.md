@@ -33,6 +33,7 @@ Each feature file starts with an H1 title and one paragraph about the user-visib
 
 - [Join the party](./join.md) covers joining by QR link and by typed code, name validation, and wrong links that show nothing.
 - [Är det du? reclaim](./reclaim.md) covers a guest who lost their cookie getting their identity back by name.
+- [Stay signed in](./stay-signed-in.md) covers a joined phone that lost its cookie getting back into the app on its own, and `/` sending a joined guest to `/app`.
 - [Guest shell and tabs](./guest-shell.md) covers the greeting, the live guest count, the three tabs, the quiz dot, the reconnect pill and leaving after a wipe.
 - [Admin player list](./admin-players.md) covers the live roster, rename and merge.
 - [Landing photo](./landing-photo.md) covers uploading, replacing and removing the photo on the join page.

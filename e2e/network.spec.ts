@@ -1,6 +1,6 @@
 import { type Browser, type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop, versionsOf } from "./drive";
+import { forgetIdentity, greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop, versionsOf } from "./drive";
 import { shapeNetwork, type Line, type ProfileName } from "./phone-network";
 import { noise, pngFile } from "./placeholder";
 import { secrets } from "./server";
@@ -84,12 +84,12 @@ test("a frozen background tab catches up when it resumes, with or without its so
   await expect(onlineDot(host, locked)).toBeVisible();
 });
 
-test("a phone that lost its cookie rejoins by name and keeps its identity", async ({ browser }) => {
+test("a phone that lost its identity rejoins by name and keeps it", async ({ browser }) => {
   const forgetful = tagged("Gäst Glömsk");
   const host = await admin(browser);
   const { page } = await phone(browser, "slow-4g", forgetful);
 
-  await page.context().clearCookies();
+  await forgetIdentity(page);
   await page.reload();
   await expect(page.getByLabel("Kod")).toBeVisible({ timeout: 15_000 });
   await expect(onlineDot(host, forgetful)).toHaveCount(0);

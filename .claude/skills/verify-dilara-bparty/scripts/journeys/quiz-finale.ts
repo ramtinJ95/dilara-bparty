@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { expect, type Page } from "@playwright/test";
-import { addQuestion, answer, greeting, heartbeatState, joinByLink, openAdmin, reconnecting, unlockPopup } from "../../../../../e2e/drive.ts";
+import { addQuestion, answer, forgetIdentity, greeting, heartbeatState, joinByLink, openAdmin, reconnecting, unlockPopup } from "../../../../../e2e/drive.ts";
 import { LOOKS, placeholder, pngFile } from "../../../../../e2e/placeholder.ts";
 import { openVerify, readSecrets, redact, repoRoot } from "../verify.ts";
 
@@ -178,7 +178,7 @@ try {
   await joinByLink(late, secrets.join, `Testgäst ${tag} sen`);
   await expect(late.getByText("Kalaset är slut. Tack för att du var med!")).toBeVisible(SEE);
   await v.evidence(late, "11-phone-party-ended");
-  await b.page.context().clearCookies();
+  await forgetIdentity(b.page);
   await joinByLink(b.page, secrets.join, b.name.toLowerCase());
   await expect(heading(b.page, "Är det du?")).toBeVisible(SEE);
   await b.page.getByRole("button", { name: "Ja, det är jag" }).click();

@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { greeting, joinByLink, reconnecting } from "../../drive.ts";
+import { forgetIdentity, greeting, joinByLink, reconnecting } from "../../drive.ts";
 import type { Rehearsal, Step } from "../rehearsal.ts";
 
 const SEE_TIMEOUT = 30_000;
@@ -87,13 +87,13 @@ const wipe: Step = {
       await expect(partyEnd(r).getByText("The party has ended. New guests can't join.")).toBeVisible();
     }, r.admin);
     await r.check("a new guest is turned away", async () => {
-      await r.probe.page.context().clearCookies();
+      await forgetIdentity(r.probe.page);
       await joinByLink(r.probe.page, r.secrets.join, `${r.probe.name} sen`);
       await expect(r.probe.page.getByText("Kalaset är slut. Tack för att du var med!")).toBeVisible({ timeout: SEE_TIMEOUT });
     }, r.probe.page);
     const returning = r.guests.find((g) => g.profile === "good") ?? r.guests[0]!;
     await r.time("guest without a cookie gets back in by name after the end", returning, async () => {
-      await returning.page.context().clearCookies();
+      await forgetIdentity(returning.page);
       await joinByLink(returning.page, r.secrets.join, returning.name.toLowerCase());
       await expect(returning.page.getByRole("heading", { name: "Är det du?" })).toBeVisible({ timeout: SEE_TIMEOUT });
       await returning.page.getByRole("button", { name: "Ja, det är jag" }).click();

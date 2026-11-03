@@ -34,6 +34,12 @@ export async function joinByLink(phone: Page, joinSecret: string, name: string):
   await phone.getByRole("button", { name: "Gå med" }).click();
 }
 
+// As on another browser: the cookie and the app's copy of it are both gone, so only the name gets the guest back in.
+export async function forgetIdentity(phone: Page): Promise<void> {
+  await phone.context().clearCookies();
+  if (phone.url().startsWith("http")) await phone.evaluate(() => localStorage.clear());
+}
+
 export async function renameFromAdmin(admin: Page, from: string, to: string): Promise<void> {
   await adminRow(admin, from).getByRole("button", { name: "Rename" }).click();
   await admin.getByLabel(`New name for ${from}`).fill(to);
