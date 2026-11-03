@@ -24,7 +24,8 @@ code and runs the admin view; it is not a shared game screen.
 
 ## Pages
 
-- **Bare domain**: a plain, neutral page with nothing about the party.
+- **Bare domain**: a plain, neutral page with nothing about the party. A guest
+  who has joined goes straight on to the guest app.
 - **Join link** (`/j/<secret>`): the landing page. A themed welcome ("Dilara
   fyller 3!"), a photo of Dilara uploaded through the admin view, and a field for
   the guest's name.
@@ -38,7 +39,15 @@ code and runs the admin view; it is not a shared game screen.
 
 - Joining sets a cookie with a random player ID, linked to the name the guest
   types. Uploads, votes and quiz answers are all recorded against that ID.
-- If a guest loses the cookie (another browser, cleared cookies, a QR scanner
+- A guest joins once per phone and never needs the code again on it. The guest
+  app keeps a copy of the signed player ID in the phone's local storage. If the
+  browser loses the cookie, the bare page, the app and the join link give it
+  back from that copy, without the code. The server checks the signature and
+  that the player still exists. An ended party still lets that guest back in,
+  because only new guests are refused. The copy never holds the join secret.
+- A reset or a wipe deletes the players, so a phone that comes back with an old
+  copy is refused, forgets it, and stays on the bare page.
+- If a guest loses both (another browser, cleared website data, a QR scanner
   with its own built-in browser) and joins with a name that already exists, the
   phone asks "Is this you?" and gives them their old identity back. Anyone could
   claim someone else's name this way; that is an accepted risk at a birthday
