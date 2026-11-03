@@ -64,9 +64,9 @@ const adminCommands: AdminHandlers = {
   "save-question": ({ quiz }, { id, body }) => quiz.save(id, body),
   "delete-question": ({ quiz }, { id }) => quiz.remove(id),
   "move-question": ({ quiz }, { id, to }) => quiz.move(id, to),
-  quiz: ({ quiz, finale, setLiveMode }, { step }) => {
+  quiz: ({ quiz, finale, setLiveMode }, { step, q }) => {
     if (finale.stage() !== "off") return "The finale has started, so the quiz can't change.";
-    const error = quiz.step(step, Date.now());
+    const error = quiz.step(step, Date.now(), q);
     const live = liveModeAfter[step];
     if (!error && live !== undefined) setLiveMode(live);
     return error;

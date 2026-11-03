@@ -54,9 +54,11 @@ export function QuizControls({ quiz, deadline, send, live, frozen }: Props) {
     if (confirm && !stepAllowed(confirm, stage.phase)) setConfirm(null);
   }, [confirm, stage.phase]);
 
+  const press = (step: QuizStep) => send({ t: "quiz", step, ...("q" in stage && { q: stage.q }) });
+
   function run(step: QuizStep) {
     if (CONFIRM[step]?.(quiz)) return setConfirm(step);
-    send({ t: "quiz", step });
+    press(step);
   }
 
   return (
@@ -107,7 +109,7 @@ export function QuizControls({ quiz, deadline, send, live, frozen }: Props) {
               type="button"
               disabled={!enabled(confirm)}
               onClick={() => {
-                send({ t: "quiz", step: confirm });
+                press(confirm);
                 setConfirm(null);
               }}
             >

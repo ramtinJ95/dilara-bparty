@@ -438,6 +438,20 @@ describe("the quiz runs itself between questions", () => {
     closeAll(admin, astrid.socket, olle.socket);
   });
 
+  it("ignores a press from another admin view that arrives after its round has moved on", async () => {
+    const admin = await host(choice(), choice());
+    const { astrid, olle, q } = await revealed(admin);
+    const second = await start(admin);
+
+    for (const late of ["reveal", "leaderboard", "start"] as const) await ackedBySecondAdmin({ t: "quiz", step: late, q });
+    const shown = await admin.current();
+    expect(shown.quiz.stage).toMatchObject({ phase: "open", q: second, n: 2 });
+    expect(shown.quiz.played).toEqual([q, second]);
+    expect((await view(astrid, "open")).question.id).toBe(second);
+    await answer(astrid, second, 0);
+    closeAll(admin, astrid.socket, olle.socket);
+  });
+
   it("still shows the leaderboard when the Durable Object restarts during the reveal", async () => {
     const admin = await host(choice());
     const { astrid, olle } = await revealed(admin);

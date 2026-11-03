@@ -72,8 +72,11 @@ export class Quiz {
     reveal: { step: "leaderboard", at: boardAt },
   };
 
-  step(step: QuizStep, now: number): string | null {
-    const { phase } = this.stage();
+  step(step: QuizStep, now: number, q?: QuestionId): string | null {
+    const stage = this.stage();
+    // A press names the round it was made in. From a second admin view it can arrive after that round has moved on and the next has started.
+    if (q !== undefined && !("round" in stage && stage.round.question_id === q)) return null;
+    const { phase } = stage;
     if (QUIZ_STEP_DONE[step]?.includes(phase)) return null;
     if (!stepAllowed(step, phase)) return `"${step}" isn't possible while the quiz is ${phase}.`;
     return this.apply(step, now);
