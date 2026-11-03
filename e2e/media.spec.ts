@@ -543,38 +543,58 @@ test("finale screenshots and video", async ({ browser }) => {
   const admin = await openAdmin(adminContext);
   const { contexts, astrid, olle, kim } = await finaleRoom(browser, admin, { ...phone, recordVideo: { dir: videoDir, size: phone.viewport } });
   const phones = [astrid, olle, kim];
-  const finaleCard = admin.locator(".finale");
-  await finaleCard.evaluate((el) => el.scrollIntoView({ block: "start" }));
+  const quizCard = admin.locator(".quiz-finale");
+  const photoCard = admin.locator(".photo-finale");
+  await quizCard.evaluate((el) => el.scrollIntoView({ block: "start" }));
   const startedAt = Date.now();
   await admin.waitForTimeout(1200);
+  const back = async () => {
+    for (const p of phones) await p.getByRole("button", { name: "Tillbaka till festen" }).click();
+  };
 
-  await finaleCard.getByRole("button", { name: "Open suspense page" }).click();
-  await shot(admin, "40-admin-finale-confirm");
-  await finaleCard.getByRole("button", { name: "Yes, open suspense page" }).click();
-  for (const p of phones) await expect(p.getByRole("heading", { name: "Och vinnarna är…" })).toBeVisible();
+  await quizCard.getByRole("button", { name: "Open suspense page" }).click();
+  await shot(admin, "40-admin-quiz-finale-confirm");
+  await quizCard.getByRole("button", { name: "Yes, open suspense page" }).click();
+  for (const p of phones) await expect(p.getByRole("heading", { name: "Vem vann quizet?" })).toBeVisible();
   await kim.waitForTimeout(2500);
-  await shot(kim, "41-suspense");
-  await expect(finaleCard.getByText("Tie for first")).toBeVisible();
-  await shot(admin, "42-admin-finale-tie");
+  await shot(kim, "41-quiz-suspense");
 
-  await finaleCard.getByRole("button", { name: "Reveal quiz winners" }).click();
+  await quizCard.getByRole("button", { name: "Reveal quiz winners" }).click();
   for (const p of phones) await expect(p.getByText("Quizvinnarna")).toBeVisible();
   await kim.waitForTimeout(2200);
-  await shot(kim, "43-reveal-quiz-joint-winner");
-  await shot(olle, "44-reveal-quiz");
-  await shot(admin, "45-admin-finale-quiz");
+  await shot(kim, "42-quiz-reveal-joint-winner");
+  await shot(olle, "43-quiz-reveal");
+  await shot(admin, "44-admin-quiz-finale");
+  await admin.waitForTimeout(1500);
+  await back();
+  await expect(kim.locator(".quiz-winners")).toBeVisible();
+  await shot(kim, "45-quiz-tab-winners");
   await admin.waitForTimeout(1500);
 
-  await finaleCard.locator(".tie-photos li", { hasText: "Olle" }).getByRole("button", { name: "Pick as winner" }).click();
-  await expect(finaleCard.getByRole("button", { name: "Winner ✓" })).toBeVisible();
+  await photoCard.getByRole("button", { name: "Open suspense page" }).click();
+  await photoCard.getByRole("button", { name: "Yes, open suspense page" }).click();
+  for (const p of phones) await expect(p.getByRole("heading", { name: "Vem tog bästa fotot?" })).toBeVisible();
+  await kim.waitForTimeout(2500);
+  await shot(kim, "46-photo-suspense");
+  await expect(photoCard.getByText("Tie for first")).toBeVisible();
+  await shot(admin, "47-admin-finales-tie");
+
+  await photoCard.locator(".tie-photos li", { hasText: "Olle" }).getByRole("button", { name: "Pick as winner" }).click();
+  await expect(photoCard.getByRole("button", { name: "Winner ✓" })).toBeVisible();
   await admin.waitForTimeout(1000);
-  await finaleCard.getByRole("button", { name: "Reveal photo winner" }).click();
+  await photoCard.getByRole("button", { name: "Reveal photo winner" }).click();
   for (const p of phones) await expect(p.getByText("tog vinnarbilden", { exact: false })).toBeVisible();
   await expect(kim.locator(".recap"), "the photo reveal keeps the quiz winners").toContainText("Astrid & Kim Testsson");
   await olle.waitForTimeout(2200);
-  await shot(olle, "46-reveal-photo-winner");
-  await shot(kim, "47-reveal-photo");
-  await shot(admin, "48-admin-finale-photo");
+  await shot(olle, "48-photo-reveal-winner");
+  await shot(kim, "49-photo-reveal");
+  await shot(admin, "50-admin-finales-revealed");
+  await admin.waitForTimeout(1500);
+  await back();
+  await kim.getByRole("button", { name: "Galleri" }).click();
+  await expect(kim.locator(".photo-winner img")).toBeVisible();
+  await kim.waitForFunction(() => document.querySelector<HTMLImageElement>(".photo-winner img")?.complete);
+  await shot(kim, "51-gallery-winner");
   await admin.waitForTimeout(1500);
   const finaleEnd = Date.now();
 
@@ -582,15 +602,15 @@ test("finale screenshots and video", async ({ browser }) => {
   await end.getByRole("button", { name: "Reset party…" }).click();
   await end.getByLabel("Type RESET to confirm").fill("RESET");
   await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
-  await shot(admin, "49-admin-reset-confirm");
+  await shot(admin, "52-admin-reset-confirm");
   await end.getByRole("button", { name: "Cancel" }).click();
   await end.getByRole("button", { name: "End the party" }).click();
   await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
-  await shot(admin, "50-admin-end-confirm");
+  await shot(admin, "53-admin-end-confirm");
   await end.getByRole("button", { name: "Yes, end the party" }).click();
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
-  await shot(admin, "51-admin-wipe-confirm");
+  await shot(admin, "54-admin-wipe-confirm");
   await end.getByRole("button", { name: "Yes, wipe everything" }).click();
   for (const p of phones) await expect(p).toHaveURL(/\/$/);
 
@@ -602,7 +622,7 @@ test("finale screenshots and video", async ({ browser }) => {
   rmSync(videoDir, { recursive: true, force: true });
 
   // A recording starts a moment after its page opens, and the delay differs per page, but all four end together when
-  // their contexts close, so each clip is cut back from its end. The admin is cropped to the column with the finale card.
+  // their contexts close, so each clip is cut back from its end. The admin is cropped to the column with the finale cards.
   const secs = (ms: number) => (ms / 1000).toFixed(2);
   const duration = (f: string) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString()) * 1000;
   const inputs = files.flatMap((f) => ["-ss", secs(duration(f) - (closedAt - startedAt)), "-t", secs(finaleEnd - startedAt), "-i", f]);
