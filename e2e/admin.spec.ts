@@ -396,7 +396,7 @@ test("the host renames a guest and merges a duplicate, and the phones follow", a
   await expect(kimAgain.getByLabel("Dina röster: 1")).toHaveCount(2);
 });
 
-test("the finale opens suspense, closes voting, and reveals the picked tied photo and the joint quiz winners", async () => {
+test("the finale opens suspense, closes voting, and reveals the joint quiz winners and then the picked tied photo", async () => {
   const finale = card(".finale");
   const phones = [astrid, olle, kim, kimAgain];
   await expect(finale.getByRole("button", { name: "Open suspense page" })).toBeEnabled();
@@ -410,22 +410,9 @@ test("the finale opens suspense, closes voting, and reveals the picked tied phot
   await expect(card(".quiz").getByRole("button", { name: "Reset quiz" }), "the quiz can't change any more").toBeDisabled();
 
   await expect(finale.getByText("Tie for first, 1 vote each. Pick the winner.")).toBeVisible();
-  await expect(finale.getByText("Photos are tied for first. Pick the winner before you reveal it.")).toBeVisible();
-  await expect(finale.getByRole("button", { name: "Reveal photo winner" })).toBeDisabled();
   const tied = finale.locator(".tie-photos li");
   await expect(tied).toHaveCount(2);
   expect(await lookOf(tied.filter({ hasText: "Olle Testsson" }).getByRole("img")), "the tie shows each photo").toBe("rose");
-  await tied.filter({ hasText: "Olle Testsson" }).getByRole("button", { name: "Pick as winner" }).click();
-  await expect(tied.filter({ hasText: "Olle Testsson" }).getByRole("button", { name: "Winner ✓" })).toBeVisible();
-
-  await finale.getByRole("button", { name: "Reveal photo winner" }).click();
-  for (const p of phones) {
-    await expect(p.getByRole("heading", { name: "Olle Testsson" }), "the picked photo wins under the new name").toBeVisible();
-    await expect(p.getByText("tog vinnarbilden · 1 röst")).toBeVisible();
-  }
-  expect(await lookOf(kim.getByAltText("Vinnarbilden av Olle Testsson"))).toBe("rose");
-  await expect(olle.getByText("Grattis, det är din bild!")).toBeVisible();
-  for (const p of [astrid, kim]) await expect(p.getByText("Grattis, det är din bild!")).toHaveCount(0);
 
   await finale.getByRole("button", { name: "Reveal quiz winners" }).click();
   for (const p of phones) {
@@ -435,7 +422,24 @@ test("the finale opens suspense, closes voting, and reveals the picked tied phot
   }
   for (const p of [astrid, kim, kimAgain]) await expect(p.getByText("Grattis, du delar segern!"), "each winner's phone, the merged duplicate's too").toBeVisible();
   await expect(olle.getByText("Grattis, du delar segern!")).toHaveCount(0);
-  await expect(finale.locator(".revealed dd").last(), "the admin view names both winners").toHaveText("Astrid & Kim Testsson");
+  await expect(finale.locator(".revealed dd").first(), "the admin view names both winners").toHaveText("Astrid & Kim Testsson");
+
+  await expect(finale.getByText("Photos are tied for first. Pick the winner before you reveal it.")).toBeVisible();
+  await expect(finale.getByRole("button", { name: "Reveal photo winner" })).toBeDisabled();
+  await tied.filter({ hasText: "Olle Testsson" }).getByRole("button", { name: "Pick as winner" }).click();
+  await expect(tied.filter({ hasText: "Olle Testsson" }).getByRole("button", { name: "Winner ✓" }), "the host picks while the quiz winners are on the phones").toBeVisible();
+
+  await finale.getByRole("button", { name: "Reveal photo winner" }).click();
+  for (const p of phones) {
+    await expect(p.getByRole("heading", { name: "Olle Testsson" }), "the picked photo wins under the new name").toBeVisible();
+    await expect(p.getByText("tog vinnarbilden · 1 röst")).toBeVisible();
+    await expect(p.locator(".recap"), "the quiz winners stay as a recap").toHaveText("QuizvinnarnaAstrid & Kim Testsson");
+  }
+  expect(await lookOf(kim.getByAltText("Vinnarbilden av Olle Testsson"))).toBe("rose");
+  await expect(olle.getByText("Grattis, det är din bild!")).toBeVisible();
+  for (const p of [astrid, kim]) await expect(p.getByText("Grattis, det är din bild!")).toHaveCount(0);
+  await expect(finale.locator(".revealed dd").last(), "the admin view names the photographer").toContainText("Olle Testsson");
+  await expect(finale.locator(".tie"), "the tie is settled").toHaveCount(0);
 });
 
 test("ending the party refuses new guests but lets a known guest back in by name, and the wipe empties everything", async ({ browser }) => {

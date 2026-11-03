@@ -23,6 +23,10 @@ export class Finale {
 
   private readonly steps: { [S in FinaleStep]: (inputs: FinaleInputs) => string | void } = {
     suspense: ({ quiz, closeVoting }) => FINALE_BLOCKERS.suspense({ quizPhase: quiz.stage.phase }) ?? closeVoting(),
+    quiz: ({ quiz }) => {
+      const scores = new Map(quiz.board.map((r) => [r.id, r.score]));
+      this.kv.put<FrozenQuiz[]>(QUIZ_KEY, quiz.winners.map((id) => ({ id, score: scores.get(id) ?? 0 })));
+    },
     photo: ({ tally }) => {
       const top = leaders(tally);
       const pick = this.kv.get<PhotoId>(PICK_KEY) ?? null;
@@ -30,10 +34,6 @@ export class Finale {
       if (error) return error;
       const win = top.length > 1 ? top.find((r) => r.photo === pick) : top[0];
       this.kv.put<FrozenPhoto | null>(PHOTO_KEY, win ? { photo: win.photo, thumb: win.thumb, owner: win.player, votes: win.votes } : null);
-    },
-    quiz: ({ quiz }) => {
-      const scores = new Map(quiz.board.map((r) => [r.id, r.score]));
-      this.kv.put<FrozenQuiz[]>(QUIZ_KEY, quiz.winners.map((id) => ({ id, score: scores.get(id) ?? 0 })));
     },
   };
 
@@ -52,7 +52,7 @@ export class Finale {
   }
 
   pick(photo: PhotoId, tally: TallyRow[]): string | null {
-    if (this.stage() !== "off" && this.stage() !== "suspense") return "The photo winner has already been revealed.";
+    if (this.stage() === "photo") return "The photo winner has already been revealed.";
     const top = leaders(tally);
     if (top.length < 2 || !top.some((r) => r.photo === photo)) return "That photo isn't tied for first.";
     this.kv.put(PICK_KEY, photo);
@@ -89,8 +89,8 @@ export class Finale {
     const views: { [S in FinaleStage]: () => GuestFinale } = {
       off: () => ({ stage: "off" }),
       suspense: () => ({ stage: "suspense" }),
-      photo: () => ({ stage: "photo", photo: won }),
-      quiz: () => ({ stage: "quiz", photo: won, quiz: quizWinners() }),
+      quiz: () => ({ stage: "quiz", quiz: quizWinners() }),
+      photo: () => ({ stage: "photo", quiz: quizWinners(), photo: won }),
     };
     return views[this.stage()]();
   }

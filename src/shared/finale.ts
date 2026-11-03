@@ -1,7 +1,7 @@
 import type { PhotoId, PlayerId } from "./model";
 import type { Phase } from "./quiz";
 
-export const FINALE_ORDER = ["off", "suspense", "photo", "quiz"] as const;
+export const FINALE_ORDER = ["off", "suspense", "quiz", "photo"] as const;
 export type FinaleStage = (typeof FINALE_ORDER)[number];
 export type FinaleStep = Exclude<FinaleStage, "off">;
 
@@ -12,9 +12,9 @@ export type FinaleGate = { quizPhase: Phase; tied: readonly PhotoId[]; pick: Pho
 
 export const FINALE_BLOCKERS = {
   suspense: ({ quizPhase }: Pick<FinaleGate, "quizPhase">) => (quizPhase === "ended" ? null : "End the quiz before you open the finale."),
+  quiz: () => null,
   photo: ({ tied, pick }: Pick<FinaleGate, "tied" | "pick">) =>
     tied.length > 1 && !(pick && tied.includes(pick)) ? "Photos are tied for first. Pick the winner before you reveal it." : null,
-  quiz: () => null,
 } satisfies { [S in FinaleStep]: (gate: FinaleGate) => string | null };
 
 export const finaleBlocker = (step: FinaleStep, gate: FinaleGate): string | null => FINALE_BLOCKERS[step](gate);
@@ -25,7 +25,7 @@ export type QuizWin = { id: PlayerId; name: string; score: number };
 export type GuestFinale =
   | { stage: "off" }
   | { stage: "suspense" }
-  | { stage: "photo"; photo: PhotoWin | null }
-  | { stage: "quiz"; photo: PhotoWin | null; quiz: QuizWin[] };
+  | { stage: "quiz"; quiz: QuizWin[] }
+  | { stage: "photo"; quiz: QuizWin[]; photo: PhotoWin | null };
 
 export type AdminFinale = GuestFinale & { tied: PhotoId[]; pick: PhotoId | null; joins: boolean };

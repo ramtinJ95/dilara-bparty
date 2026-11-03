@@ -1,5 +1,5 @@
 import { useEffect } from "preact/hooks";
-import type { GuestFinale, PhotoWin } from "../../shared/finale";
+import type { GuestFinale, PhotoWin, QuizWin } from "../../shared/finale";
 import type { PlayerId } from "../../shared/model";
 import { photoUrl } from "../api";
 import { Snowflake, Sparkle, Tiara } from "../icons";
@@ -13,8 +13,8 @@ type Stage = Exclude<GuestFinale["stage"], "off">;
 
 const VIEWS: { [S in Stage]: (props: Props<S>) => preact.JSX.Element } = {
   suspense: Suspense,
-  photo: PhotoReveal,
   quiz: QuizReveal,
+  photo: PhotoReveal,
 };
 
 export function Finale({ finale, you }: { finale: Of<Stage>; you: PlayerId }) {
@@ -39,7 +39,7 @@ function Suspense() {
   );
 }
 
-function PhotoReveal({ finale: { photo }, you }: Props<"photo">) {
+function PhotoReveal({ finale: { photo, quiz }, you }: Props<"photo">) {
   useCheer();
   return (
     <section class="finale reveal" aria-labelledby="finale-title">
@@ -61,12 +61,13 @@ function PhotoReveal({ finale: { photo }, you }: Props<"photo">) {
           Inga bilder var med den här gången
         </h1>
       )}
+      {quiz.length > 0 && <QuizRecap winners={quiz} />}
       <Drift />
     </section>
   );
 }
 
-function QuizReveal({ finale: { quiz, photo }, you }: Props<"quiz">) {
+function QuizReveal({ finale: { quiz }, you }: Props<"quiz">) {
   useCheer();
   const mine = quiz.some((w) => w.id === you);
   return (
@@ -92,7 +93,6 @@ function QuizReveal({ finale: { quiz, photo }, you }: Props<"quiz">) {
           Ingen fick poäng den här gången
         </h1>
       )}
-      {photo && <PhotoRecap photo={photo} />}
       <Drift />
     </section>
   );
@@ -113,14 +113,14 @@ function WinningPhoto({ photo }: { photo: PhotoWin }) {
   );
 }
 
-function PhotoRecap({ photo }: { photo: PhotoWin }) {
+function QuizRecap({ winners }: { winners: QuizWin[] }) {
   return (
     <div class="recap card">
       <Cap />
-      <img src={photoUrl(photo.thumb)} alt="" />
+      <Tiara />
       <p>
-        Bästa fotot
-        <strong>{photo.name}</strong>
+        {winners.length > 1 ? "Quizvinnarna" : "Quizvinnaren"}
+        <strong>{winners.map((w) => w.name).join(" & ")}</strong>
       </p>
     </div>
   );

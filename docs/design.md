@@ -131,10 +131,12 @@ code and runs the admin view; it is not a shared game screen.
   page: a themed waiting screen that builds anticipation. Photo voting closes
   when it opens.
 - The host then opens the winners page and reveals the winners one at a time,
-  each with its own press: first the winning photo with the photographer's name,
-  then the quiz winner, or the joint winners if first place is tied.
+  each with its own press: first the quiz winner, or the joint winners if first
+  place is tied, then the winning photo with the photographer's name. The photo
+  reveal keeps a small recap of the quiz winners.
 - A tie for the most photo votes shows the tied photos in the admin view, and
-  the host picks the winner before revealing it.
+  the host picks the winner at any point before revealing it, also while the
+  quiz winners are on the phones.
 - Each reveal is a short celebration on every phone at once. The winner's own
   phone also congratulates them. A phone that reconnects during the finale
   lands on the current step.
@@ -149,8 +151,8 @@ code and runs the admin view; it is not a shared game screen.
 - Quiz controls: unlock, start each question, reveal early, skip ahead to the
   leaderboard, end, reset. During a reveal, a note says the leaderboard
   follows on its own.
-- Finale controls: open the suspense page, reveal the photo winner, reveal the
-  quiz winner.
+- Finale controls: open the suspense page, reveal the quiz winner, reveal the
+  photo winner.
 - Contest controls: close uploads and voting, hide photos, browse every stored
   version, download everything.
 - Landing page photo upload.

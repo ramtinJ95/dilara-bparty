@@ -101,6 +101,7 @@ describe("photo visibility", () => {
     await stage(admin, "reveal");
     await step(admin, "end", "ended");
     admin.send({ t: "finale", step: "suspense" });
+    admin.send({ t: "finale", step: "quiz" });
     admin.send({ t: "finale", step: "photo" });
     await olle.socket.state((s) => s.finale.stage === "photo");
     await hide(true);

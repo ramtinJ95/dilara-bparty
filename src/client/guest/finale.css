@@ -44,7 +44,7 @@
 .win-photo .icicles.b { left: 34px; width: 40px; }
 
 .recap { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 340px; margin-top: 28px; padding: 16px 14px 14px; text-align: left; rotate: -1.5deg; }
-.recap img { width: 72px; height: 72px; flex: none; object-fit: cover; border: var(--line); border-radius: 8px; rotate: 3deg; }
+.recap .tiara { width: 72px; flex: none; rotate: -8deg; }
 .recap p { display: grid; gap: 2px; min-width: 0; margin: 0; font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
 .recap strong { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.05; letter-spacing: 0; text-transform: none; overflow-wrap: anywhere; }
 

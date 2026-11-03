@@ -35,7 +35,7 @@ async function playQuiz(admin: Admin, [astrid, olle, saga]: Phone[]): Promise<vo
 }
 
 describe("finale", () => {
-  it("opens only after the quiz has ended and then moves every phone through suspense, photo and quiz in order", async () => {
+  it("opens only after the quiz has ended and then moves every phone through suspense, the quiz winners and the photo in order", async () => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
     const [astrid, olle, saga] = all as [Phone, Phone, Phone];
@@ -45,24 +45,29 @@ describe("finale", () => {
     expect(await adminError(admin, { t: "finale", step: "suspense" })).toBe("End the quiz before you open the finale.");
     await playQuiz(admin, all);
 
-    expect(await adminError(admin, { t: "finale", step: "photo" })).toBe(`"photo" isn't the next finale step.`);
+    expect(await adminError(admin, { t: "finale", step: "quiz" })).toBe(`"quiz" isn't the next finale step.`);
     admin.send({ t: "finale", step: "suspense" });
     for (const p of all) expect(await finale(p, "suspense")).toEqual({ stage: "suspense" });
-    expect(await adminError(admin, { t: "finale", step: "quiz" })).toBe(`"quiz" isn't the next finale step.`);
+    expect(await adminError(admin, { t: "finale", step: "photo" })).toBe(`"photo" isn't the next finale step.`);
+
+    admin.send({ t: "finale", step: "quiz" });
+    const winners = [["Astrid", 1000], ["Olle", 1000]];
+    for (const p of all) {
+      const shown = await finale(p, "quiz");
+      expect(Object.keys(shown).sort(), "the photo winner is still a secret").toEqual(["quiz", "stage"]);
+      expect(shown.quiz.map((w) => [w.name, w.score]).sort()).toEqual(winners);
+    }
 
     admin.send({ t: "finale", step: "photo" });
     const photoWin = { photo, thumb: expect.any(String), owner: astrid.id, name: "Astrid", votes: 1 };
-    for (const p of all) expect(await finale(p, "photo")).toEqual({ stage: "photo", photo: photoWin });
-
-    admin.send({ t: "finale", step: "quiz" });
     for (const p of all) {
-      const shown = await finale(p, "quiz");
+      const shown = await finale(p, "photo");
       expect(shown.photo).toEqual(photoWin);
-      expect(shown.quiz.map((w) => [w.name, w.score]).sort()).toEqual([["Astrid", 1000], ["Olle", 1000]]);
+      expect(shown.quiz.map((w) => [w.name, w.score]).sort(), "the quiz winners stay for the recap").toEqual(winners);
     }
     expect(await adminError(admin, { t: "finale", step: "suspense" })).toBe(`"suspense" isn't the next finale step.`);
     expect(await adminError(admin, { t: "quiz", step: "reset" })).toBe("The finale has started, so the quiz can't change.");
-    expect((await finale(saga, "quiz")).quiz).toHaveLength(2);
+    expect((await finale(saga, "photo")).quiz).toHaveLength(2);
     closeAll(admin, ...all.map((p) => p.socket));
   });
 
@@ -73,10 +78,14 @@ describe("finale", () => {
     admin.send({ t: "finale", step: "suspense" });
     admin.send({ t: "finale", step: "suspense" });
     await adminAt(admin, "suspense");
+    admin.send({ t: "finale", step: "quiz" });
+    admin.send({ t: "finale", step: "quiz" });
+    await adminAt(admin, "quiz");
     admin.send({ t: "finale", step: "photo" });
     const after = await adminAt(admin, "photo");
     expect(after.finale).toMatchObject({ stage: "photo", photo: null });
     expect(admin.latest()?.finale.stage).toBe("photo");
+    await expect(admin.next((m) => m.t === "error", 300), "no press was refused").rejects.toThrow();
     closeAll(admin, ...all.map((p) => p.socket));
   });
 
@@ -112,12 +121,15 @@ describe("finale", () => {
     const tied = await adminAt(admin, "suspense");
     expect([...tied.finale.tied].sort()).toEqual([first, second].sort());
     expect(tied.finale.pick).toBeNull();
-    expect(await adminError(admin, { t: "finale", step: "photo" })).toBe("Photos are tied for first. Pick the winner before you reveal it.");
     expect(await adminError(admin, { t: "pick-photo", photo: third })).toBe("That photo isn't tied for first.");
-    expect((await finale(astrid, "suspense")).stage).toBe("suspense");
+    admin.send({ t: "pick-photo", photo: first });
+    await admin.state((s) => s.finale.pick === first);
 
+    admin.send({ t: "finale", step: "quiz" });
+    await adminAt(admin, "quiz");
     admin.send({ t: "pick-photo", photo: second });
     await admin.state((s) => s.finale.pick === second);
+    expect((await finale(astrid, "quiz")).stage, "picking changes nothing on the phones").toBe("quiz");
     admin.send({ t: "finale", step: "photo" });
     for (const p of all) expect((await finale(p, "photo")).photo).toMatchObject({ photo: second, name: "Olle", votes: 1 });
     expect(await adminError(admin, { t: "pick-photo", photo: first })).toBe("The photo winner has already been revealed.");
@@ -131,13 +143,14 @@ describe("finale", () => {
     const photo = await upload(astrid);
     await playQuiz(admin, all);
     admin.send({ t: "finale", step: "suspense" });
-    await adminAt(admin, "suspense");
+    admin.send({ t: "finale", step: "quiz" });
+    await adminAt(admin, "quiz");
 
     astrid.socket.close();
     admin.send({ t: "finale", step: "photo" });
     await adminAt(admin, "photo");
     const back = await phone("Astrid", astrid.cookie);
-    expect((await finale(back, "photo")).photo).toMatchObject({ photo, name: "Astrid" });
+    expect(await finale(back, "photo")).toMatchObject({ photo: { photo, name: "Astrid" }, quiz: [{ name: "Astrid" }, { name: "Olle" }] });
     expect((await call(`/photos/${photo}`, { cookie: back.cookie })).status).toBe(200);
     closeAll(admin, back.socket, ...all.slice(1).map((p) => p.socket));
   });
@@ -152,6 +165,7 @@ describe("revealed winners", () => {
     await vote(olle, photo);
     await playQuiz(admin, all);
     admin.send({ t: "finale", step: "suspense" });
+    admin.send({ t: "finale", step: "quiz" });
     admin.send({ t: "finale", step: "photo" });
     const { photo: win } = await finale(olle, "photo");
 
@@ -168,7 +182,6 @@ describe("revealed winners", () => {
     const [astrid, olle] = all as [Phone, Phone];
     await playQuiz(admin, all);
     admin.send({ t: "finale", step: "suspense" });
-    admin.send({ t: "finale", step: "photo" });
     admin.send({ t: "finale", step: "quiz" });
     await adminAt(admin, "quiz");
 

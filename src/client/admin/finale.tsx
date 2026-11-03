@@ -12,14 +12,14 @@ type Props = { finale: AdminFinale; quiz: AdminQuiz; tally: TallyRow[]; send: Se
 const STAGE_LABEL: Record<FinaleStage, string> = {
   off: "Not started",
   suspense: "Suspense page on phones",
-  photo: "Photo winner on phones",
   quiz: "Quiz winner on phones",
+  photo: "Photo winner on phones",
 };
 
 const STEP_LABEL: Record<FinaleStep, (quiz: AdminQuiz) => string> = {
   suspense: () => "Open suspense page",
-  photo: () => "Reveal photo winner",
   quiz: (quiz) => (quiz.winners.length > 1 ? "Reveal quiz winners" : "Reveal quiz winner"),
+  photo: () => "Reveal photo winner",
 };
 
 const STEPS = FINALE_ORDER.filter((s): s is FinaleStep => s !== "off");
@@ -67,7 +67,7 @@ export function FinaleControls({ finale, quiz, tally, send, live }: Props) {
           </div>
         </div>
       )}
-      {finale.tied.length > 1 && (finale.stage === "off" || finale.stage === "suspense") && (
+      {finale.tied.length > 1 && finale.stage !== "photo" && (
         <TiePicker rows={tally.filter((r) => finale.tied.includes(r.photo))} pick={finale.pick} send={send} live={live} />
       )}
       <Revealed finale={finale} />
@@ -103,24 +103,24 @@ function TiePicker({ rows, pick, send, live }: { rows: TallyRow[]; pick: AdminFi
 }
 
 function Revealed({ finale }: { finale: AdminFinale }) {
-  if (finale.stage !== "photo" && finale.stage !== "quiz") return null;
+  if (finale.stage !== "quiz" && finale.stage !== "photo") return null;
   return (
     <dl class="revealed">
-      <dt>Best photo</dt>
-      <dd>
-        {finale.photo ? (
-          <>
-            <img src={photoUrl(finale.photo.thumb)} alt="" />
-            <b>{finale.photo.name}</b> · {plural(finale.photo.votes, "vote", "votes")}
-          </>
-        ) : (
-          "No photos in the contest"
-        )}
-      </dd>
-      {finale.stage === "quiz" && (
+      <dt>{finale.quiz.length > 1 ? "Quiz winners" : "Quiz winner"}</dt>
+      <dd>{finale.quiz.length > 0 ? <b>{finale.quiz.map((w) => w.name).join(" & ")}</b> : "Nobody scored"}</dd>
+      {finale.stage === "photo" && (
         <>
-          <dt>{finale.quiz.length > 1 ? "Quiz winners" : "Quiz winner"}</dt>
-          <dd>{finale.quiz.length > 0 ? <b>{finale.quiz.map((w) => w.name).join(" & ")}</b> : "Nobody scored"}</dd>
+          <dt>Best photo</dt>
+          <dd>
+            {finale.photo ? (
+              <>
+                <img src={photoUrl(finale.photo.thumb)} alt="" />
+                <b>{finale.photo.name}</b> · {plural(finale.photo.votes, "vote", "votes")}
+              </>
+            ) : (
+              "No photos in the contest"
+            )}
+          </dd>
         </>
       )}
     </dl>
