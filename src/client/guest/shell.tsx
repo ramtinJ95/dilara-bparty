@@ -95,6 +95,7 @@ function useResendHeld(state: GuestState | null, live: boolean, send: (cmd: Gues
 
 // The server refuses the socket of a page whose cookie Safari dropped while it stayed open, and the refusal looks like any failed
 // connect. So the first failed connect of an outage that reaches the server asks once for the cookie back, and the next retry uses it.
+// A refused copy means the player is gone, and no socket will open to say so.
 function useRestoreOnRefusal(status: LiveStatus) {
   const last = useRef(status.kind);
   const asked = useRef(false);
@@ -104,7 +105,10 @@ function useRestoreOnRefusal(status: LiveStatus) {
     last.current = status.kind;
     if (!refused || asked.current || !hasSession()) return;
     asked.current = true;
-    void restoreSession().then((result) => void (result === "unreached" && (asked.current = false)));
+    void restoreSession().then((result) => {
+      if (result === "refused") location.replace("/");
+      if (result === "unreached") asked.current = false;
+    });
   }, [status]);
 }
 

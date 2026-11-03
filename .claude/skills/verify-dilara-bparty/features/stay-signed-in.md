@@ -9,7 +9,7 @@ A guest joins once per phone. If Safari later loads the app without the `pid` co
 - `stay-restore` signs a phone without a valid cookie back in from its copy, from `/`, `/app` (which redirects to `/`) or the join link, through `POST /api/restore`.
 - `stay-refused` forgets a copy the server refuses (tampered, or a player a reset or a wipe deleted), and the code form shows.
 - `stay-ended` restores a guest who joined before the host ended the party.
-- `stay-open` restores the cookie of a page that stayed open, on the first refused reconnect, so the `Återansluter…` pill clears without a reload.
+- `stay-open` restores the cookie of a page that stayed open, on the first refused reconnect, so the `Återansluter…` pill clears without a reload. A refused copy sends that page to `/`.
 - `stay-stalled` gives up on a restore after 8 s, shows the page and keeps the copy.
 
 ## How to get to it (user POV)

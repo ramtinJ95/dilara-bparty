@@ -118,6 +118,19 @@ test("a phone whose cookie went while the app stayed open gets it back on its ne
   expect((await page.context().cookies()).find((c) => c.name === "pid")?.value).toBe(joined);
 });
 
+test("an open app whose cookie went and whose saved identity is refused leaves for the bare page", async ({ browser }) => {
+  const { page, line } = await phone(browser, "good", tagged("Gäst Borta"));
+  await page.evaluate(() => localStorage.setItem("pid", `${localStorage.getItem("pid")!.split(".")[0]}.forged`));
+
+  await page.context().clearCookies();
+  await line.cut("clean");
+  await expect(reconnecting(page)).toBeVisible();
+  await line.restore();
+  await expect(page.getByLabel("Kod")).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/$/);
+  expect(await page.evaluate(() => localStorage.getItem("pid"))).toBeNull();
+});
+
 const dropped = (page: Page) => page.getByText("Anslutningen bröts.", { exact: false });
 const uploaded = (page: Page) => page.getByText("Inga röster än");
 
