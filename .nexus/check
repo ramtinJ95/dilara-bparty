@@ -6,5 +6,14 @@ export WRANGLER_SEND_METRICS=false
 npm ci --no-audit --no-fund
 npm run typecheck
 npm test
-npm run test:e2e
-npm run test:e2e:webkit
+# A failed browser test's page snapshot goes into the output, since the runner keeps nothing else.
+e2e() {
+  npm run "$1" && return
+  find test-results -name error-context.md | while read -r context; do
+    echo "=== $context"
+    cat "$context"
+  done
+  exit 1
+}
+e2e test:e2e
+e2e test:e2e:webkit
