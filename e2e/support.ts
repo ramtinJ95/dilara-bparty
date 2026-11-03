@@ -1,6 +1,9 @@
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { laptop, openAdmin as driveOpenAdmin, phone } from "./drive";
+import { laptop, openAdmin as driveOpenAdmin, phone as mediaPhone } from "./drive";
 import { secrets } from "./server";
+
+// The project's scale factor, not the media's 2x: a WebKit page at 2x holds four times the pixels, and a 4 GB runner ran out of memory.
+const { deviceScaleFactor: _, ...phone } = mediaPhone;
 
 export { laptop, phone };
 

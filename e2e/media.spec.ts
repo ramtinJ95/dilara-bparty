@@ -6,8 +6,8 @@ import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { CONTEST_UPLOAD_PATH } from "../src/shared/api";
 import { LOOKS, placeholder, pngFile, type Look } from "./placeholder";
 import { secrets } from "./server";
-import { addQuestion, answer, fillQuestion, type QuestionSpec } from "./drive";
-import { joinViaApi, laptop, openAdmin, openShell, phone } from "./support";
+import { addQuestion, answer, fillQuestion, phone, type QuestionSpec } from "./drive";
+import { joinViaApi, laptop, openAdmin, openShell } from "./support";
 
 const out = "artifacts";
 
@@ -52,7 +52,7 @@ test("screenshots", async ({ browser }) => {
   await admin.locator('.landing-photo input[type="file"]').setInputFiles({ name: "snow.png", mimeType: "image/png", buffer: await placeholder(admin, LOOKS.snow) });
   await expect(admin.getByAltText("Current landing photo")).toBeVisible();
 
-  const offline = await joinViaApi(browser, "Olle");
+  const offline = await joinViaApi(browser, "Olle", phone);
   await offline.close();
   const online = await Promise.all(["Astrid", "Testgäst", "Kim Testsson"].map((n) => joinViaApi(browser, n)));
   await Promise.all(online.map((c) => openShell(c)));
@@ -368,7 +368,7 @@ test("quiz screenshots", async ({ browser }) => {
   await admin.evaluate(() => scrollTo(0, 0));
 
   const room = await quizRoom(browser, admin);
-  const kimContext = await joinViaApi(browser, "Kim Testsson");
+  const kimContext = await joinViaApi(browser, "Kim Testsson", phone);
   const kim = await openShell(kimContext);
   await kim.getByRole("button", { name: "Galleri" }).click();
 
