@@ -143,7 +143,8 @@ minutes, every message counted in full.
 | **Total** | | **13,680** |
 
 That is well under half of 30,000, our own cap. A quiz that is never ended
-costs 5,460 more alarms, for 19,140. The ticks don't grow with the number of phones,
+costs 5,460 more alarms, for 19,140, and so does a suspense page that is
+never revealed. The admin view's fast heartbeat toggle turns either off. The ticks don't grow with the number of phones,
 so more guests cost only their checks, connects and actions. Each alarm also
 writes one SQLite row, under 2,500 of the 100,000 rows a day.
 
