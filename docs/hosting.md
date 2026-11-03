@@ -59,9 +59,9 @@ Free plan allowances per day, compared with a padded estimate for one party
 | Resource | Free per day | Party estimate |
 |---|---|---|
 | Worker requests | 100,000 | 1,000 to 2,000 |
-| Durable Object requests (see [the budget](#durable-object-request-budget)) | 100,000, shared with staging | under 13,500 in the worst case |
+| Durable Object requests (see [the budget](#durable-object-request-budget)) | 100,000, shared with staging | under 14,000 in the worst case |
 | Durable Object duration | 13,000 GB-s | under 1,350 GB-s, even if it never hibernates |
-| SQLite rows written | 100,000 | about 3,000, mostly alarms |
+| SQLite rows written | 100,000 | about 3,500, mostly alarms |
 | SQLite rows read | 5,000,000 | a few thousand |
 | SQLite storage | 5 GB total | under 100 MB, almost all photos |
 | Static asset requests | unlimited | |
@@ -80,9 +80,10 @@ alarm sends every open socket a tiny tick, one request for all of them. The
 server owns a mode and sends it with every snapshot, so every phone switches
 together:
 
-- **Fast**, from unlock until the quiz ends or is reset, or while the admin
-  turns it on: a tick every 4 s, and a phone that hears nothing for 11 s
-  reconnects.
+- **Fast**, from unlock until the quiz ends or is reset, from opening a
+  finale's suspense page until its reveal has been on the phones for a minute,
+  or while the admin turns it on: a tick every 4 s, and a phone that hears
+  nothing for 11 s reconnects.
 - **Slow**, the rest of the day: a tick every 30 s, and a phone reconnects
   after 70 s of silence.
 
@@ -118,12 +119,14 @@ still open shows online in the admin view until its connection fails, which
 can take minutes. Its own phone recovers on its own once the network is back.
 
 Worst case for the party day: 25 phones and the admin laptop in the foreground
-for 8 hours, the quiz open for 1 hour, every message counted in full.
+for 8 hours, the quiz open for 1 hour, each finale on the fast heartbeat for 15
+minutes, every message counted in full.
 
 | What | Count | Requests |
 |---|---|---|
 | Fast ticks: one alarm every 4 s for 1 hour | 900 | 900 |
 | Slow ticks: one alarm every 30 s for 7 hours | 840 | 840 |
+| Fast ticks during the two finales: one alarm every 4 s for 15 minutes each | 2 × 225 | 450 |
 | Pings from phones on a schedule | none | 0 |
 | Checks when the guest looks or acts, outside the quiz: 100 per socket | 26 × 100 | 2,600 |
 | WebSocket connects: 50 per socket | 26 × 50 | 1,300 |
@@ -137,12 +140,12 @@ for 8 hours, the quiz open for 1 hour, every message counted in full.
 | Question closes and leaderboards, from the shared alarm: 2 per question | 20 × 2 | 40 |
 | Quiz and finale steps, question edits by the host | 200 | 200 |
 | Other admin commands and photo uploads | 300 | 300 |
-| **Total** | | **13,230** |
+| **Total** | | **13,680** |
 
 That is well under half of 30,000, our own cap. A quiz that is never ended
-costs 5,460 more alarms, for 18,690. The ticks don't grow with the number of phones,
+costs 5,460 more alarms, for 19,140. The ticks don't grow with the number of phones,
 so more guests cost only their checks, connects and actions. Each alarm also
-writes one SQLite row, under 2,000 of the 100,000 rows a day.
+writes one SQLite row, under 2,500 of the 100,000 rows a day.
 
 **Never run the rehearsal against staging on the party day.** Staging shares the
 account's allowance, and a rehearsal spends requests on joins, reconnects and
