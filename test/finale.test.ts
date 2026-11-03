@@ -1,20 +1,25 @@
-import { describe, expect, it } from "vitest";
-import type { GuestFinale } from "../src/shared/finale";
+import { describe, expect, it, vi } from "vitest";
+import { REVEAL_SHOW_MS, type FinaleKind, type FinaleStage, type FinaleStep, type GuestFinales } from "../src/shared/finale";
 import type { PhotoId } from "../src/shared/model";
-import type { AdminCmd, AdminState } from "../src/shared/protocol";
+import type { AdminCmd, AdminState, Heartbeat } from "../src/shared/protocol";
 import { answer, closeAll, host, number, phone, phones, stage, start, step, type Admin, type Phone } from "./support/quiz";
-import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, uploadContestAs } from "./support/worker";
+import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, uploadContest, uploadContestAs } from "./support/worker";
 
 async function adminError(admin: Admin, cmd: AdminCmd): Promise<string> {
   admin.send(cmd);
   return admin.error();
 }
 
-async function finale<S extends GuestFinale["stage"]>(p: Phone, stage: S): Promise<Extract<GuestFinale, { stage: S }>> {
-  return (await p.socket.current((s) => s.finale.stage === stage)).finale as Extract<GuestFinale, { stage: S }>;
+const press = (admin: Admin, kind: FinaleKind, step: FinaleStep) => admin.send({ t: "finale", kind, step });
+
+async function finale<K extends FinaleKind, S extends FinaleStage>(p: Phone, kind: K, stage: S): Promise<Extract<GuestFinales[K], { stage: S }>> {
+  return (await p.socket.current((s) => s.finale[kind].stage === stage)).finale[kind] as Extract<GuestFinales[K], { stage: S }>;
 }
 
-const adminAt = (admin: Admin, stage: GuestFinale["stage"]) => admin.current((s) => s.finale.stage === stage);
+const adminAt = (admin: Admin, kind: FinaleKind, stage: FinaleStage) => admin.current((s) => s.finale[kind].stage === stage);
+
+const heartbeatWith = (admin: Admin, heartbeat: Heartbeat, until: (s: AdminState) => boolean) =>
+  admin.next((m) => m.t === "state" && m.heartbeat === heartbeat && until(m.state));
 
 const upload = async (p: Phone): Promise<PhotoId> => (await uploadContestAs(p)).id;
 
@@ -34,79 +39,121 @@ async function playQuiz(admin: Admin, [astrid, olle, saga]: Phone[]): Promise<vo
   await step(admin, "end", "ended");
 }
 
-describe("finale", () => {
-  it("opens only after the quiz has ended and then moves every phone through suspense, the quiz winners and the photo in order", async () => {
+const JOINT = [["Astrid", 1000], ["Olle", 1000]];
+const named = (win: { name: string; score: number }[]) => win.map((w) => [w.name, w.score]).sort();
+
+describe("quiz finale", () => {
+  it("opens once the quiz has ended, moves every phone to its suspense page and then the joint winners, and leaves the photo contest open", async () => {
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    const [astrid, olle, saga] = all as [Phone, Phone, Phone];
+    const photo = await upload(astrid);
+
+    expect(await adminError(admin, { t: "finale", kind: "quiz", step: "suspense" })).toBe("End the quiz before you open the quiz finale.");
+    await playQuiz(admin, all);
+    expect(await adminError(admin, { t: "finale", kind: "quiz", step: "reveal" })).toBe(`"reveal" isn't the next step of the quiz finale.`);
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    press(admin, "quiz", "suspense");
+    for (const p of all) expect((await p.socket.current((s) => s.finale.quiz.stage === "suspense")).finale).toEqual({ quiz: { stage: "suspense" }, photo: { stage: "off" } });
+    expect((await adminAt(admin, "quiz", "suspense")).contest).toMatchObject({ uploads: true, voting: true });
+    await vote(olle, photo);
+    expect((await uploadContest(saga.cookie)).status, "guests can still upload").toBe(200);
+    expect(await adminError(admin, { t: "quiz", step: "reset" })).toBe("The quiz finale has started, so the quiz can't change.");
+
+    press(admin, "quiz", "reveal");
+    for (const p of all) {
+      const shown = await finale(p, "quiz", "reveal");
+      expect(shown.backInMs).toBe(REVEAL_SHOW_MS);
+      expect(named(shown.win)).toEqual(JOINT);
+    }
+    expect((await saga.socket.current()).finale.photo, "the photo winner is still a secret").toEqual({ stage: "off" });
+    expect(await adminError(admin, { t: "quiz", step: "reset" })).toBe("The quiz finale has started, so the quiz can't change.");
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+
+  it("brings a phone that joins or reconnects to the current step: the suspense page, the reveal for the rest of its minute, then the app", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    const [astrid] = all as [Phone];
+    await playQuiz(admin, all);
+
+    press(admin, "quiz", "suspense");
+    await adminAt(admin, "quiz", "suspense");
+    const early = await phone("Tidig");
+    expect((await early.socket.current()).finale.quiz).toEqual({ stage: "suspense" });
+
+    press(admin, "quiz", "reveal");
+    await adminAt(admin, "quiz", "reveal");
+    vi.setSystemTime(t0 + 20_000);
+    astrid.socket.close();
+    const back = await phone("Astrid", astrid.cookie);
+    const reveal = (await back.socket.current()).finale.quiz;
+    expect(reveal).toMatchObject({ stage: "reveal", backInMs: REVEAL_SHOW_MS - 20_000 });
+    expect(named(reveal.stage === "reveal" ? reveal.win : [])).toEqual(JOINT);
+
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS);
+    const late = await phone("Sen");
+    const done = (await late.socket.current()).finale.quiz;
+    expect(done.stage, "the minute is over even before the alarm has fired").toBe("done");
+    expect(named(done.stage === "done" ? done.win : [])).toEqual(JOINT);
+    closeAll(admin, early.socket, back.socket, late.socket, ...all.slice(1).map((p) => p.socket));
+  });
+});
+
+describe("photo finale", () => {
+  it("can run before the quiz: its suspense page closes uploads, voting and the quiz, and its reveal shows the photo and its photographer", async () => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
     const [astrid, olle, saga] = all as [Phone, Phone, Phone];
     const photo = await upload(astrid);
     await vote(olle, photo);
 
-    expect(await adminError(admin, { t: "finale", step: "suspense" })).toBe("End the quiz before you open the finale.");
-    await playQuiz(admin, all);
+    press(admin, "photo", "suspense");
+    for (const p of all) expect((await p.socket.current((s) => s.finale.photo.stage === "suspense")).finale).toEqual({ quiz: { stage: "off" }, photo: { stage: "suspense" } });
+    expect((await adminAt(admin, "photo", "suspense")).contest).toMatchObject({ uploads: false, voting: false });
+    olle.socket.send({ t: "unvote", photo });
+    expect(await olle.socket.error()).toBe("Röstningen är stängd.");
+    const refused = await uploadContest(saga.cookie);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "Uppladdningen är stängd." });
+    expect(await adminError(admin, { t: "quiz", step: "unlock" })).toBe("The photo finale is on the phones.");
 
-    expect(await adminError(admin, { t: "finale", step: "quiz" })).toBe(`"quiz" isn't the next finale step.`);
-    admin.send({ t: "finale", step: "suspense" });
-    for (const p of all) expect(await finale(p, "suspense")).toEqual({ stage: "suspense" });
-    expect(await adminError(admin, { t: "finale", step: "photo" })).toBe(`"photo" isn't the next finale step.`);
-
-    admin.send({ t: "finale", step: "quiz" });
-    const winners = [["Astrid", 1000], ["Olle", 1000]];
+    vi.useFakeTimers({ toFake: ["Date"] });
+    press(admin, "photo", "reveal");
     for (const p of all) {
-      const shown = await finale(p, "quiz");
-      expect(Object.keys(shown).sort(), "the photo winner is still a secret").toEqual(["quiz", "stage"]);
-      expect(shown.quiz.map((w) => [w.name, w.score]).sort()).toEqual(winners);
+      expect(await finale(p, "photo", "reveal")).toEqual({
+        stage: "reveal",
+        win: { photo, thumb: expect.any(String), owner: astrid.id, name: "Astrid", votes: 1 },
+        backInMs: REVEAL_SHOW_MS,
+      });
     }
 
-    admin.send({ t: "finale", step: "photo" });
-    const photoWin = { photo, thumb: expect.any(String), owner: astrid.id, name: "Astrid", votes: 1 };
-    for (const p of all) {
-      const shown = await finale(p, "photo");
-      expect(shown.photo).toEqual(photoWin);
-      expect(shown.quiz.map((w) => [w.name, w.score]).sort(), "the quiz winners stay for the recap").toEqual(winners);
-    }
-    expect(await adminError(admin, { t: "finale", step: "suspense" })).toBe(`"suspense" isn't the next finale step.`);
-    expect(await adminError(admin, { t: "quiz", step: "reset" })).toBe("The finale has started, so the quiz can't change.");
-    expect((await finale(saga, "photo")).quiz).toHaveLength(2);
+    await playQuiz(admin, all);
+    press(admin, "quiz", "suspense");
+    press(admin, "quiz", "reveal");
+    expect(named((await finale(saga, "quiz", "reveal")).win), "the quiz finale follows the photo finale").toEqual(JOINT);
+    expect((await saga.socket.current()).finale.photo).toMatchObject({ stage: "reveal", win: { photo } });
     closeAll(admin, ...all.map((p) => p.socket));
   });
 
-  it("treats a repeated press of the current step as done", async () => {
+  it("waits for a running quiz to end", async () => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
-    await playQuiz(admin, all);
-    admin.send({ t: "finale", step: "suspense" });
-    admin.send({ t: "finale", step: "suspense" });
-    await adminAt(admin, "suspense");
-    admin.send({ t: "finale", step: "quiz" });
-    admin.send({ t: "finale", step: "quiz" });
-    await adminAt(admin, "quiz");
-    admin.send({ t: "finale", step: "photo" });
-    const after = await adminAt(admin, "photo");
-    expect(after.finale).toMatchObject({ stage: "photo", photo: null });
-    expect(admin.latest()?.finale.stage).toBe("photo");
-    await expect(admin.next((m) => m.t === "error", 300), "no press was refused").rejects.toThrow();
+    await step(admin, "unlock", "lobby");
+    expect(await adminError(admin, { t: "finale", kind: "photo", step: "suspense" })).toBe("The quiz is running. End it before you open the photo finale.");
+    await start(admin);
+    expect(await adminError(admin, { t: "finale", kind: "photo", step: "suspense" })).toBe("The quiz is running. End it before you open the photo finale.");
+    await step(admin, "reveal", "reveal");
+    await step(admin, "end", "ended");
+    press(admin, "photo", "suspense");
+    await adminAt(admin, "photo", "suspense");
     closeAll(admin, ...all.map((p) => p.socket));
   });
 
-  it("closes voting when the suspense page opens", async () => {
-    const admin = await host(number());
-    const all = await phones("Astrid", "Olle", "Saga");
-    const [astrid, olle] = all as [Phone, Phone];
-    const photo = await upload(astrid);
-    await playQuiz(admin, all);
-    expect((await admin.current()).contest.voting).toBe(true);
-
-    admin.send({ t: "finale", step: "suspense" });
-    expect((await adminAt(admin, "suspense")).contest.voting).toBe(false);
-    expect((await olle.socket.current((s) => s.finale.stage === "suspense")).contest.voting).toBe(false);
-    olle.socket.send({ t: "vote", photo });
-    const refused = await olle.socket.next((m) => m.t === "error");
-    expect(refused).toEqual({ t: "error", message: "Röstningen är stängd." });
-    closeAll(admin, ...all.map((p) => p.socket));
-  });
-
-  it("makes the host pick the photo winner from a tie before revealing it", async () => {
+  it("makes the host pick the photo winner from a tie, and lets them change the pick until the reveal", async () => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
     const [astrid, olle, saga] = all as [Phone, Phone, Phone];
@@ -115,44 +162,148 @@ describe("finale", () => {
     const third = await upload(saga);
     await vote(saga, first);
     await vote(saga, second);
-    await playQuiz(admin, all);
-    admin.send({ t: "finale", step: "suspense" });
+    press(admin, "photo", "suspense");
 
-    const tied = await adminAt(admin, "suspense");
+    const tied = await adminAt(admin, "photo", "suspense");
     expect([...tied.finale.tied].sort()).toEqual([first, second].sort());
     expect(tied.finale.pick).toBeNull();
+    expect(await adminError(admin, { t: "finale", kind: "photo", step: "reveal" })).toBe("Photos are tied for first. Pick the winner before you reveal it.");
     expect(await adminError(admin, { t: "pick-photo", photo: third })).toBe("That photo isn't tied for first.");
     admin.send({ t: "pick-photo", photo: first });
     await admin.state((s) => s.finale.pick === first);
-
-    admin.send({ t: "finale", step: "quiz" });
-    await adminAt(admin, "quiz");
     admin.send({ t: "pick-photo", photo: second });
     await admin.state((s) => s.finale.pick === second);
-    expect((await finale(astrid, "quiz")).stage, "picking changes nothing on the phones").toBe("quiz");
-    admin.send({ t: "finale", step: "photo" });
-    for (const p of all) expect((await finale(p, "photo")).photo).toMatchObject({ photo: second, name: "Olle", votes: 1 });
+    await expect.poll(() => astrid.socket.latest()?.contest.voting).toBe(false);
+    expect(astrid.socket.latest()?.finale.photo, "the pick stays off the phones").toEqual({ stage: "suspense" });
+
+    press(admin, "photo", "reveal");
+    for (const p of all) expect((await finale(p, "photo", "reveal")).win).toMatchObject({ photo: second, name: "Olle", votes: 1 });
     expect(await adminError(admin, { t: "pick-photo", photo: first })).toBe("The photo winner has already been revealed.");
     closeAll(admin, ...all.map((p) => p.socket));
   });
+});
 
-  it("brings a phone that reconnects back to the current finale step", async () => {
+describe("both finales", () => {
+  it.each([
+    ["quiz", "photo"],
+    ["photo", "quiz"],
+  ] as const)("keep the %s finale's suspense page alone on the phones until its reveal, then let the %s finale open", async (first, second) => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
-    const [astrid] = all as [Phone];
-    const photo = await upload(astrid);
     await playQuiz(admin, all);
-    admin.send({ t: "finale", step: "suspense" });
-    admin.send({ t: "finale", step: "quiz" });
-    await adminAt(admin, "quiz");
+    press(admin, first, "suspense");
+    await adminAt(admin, first, "suspense");
+    const title = { quiz: "The quiz finale", photo: "The photo finale" }[first];
+    expect(await adminError(admin, { t: "finale", kind: second, step: "suspense" })).toBe(`${title} is on the phones. Reveal it first.`);
 
-    astrid.socket.close();
-    admin.send({ t: "finale", step: "photo" });
-    await adminAt(admin, "photo");
-    const back = await phone("Astrid", astrid.cookie);
-    expect(await finale(back, "photo")).toMatchObject({ photo: { photo, name: "Astrid" }, quiz: [{ name: "Astrid" }, { name: "Olle" }] });
-    expect((await call(`/photos/${photo}`, { cookie: back.cookie })).status).toBe(200);
-    closeAll(admin, back.socket, ...all.slice(1).map((p) => p.socket));
+    press(admin, first, "reveal");
+    press(admin, second, "suspense");
+    const after = await adminAt(admin, second, "suspense");
+    expect(after.finale[first].stage).toBe("reveal");
+    for (const p of all) expect((await p.socket.current((s) => s.finale[second].stage === "suspense")).finale[first].stage).toBe("reveal");
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+
+  it("treat a repeated or late press of a step as done, which changes nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    await playQuiz(admin, all);
+    for (const kind of ["quiz", "photo"] as const) {
+      press(admin, kind, "suspense");
+      press(admin, kind, "suspense");
+      await adminAt(admin, kind, "suspense");
+      press(admin, kind, "reveal");
+      press(admin, kind, "reveal");
+      press(admin, kind, "suspense");
+      await adminAt(admin, kind, "reveal");
+    }
+    const shown = await admin.current();
+    expect(named(shown.finale.quiz.stage === "reveal" ? shown.finale.quiz.win : [])).toEqual(JOINT);
+    expect(shown.finale.photo).toEqual({ stage: "reveal", win: null, backInMs: REVEAL_SHOW_MS });
+
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS);
+    await fireAlarm();
+    await heartbeatWith(admin, "slow", (s) => s.finale.quiz.stage === "done" && s.finale.photo.stage === "done");
+    press(admin, "quiz", "suspense");
+    expect(await admin.next((m) => m.t === "ack" || m.t === "error")).toEqual({ t: "ack" });
+    expect(admin.latest(), "a late press doesn't turn the fast heartbeat back on").toMatchObject({ finale: { quiz: { stage: "done" } } });
+    await expect(admin.next((m) => m.t === "state" && m.heartbeat === "fast", 300)).rejects.toThrow();
+    expect(await alarmAt()).toBe(t0 + REVEAL_SHOW_MS + 30_000);
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+});
+
+describe("reveal on the phones", () => {
+  it("runs with the fast heartbeat from the suspense page, and a minute after the reveal sends every phone back to the party with the slow one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    await playQuiz(admin, all);
+
+    press(admin, "quiz", "suspense");
+    await heartbeatWith(admin, "fast", (s) => s.finale.quiz.stage === "suspense");
+    press(admin, "quiz", "reveal");
+    await adminAt(admin, "quiz", "reveal");
+    expect(await alarmAt(), "the fast tick comes first").toBe(t0 + 4_000);
+
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS - 1);
+    await fireAlarm();
+    expect(await alarmAt(), "and then the end of the reveal").toBe(t0 + REVEAL_SHOW_MS);
+    for (const p of all) expect(p.socket.latest()?.finale.quiz.stage).toBe("reveal");
+
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS);
+    await fireAlarm();
+    for (const p of all) {
+      const back = await p.socket.next((m) => m.t === "state" && m.state.finale.quiz.stage === "done");
+      expect(back).toMatchObject({ heartbeat: "slow", state: { finale: { quiz: { stage: "done" }, photo: { stage: "off" } } } });
+    }
+    expect(await alarmAt(), "the slow tick").toBe(t0 + REVEAL_SHOW_MS + 30_000);
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+
+  it("keeps the fast heartbeat when the reveal ends while the quiz is running", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    press(admin, "photo", "suspense");
+    press(admin, "photo", "reveal");
+    await heartbeatWith(admin, "fast", (s) => s.finale.photo.stage === "reveal");
+    await step(admin, "unlock", "lobby");
+
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS);
+    await fireAlarm();
+    for (const p of all) {
+      expect(await p.socket.next((m) => m.t === "state" && m.state.finale.photo.stage === "done")).toMatchObject({ heartbeat: "fast", state: { quiz: { phase: "lobby" } } });
+    }
+    closeAll(admin, ...all.map((p) => p.socket));
+  });
+
+  it("ends on time when nobody is connected", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    const admin = await host(number());
+    const all = await phones("Astrid", "Olle", "Saga");
+    await playQuiz(admin, all);
+    press(admin, "quiz", "suspense");
+    press(admin, "quiz", "reveal");
+    await adminAt(admin, "quiz", "reveal");
+
+    const sockets = [admin, ...all.map((p) => p.socket)];
+    closeAll(...sockets);
+    await expect.poll(() => sockets.every((s) => s.closed)).toBe(true);
+    await fireAlarm();
+    expect(await alarmAt(), "no tick, only the end of the reveal").toBe(t0 + REVEAL_SHOW_MS);
+    vi.setSystemTime(t0 + REVEAL_SHOW_MS);
+    expect(await fireAlarm()).toBe(true);
+    expect(await alarmAt()).toBeNull();
+
+    const watcher = await connectAdmin();
+    expect(await watcher.next()).toMatchObject({ t: "state", heartbeat: "slow", state: { finale: { quiz: { stage: "done" } } } });
+    watcher.close();
   });
 });
 
@@ -163,32 +314,30 @@ describe("revealed winners", () => {
     const [astrid, olle] = all as [Phone, Phone];
     const photo = await upload(astrid);
     await vote(olle, photo);
-    await playQuiz(admin, all);
-    admin.send({ t: "finale", step: "suspense" });
-    admin.send({ t: "finale", step: "quiz" });
-    admin.send({ t: "finale", step: "photo" });
-    const { photo: win } = await finale(olle, "photo");
+    press(admin, "photo", "suspense");
+    press(admin, "photo", "reveal");
+    const { win } = await finale(olle, "photo", "reveal");
 
     admin.send({ t: "hide", photo, hidden: true });
     await admin.state((s) => s.contest.tally.length === 0);
-    expect((await finale(olle, "photo")).photo).toMatchObject({ photo, name: "Astrid" });
+    expect((await finale(olle, "photo", "reveal")).win).toMatchObject({ photo, name: "Astrid" });
     for (const id of [win!.photo, win!.thumb]) expect((await call(`/photos/${id}`, { cookie: olle.cookie })).status).toBe(200);
     closeAll(admin, ...all.map((p) => p.socket));
   });
 
-  it("shows joint winners merged after the reveal as one winner, congratulated on both phones", async () => {
+  it("shows joint winners merged after the reveal as one winner", async () => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
     const [astrid, olle] = all as [Phone, Phone];
     await playQuiz(admin, all);
-    admin.send({ t: "finale", step: "suspense" });
-    admin.send({ t: "finale", step: "quiz" });
-    await adminAt(admin, "quiz");
+    press(admin, "quiz", "suspense");
+    press(admin, "quiz", "reveal");
+    await adminAt(admin, "quiz", "reveal");
 
     admin.send({ t: "merge", from: astrid.id, into: olle.id });
     const merged = await astrid.socket.state((s) => s.you.id === olle.id);
-    expect(merged.finale).toMatchObject({ stage: "quiz", quiz: [{ id: olle.id, name: "Olle", score: 1000 }] });
-    expect((await olle.socket.current((s) => s.finale.stage === "quiz" && s.finale.quiz.length === 1)).you.id).toBe(olle.id);
+    expect(merged.finale.quiz).toMatchObject({ stage: "reveal", win: [{ id: olle.id, name: "Olle", score: 1000 }] });
+    expect((await olle.socket.current((s) => s.finale.quiz.stage === "reveal" && s.finale.quiz.win.length === 1)).you.id).toBe(olle.id);
     closeAll(admin, ...all.map((p) => p.socket));
   });
 });
@@ -213,13 +362,17 @@ describe("end of the party", () => {
     admin.close();
   });
 
-  it("wipes players, photos, votes and the quiz only after the party has ended", async () => {
+  it("wipes players, photos, votes, the quiz and both finales only after the party has ended", async () => {
     const admin = await host(number());
     const all = await phones("Astrid", "Olle", "Saga");
     const [astrid, olle] = all as [Phone, Phone];
     const photo = await upload(astrid);
     await vote(olle, photo);
     await playQuiz(admin, all);
+    press(admin, "quiz", "suspense");
+    press(admin, "quiz", "reveal");
+    press(admin, "photo", "suspense");
+    await adminAt(admin, "photo", "suspense");
     const cookie = await adminCookie();
 
     const early = await call("/api/admin/party", { method: "DELETE", cookie });
@@ -236,7 +389,7 @@ describe("end of the party", () => {
     const wiped: AdminState = await admin.state((s) => s.players.length === 0);
     expect(wiped.quiz).toMatchObject({ stage: { phase: "locked" }, questions: [], board: [] });
     expect(wiped.contest).toMatchObject({ uploads: true, voting: true, tally: [], entrants: [] });
-    expect(wiped.finale).toMatchObject({ stage: "off", joins: true });
+    expect(wiped.finale).toEqual({ quiz: { stage: "off" }, photo: { stage: "off" }, tied: [], pick: null, joins: true });
     expect((await call(`/photos/${photo}`, { cookie })).status).toBe(404);
 
     const gone = await connectGuest(astrid.cookie);

@@ -100,10 +100,9 @@ describe("photo visibility", () => {
     for (const p of all) await answer(p, q, 42);
     await stage(admin, "reveal");
     await step(admin, "end", "ended");
-    admin.send({ t: "finale", step: "suspense" });
-    admin.send({ t: "finale", step: "quiz" });
-    admin.send({ t: "finale", step: "photo" });
-    await olle.socket.state((s) => s.finale.stage === "photo");
+    admin.send({ t: "finale", kind: "photo", step: "suspense" });
+    admin.send({ t: "finale", kind: "photo", step: "reveal" });
+    await olle.socket.state((s) => s.finale.photo.stage === "reveal");
     await hide(true);
     expect(await table(), "after the winner is revealed and then hidden").toEqual({
       landing: withLink,

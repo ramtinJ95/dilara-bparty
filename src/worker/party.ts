@@ -16,7 +16,7 @@ import {
   type Heartbeat,
   type ServerMsg,
 } from "../shared/protocol";
-import type { GuestFinale } from "../shared/finale";
+import { quizLock, type GuestFinales } from "../shared/finale";
 import type { AdminQuiz, QuizStep } from "../shared/quiz";
 import { joinCode } from "./auth";
 import { Finale } from "./finale";
@@ -42,7 +42,8 @@ const adminNameErrors: Record<NameError, string> = {
 
 type Tables = { players: Players; contest: Contest; quiz: Quiz; finale: Finale; setLiveMode: (on: boolean) => void };
 
-// The fast heartbeat runs from unlock until the quiz ends or is reset; the admin toggle can still override it.
+// The fast heartbeat runs from unlock until the quiz ends or is reset, and from a finale's suspense page until its reveal is over on
+// the phones; the admin toggle can still override it.
 const liveModeAfter: Partial<Record<QuizStep, boolean>> = { unlock: true, end: false, reset: false };
 
 type AdminHandlers = { [K in AdminCmd["t"]]: (tables: Tables, cmd: AdminCmdOf<K>) => string | null };
@@ -65,19 +66,30 @@ const adminCommands: AdminHandlers = {
   "delete-question": ({ quiz }, { id }) => quiz.remove(id),
   "move-question": ({ quiz }, { id, to }) => quiz.move(id, to),
   quiz: ({ quiz, finale, setLiveMode }, { step, q }) => {
-    if (finale.stage() !== "off") return "The finale has started, so the quiz can't change.";
+    const locked = quizLock(finale.stages(Date.now()));
+    if (locked) return locked;
     const error = quiz.step(step, Date.now(), q);
     const live = liveModeAfter[step];
     if (!error && live !== undefined) setLiveMode(live);
     return error;
   },
-  finale: ({ finale, quiz, contest, players }, { step }) => {
+  finale: ({ finale, quiz, contest, players, setLiveMode }, { kind, step }) => {
     const roster = players.roster();
-    return finale.step(step, {
-      quiz: quiz.publish(roster, new Set(), Date.now()).admin,
-      tally: tally(contest.snapshot(), roster),
-      closeVoting: () => contest.setOpen("voting", false),
-    });
+    const now = Date.now();
+    return finale.step(
+      kind,
+      step,
+      {
+        quiz: quiz.publish(roster, new Set(), now).admin,
+        tally: tally(contest.snapshot(), roster),
+        goLive: () => setLiveMode(true),
+        closeContest: () => {
+          contest.setOpen("uploads", false);
+          contest.setOpen("voting", false);
+        },
+      },
+      now,
+    );
   },
   "pick-photo": ({ finale, contest, players }, { photo }) => finale.pick(photo, tally(contest.snapshot(), players.roster())),
   joins: ({ finale }, { open }) => (finale.setJoins(open), null),
@@ -217,7 +229,7 @@ export class Party extends DurableObject<Env> {
     await this.schedule();
   }
 
-  // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.
+  // From an admin command or from the broadcast that ends a reveal, which carries the new heartbeat; the next alarm or schedule() moves the tick.
   private setLiveMode(on: boolean): void {
     if (on === (this.heartbeat() === "fast")) return;
     if (on) putSetting(this.ctx.storage.sql, LIVE_MODE, "on");
@@ -243,18 +255,23 @@ export class Party extends DurableObject<Env> {
     const now = Date.now();
     let sockets = this.openSockets();
     for (const ws of sockets) ws.send(TICK);
-    let wakeAt = this.quiz.wakeAt();
-    // The broadcast may move the round on and close the sockets of guests who are gone, so both are read again after it.
+    let wakeAt = this.wakeAt();
+    // The broadcast may move the round on, end a reveal and close the sockets of guests who are gone, so both are read again after it.
     if ((wakeAt ?? Infinity) <= now) {
       this.broadcast();
       sockets = this.openSockets();
-      wakeAt = this.quiz.wakeAt();
+      wakeAt = this.wakeAt();
     }
     const next = this.nextWake(now, sockets.length > 0, wakeAt);
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
-  // The Durable Object has one alarm, shared by the tick and the round's next move.
+  private wakeAt(): number | null {
+    const wanted = [this.quiz.wakeAt(), this.finale.wakeAt()].filter((t) => t !== null);
+    return wanted.length > 0 ? Math.min(...wanted) : null;
+  }
+
+  // The Durable Object has one alarm, shared by the tick, the round's next move and the end of a reveal.
   private nextWake(now: number, connected: boolean, wakeAt: number | null): number | null {
     const tick = connected ? now + HEARTBEATS[this.heartbeat()].tickMs : null;
     const wanted = [tick, wakeAt].filter((t) => t !== null);
@@ -262,7 +279,7 @@ export class Party extends DurableObject<Env> {
   }
 
   private async schedule(): Promise<void> {
-    const next = this.nextWake(Date.now(), this.openSockets().length > 0, this.quiz.wakeAt());
+    const next = this.nextWake(Date.now(), this.openSockets().length > 0, this.wakeAt());
     if (next === null) return;
     const current = await this.ctx.storage.getAlarm();
     if (current === null || current > next) await this.ctx.storage.setAlarm(next);
@@ -321,13 +338,16 @@ export class Party extends DurableObject<Env> {
   }
 
   private broadcast(roster = this.players.roster()): void {
-    const settings = readSettings(this.ctx.storage.sql);
+    const now = Date.now();
     const sockets = this.openSockets();
     const roles = sockets.map((ws) => ws.deserializeAttachment() as SocketRole);
     const online = new Set(roles.flatMap((r) => (r.role === "guest" ? (roster.rootOf(r.playerId)?.id ?? []) : [])));
+    const quiz = this.quiz.publish(roster, online, now);
+    const phase = quiz.admin.stage.phase;
+    if (this.finale.settle(now) && (phase === "locked" || phase === "ended")) this.setLiveMode(false);
+    const settings = readSettings(this.ctx.storage.sql);
     const contest = this.contest.snapshot(settings);
-    const quiz = this.quiz.publish(roster, online, Date.now());
-    const finale = this.finale.guest(roster);
+    const finale = this.finale.guest(roster, now);
     const admin = this.adminState(roster, online, contest, quiz.admin, finale, settings);
     const heartbeat = this.heartbeat(settings);
     sockets.forEach((ws, i) => {
@@ -354,7 +374,7 @@ export class Party extends DurableObject<Env> {
     online: Set<PlayerId>,
     snapshot: ContestSnapshot,
     quiz: AdminQuiz,
-    finale: GuestFinale,
+    finale: GuestFinales,
     settings: Settings,
   ): AdminState {
     const contest = adminContest(snapshot, roster);

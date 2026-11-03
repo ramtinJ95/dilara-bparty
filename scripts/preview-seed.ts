@@ -218,7 +218,7 @@ function describe(state: AdminState): string {
     `landing photo: ${state.landingPhoto ? "yes" : "no"}`,
     `questions (${kinds.length}): ${kinds.join(", ")}`,
     `contest: ${versions.length} versions, ${state.contest.tally.filter((r) => !r.fame).length} in the gallery, ${state.contest.tally.filter((r) => r.fame).length} in the hall of fame, ${versions.reduce((n, v) => n + v.votes, 0)} votes`,
-    `quiz ${state.quiz.stage.phase}, finale ${state.finale.stage}, joins ${state.finale.joins ? "open" : "closed"}`,
+    `quiz ${state.quiz.stage.phase}, quiz finale ${state.finale.quiz.stage}, photo finale ${state.finale.photo.stage}, joins ${state.finale.joins ? "open" : "closed"}`,
   ].join("\n  ");
 }
 
