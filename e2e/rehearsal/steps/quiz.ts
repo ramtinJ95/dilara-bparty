@@ -5,7 +5,6 @@ import type { Guest, Rehearsal, Step } from "../rehearsal.ts";
 
 const SEE_TIMEOUT = 30_000;
 const AWAY_MS = 3_000;
-const LETTERS = "ABCD";
 // GRACE_MS in src/shared/quiz.ts, which node cannot import because its own imports have no extension.
 const GRACE_MS = 2_000;
 
@@ -17,7 +16,7 @@ const indexOf = (r: Rehearsal, g: Guest) => r.guests.indexOf(g);
 // Every third guest picks a wrong option, spread over all network profiles.
 const choicePick = (r: Rehearsal, g: Guest) => (indexOf(r, g) % 3 === 2 ? 1 : CHOICE.correct);
 const numberGuess = (r: Rehearsal, g: Guest) => 1 + (indexOf(r, g) % 10);
-// Two guests on slow 4G let the clock run out, so the closest-number round closes at its deadline, not early.
+// Two guests on slow 4G let the clock run out, so the closest-number round reveals at its deadline, not early.
 const silentInRound2 = (r: Rehearsal) => new Set(r.guests.filter((g) => g.profile === "slow-4g").slice(0, 2));
 
 const phaseOf = (r: Rehearsal) => r.admin.locator(".quiz .phase");
@@ -34,8 +33,8 @@ async function adminStep(r: Rehearsal, button: string, phase: string): Promise<b
   }, r.admin);
 }
 
-async function closesAt(r: Rehearsal, label: string, startedAt: number, timeout: number): Promise<void> {
-  if (await r.check(label, () => expect(phaseOf(r)).toHaveText("Answers closed", { timeout }), r.admin)) {
+async function revealsAt(r: Rehearsal, label: string, startedAt: number, timeout: number): Promise<void> {
+  if (await r.check(label, () => expect(phaseOf(r)).toHaveText("Answer revealed", { timeout }), r.admin)) {
     r.note(`${label}: ${((Date.now() - startedAt) / 1000).toFixed(1)} s after the question started.`);
   }
 }
@@ -139,7 +138,7 @@ async function dropAfterAnswer(r: Rehearsal, g: Guest, option: string, drop: Dro
 
 const choiceRound: Step = {
   id: "quiz-choice",
-  title: "A photo question: every phone sees it, answers, a flaky phone joins it late and two drop after answering, one at once and one after its answer arrived; the last answer closes it early",
+  title: "A photo question: every phone sees it, answers, a flaky phone joins it late and two drop after answering, one at once and one after its answer arrived; the last answer reveals it at once",
   async run(r) {
     const flaky = r.guests.filter((g) => g.profile === "flaky");
     const drops = new Map<Guest, Drop>([[flaky[0], "after delivery"], [flaky[1], "at once"]].filter((d): d is [Guest, Drop] => d[0] !== undefined));
@@ -170,26 +169,17 @@ const choiceRound: Step = {
       expect(r.admin.getByText(`${r.guests.length - 1} of ${expected} answered`)).toBeVisible({ timeout: SEE_TIMEOUT }), r.admin);
     await r.time("answer sent", holdout, () => answer(holdout.page, optionOf(holdout)));
     const early = r.baselineOnline === 0;
-    if (!early) r.note(`${r.baselineOnline} phones outside the cast are online, so question 1 closes at its deadline instead of early.`);
-    await closesAt(r, early ? "answers close as soon as everyone has answered" : "answers close at the deadline", startedAt, early ? SEE_TIMEOUT : CHOICE.seconds * 1000 + GRACE_MS + SEE_TIMEOUT);
-    await Promise.all(
-      r.guests.map((g) =>
-        r.check(`${g.name} waits for the answer with its own pick shown`, async () => {
-          await expect(g.page.getByText("Väntar på rätt svar …")).toBeVisible({ timeout: SEE_TIMEOUT });
-          await expect(g.page.getByText(`Ditt svar: ${LETTERS[choicePick(r, g)]}. ${optionOf(g)}`)).toBeVisible();
-        }, g.page),
-      ),
-    );
-
+    if (!early) r.note(`${r.baselineOnline} phones outside the cast are online, so question 1 reveals at its deadline instead of early.`);
     const right = r.guests.filter((g) => choicePick(r, g) === CHOICE.correct).length;
     await Promise.all([
-      adminStep(r, "Reveal answer", "Answer revealed"),
+      revealsAt(r, early ? "the answer is revealed as soon as everyone has answered" : "the answer is revealed at the deadline", startedAt, early ? SEE_TIMEOUT : CHOICE.seconds * 1000 + GRACE_MS + SEE_TIMEOUT),
       ...r.guests.map((g) => {
         const ok = choicePick(r, g) === CHOICE.correct;
         return r.time(ok ? "reveal shows Rätt!" : "reveal shows Tyvärr fel", g, async () => {
-          await expect(g.page.getByRole("heading", { name: ok ? "Rätt!" : "Tyvärr fel" })).toBeVisible({ timeout: SEE_TIMEOUT });
+          await expect(g.page.getByRole("heading", { name: ok ? "Rätt!" : "Tyvärr fel" })).toBeVisible({ timeout: early ? SEE_TIMEOUT : CHOICE.seconds * 1000 + GRACE_MS + SEE_TIMEOUT });
           const points = Number((await digits(g.page.locator(".verdict"), ".points")) ?? NaN);
           expect(ok ? points >= 500 && points <= 1000 : points === 0, `${points} points`).toBe(true);
+          await expect(g.page.locator(".tally li").filter({ hasText: "Ditt svar" }), "the room's answers mark the guest's own pick").toContainText(optionOf(g));
         });
       }),
     ]);
@@ -199,11 +189,11 @@ const choiceRound: Step = {
 
 const leaderboard: Step = {
   id: "quiz-leaderboard",
-  title: "The leaderboard shows the top five on every phone and each guest's own row, matching the admin's board",
+  title: "The leaderboard follows the reveal on its own, with the top five on every phone and each guest's own row, matching the admin's board",
   async run(r) {
     const top = Math.min(5, r.guests.length);
     await Promise.all([
-      adminStep(r, "Show leaderboard", "Leaderboard on phones"),
+      r.check("the leaderboard follows on its own a few seconds after the reveal", () => expect(phaseOf(r)).toHaveText("Leaderboard on phones", { timeout: SEE_TIMEOUT }), r.admin),
       ...r.guests.map((g) =>
         r.time("leaderboard with own row", g, async () => {
           await expect(g.page.getByRole("heading", { name: "Topplistan" })).toBeVisible({ timeout: SEE_TIMEOUT });
@@ -228,7 +218,7 @@ const leaderboard: Step = {
 
 const numberRound: Step = {
   id: "quiz-number",
-  title: "A closest-number question: two guests let the clock run out, so it closes at the deadline plus grace",
+  title: "A closest-number question: two guests let the clock run out, so it reveals at the deadline plus grace",
   async run(r) {
     const silent = silentInRound2(r);
     const startedAt = Date.now();
@@ -244,21 +234,15 @@ const numberRound: Step = {
       await expect(r.admin.getByText(`${answering.length} of ${allOnline(r)} answered`)).toBeVisible({ timeout: SEE_TIMEOUT });
       await expect(phaseOf(r)).toHaveText("Question open");
     }, r.admin);
-    await closesAt(r, "answers close at the deadline plus grace", startedAt, NUMBER.seconds * 1000 + GRACE_MS + SEE_TIMEOUT);
-    await Promise.all(
-      [...silent].map((g) =>
-        r.check(`${g.name} is told it ran out of time`, () => expect(g.page.getByText("Du hann inte svara den här gången.")).toBeVisible({ timeout: SEE_TIMEOUT }), g.page),
-      ),
-    );
-
     const off = (g: Guest) => Math.abs(numberGuess(r, g) - NUMBER.answer);
     const best = Math.min(...answering.map(off));
     const closest = answering.filter((g) => off(g) === best);
+    const deadline = NUMBER.seconds * 1000 + GRACE_MS + SEE_TIMEOUT;
     await Promise.all([
-      adminStep(r, "Reveal answer", "Answer revealed"),
+      revealsAt(r, "the answer is revealed at the deadline plus grace", startedAt, deadline),
       ...r.guests.map((g) => {
         const verdict = silent.has(g) ? "Inget svar" : off(g) === best ? "Närmast!" : "Inte närmast den här gången";
-        return r.time(`reveal shows ${verdict}`, g, () => expect(g.page.getByRole("heading", { name: verdict })).toBeVisible({ timeout: SEE_TIMEOUT }));
+        return r.time(`reveal shows ${verdict}`, g, () => expect(g.page.getByRole("heading", { name: verdict })).toBeVisible({ timeout: deadline }));
       }),
     ]);
     await r.check(`admin names the ${closest.length} closest guessers`, () =>
