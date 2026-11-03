@@ -54,7 +54,7 @@ test("screenshots", async ({ browser }) => {
 
   const offline = await joinViaApi(browser, "Olle", phone);
   await offline.close();
-  const online = await Promise.all(["Astrid", "Testgäst", "Kim Testsson"].map((n) => joinViaApi(browser, n)));
+  const online = await Promise.all(["Astrid", "Testgäst", "Kim Testsson"].map((n) => joinViaApi(browser, n, phone)));
   await Promise.all(online.map((c) => openShell(c)));
 
   const guestContext = await browser.newContext(phone);
@@ -124,7 +124,7 @@ async function vote(page: Page, nth: number, times: number, section: "current" |
 }
 
 test("contest screenshots", async ({ browser }) => {
-  const [maja, nils, elin, viggo] = await Promise.all(["Maja", "Nils", "Elin", "Viggo"].map((n) => joinViaApi(browser, n)));
+  const [maja, nils, elin, viggo] = await Promise.all(["Maja", "Nils", "Elin", "Viggo"].map((n) => joinViaApi(browser, n, phone)));
   const majaPage = await openShell(maja!);
   await majaPage.getByRole("button", { name: "Mitt foto" }).click();
   await expect(majaPage.getByRole("button", { name: "Välj bild" })).toBeVisible();
@@ -342,7 +342,7 @@ async function quizRoom(browser: Browser, admin: Page) {
   if ((await admin.locator(".questions > ol > li").count()) === 0) {
     for (const q of quizQuestions(await placeholder(admin, LOOKS.snow))) await addQuestion(admin, q);
   }
-  const pages = await Promise.all(bots.map(async (name) => openShell(await joinViaApi(browser, name))));
+  const pages = await Promise.all(bots.map(async (name) => openShell(await joinViaApi(browser, name, phone))));
   return new Map(bots.map((name, i) => [name, pages[i]!]));
 }
 
