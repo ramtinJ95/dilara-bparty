@@ -239,7 +239,7 @@ test("the host adds both kinds of question, edits, reorders and deletes them, an
   await expect(card(".quiz").getByText("Up next: question 1, “Vilken färg har snöflingan på bilden?”")).toBeVisible();
 });
 
-test("unlock, reset, start, reveal, leaderboard, next and end each reach every phone", async () => {
+test("unlock, reset, start, an early reveal and leaderboard, the automatic ones, next and end each reach every phone", async () => {
   const quiz = card(".quiz");
   const phase = quiz.locator(".phase");
   const heartbeat = admin.locator("header .toggle .state");
@@ -273,23 +273,31 @@ test("unlock, reset, start, reveal, leaderboard, next and end each reach every p
     await expect(p.getByText("Vilken färg har snöflingan på bilden?"), "phones show the edited text").toBeVisible();
     expect(await lookOf(p.locator(".q-photo")), "phones show the photo the host attached").toBe("sea");
   }
-  await Promise.all([answer(astrid, "Rosa"), answer(kim, "Rosa"), answer(olle, "Blå", 1_500)]);
-  await expect(phase, "everyone answered, so the answer is revealed at once").toHaveText("Answer revealed");
-  await expect(quiz.getByText("3 of 3 answered")).toBeVisible();
-  await expect(olle.getByRole("heading", { name: "Rätt!" }), "the edited correct option counts").toBeVisible();
-  for (const p of [astrid, kim]) await expect(p.getByRole("heading", { name: "Tyvärr fel" })).toBeVisible();
-
-  await expect(phase, "the leaderboard follows on its own").toHaveText("Leaderboard on phones", { timeout: 15_000 });
+  await Promise.all([answer(astrid, "Rosa"), answer(olle, "Blå", 1_500)]);
+  await expect(quiz.getByText("2 of 3 answered")).toBeVisible();
+  await press("Reveal answer");
+  await expect(quiz.getByText("Close answers now? 1 guest hasn't answered.")).toBeVisible();
+  await press("Yes, reveal answer");
+  await expect(phase, "the host cuts the question short").toHaveText("Answer revealed");
+  await expect(quiz.getByText("The leaderboard follows on its own in a few seconds.")).toBeVisible();
+  // Pressed before any phone check, so it lands well inside the reveal's few seconds even on a slow WebKit run.
+  await press("Show leaderboard");
+  await expect(phase, "the host skips the wait for the leaderboard").toHaveText("Leaderboard on phones", { timeout: 3_000 });
+  await expect(quiz.locator(".result.bars li.correct"), "the edited correct option counts").toContainText("Blå");
   for (const p of phones) await expect(p.getByRole("heading", { name: "Topplistan" })).toBeVisible();
   await expect(olle.locator(".lb .row").first()).toContainText("Olle");
   await expect(olle.locator(".lb .row").first()).toContainText("Du");
+  await expect(kim.locator(".lb .row.you .score"), "the guest the early reveal cut off scores nothing").toHaveText("0");
 
   await press("Next question");
   for (const p of phones) await expect(p.getByText("Fråga 2 av 2")).toBeVisible();
   await Promise.all([answer(astrid, "12"), answer(kim, "12"), answer(olle, "9")]);
-  await expect(phase).toHaveText("Answer revealed");
+  await expect(phase, "everyone answered, so the answer is revealed at once").toHaveText("Answer revealed");
+  await expect(quiz.getByText("3 of 3 answered")).toBeVisible();
   for (const p of [astrid, kim]) await expect(p.getByRole("heading", { name: "Närmast!" }), "the edited answer counts: 9 would be closer to the old 10").toBeVisible();
   await expect(olle.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible();
+  await expect(phase, "the leaderboard follows on its own").toHaveText("Leaderboard on phones", { timeout: 15_000 });
+  for (const p of phones) await expect(p.getByRole("heading", { name: "Topplistan" })).toBeVisible();
 
   await press("End quiz");
   for (const p of phones) await expect(p.getByRole("heading", { name: "Quizet är slut!" })).toBeVisible();

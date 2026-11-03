@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { AdminCmd } from "../../shared/protocol";
 import { QUIZ_STEPS, stepAllowed, type AdminQuiz, type BoardRow, type Phase, type Question, type QuizStep, type RoundResult } from "../../shared/quiz";
 import { LETTERS } from "../answers";
@@ -25,8 +25,11 @@ const STEP_LABEL: Record<QuizStep, (quiz: AdminQuiz) => string> = {
   reset: () => "Reset quiz",
 };
 
-
 const CONFIRM: Partial<Record<QuizStep, (quiz: AdminQuiz) => string | null>> = {
+  reveal: ({ stage }) => {
+    const left = stage.phase === "open" ? stage.expected - stage.answered : 0;
+    return left > 0 ? `Close answers now? ${plural(left, "guest hasn't", "guests haven't")} answered.` : null;
+  },
   reset: () => "Reset the quiz? Every answer and score is wiped. The questions stay.",
   end: (quiz) => {
     const left = quiz.questions.length - quiz.played.length;
@@ -40,14 +43,19 @@ type Props = { quiz: AdminQuiz; deadline: number | null; send: (cmd: AdminCmd) =
 
 export function QuizControls({ quiz, deadline, send, live, frozen }: Props) {
   const { stage } = quiz;
-  const [confirm, setConfirm] = useState<{ step: QuizStep; warning: string } | null>(null);
+  const [confirm, setConfirm] = useState<QuizStep | null>(null);
   const current = "q" in stage ? (quiz.questions.find((q) => q.id === stage.q) ?? null) : null;
   const upNext = quiz.questions.find((q) => q.id === quiz.next) ?? null;
   const enabled = (step: QuizStep) => live && !frozen && stepAllowed(step, stage.phase) && (step !== "start" || quiz.next !== null);
+  const warning = confirm && CONFIRM[confirm]?.(quiz);
+
+  // The server can reveal while the host reads the confirm, which must then go rather than come back in a later round.
+  useEffect(() => {
+    if (confirm && !stepAllowed(confirm, stage.phase)) setConfirm(null);
+  }, [confirm, stage.phase]);
 
   function run(step: QuizStep) {
-    const warning = CONFIRM[step]?.(quiz);
-    if (warning) return setConfirm({ step, warning });
+    if (CONFIRM[step]?.(quiz)) return setConfirm(step);
     send({ t: "quiz", step });
   }
 
@@ -89,20 +97,21 @@ export function QuizControls({ quiz, deadline, send, live, frozen }: Props) {
           </button>
         ))}
       </div>
-      {confirm && (
+      {stage.phase === "reveal" && <p class="muted auto-next">The leaderboard follows on its own in a few seconds.</p>}
+      {confirm && warning && (
         <div class="confirm">
-          <p class="warning">{confirm.warning}</p>
+          <p class="warning">{warning}</p>
           <div class="row">
             <button
               class="btn small danger"
               type="button"
-              disabled={!enabled(confirm.step)}
+              disabled={!enabled(confirm)}
               onClick={() => {
-                send({ t: "quiz", step: confirm.step });
+                send({ t: "quiz", step: confirm });
                 setConfirm(null);
               }}
             >
-              Yes, {STEP_LABEL[confirm.step](quiz).toLowerCase()}
+              Yes, {STEP_LABEL[confirm](quiz).toLowerCase()}
             </button>
             <button class="btn small secondary" type="button" onClick={() => setConfirm(null)}>
               Cancel

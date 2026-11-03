@@ -69,8 +69,9 @@ code and runs the admin view; it is not a shared game screen.
   players animating up and down into their new places. It stays until the host
   starts the next question.
 - The host can still press Reveal to cut a question short, or Leaderboard to
-  skip the wait. A press that arrives after the server has taken that step
-  changes nothing.
+  skip the wait. Reveal asks first while guests are still answering, and says
+  how many. A press that arrives after the server has taken that step changes
+  nothing.
 - Scoring rewards speed. A correct multiple-choice answer scores 1000 points
   for an instant answer, falling linearly to 500 at the deadline, rounded to
   whole points. A wrong or missing answer scores 0, so being right always beats
@@ -146,7 +147,8 @@ code and runs the admin view; it is not a shared game screen.
 - Players: list, rename, merge duplicates.
 - Questions: add, edit, delete, reorder, attach a photo.
 - Quiz controls: unlock, start each question, reveal early, skip ahead to the
-  leaderboard, end, reset.
+  leaderboard, end, reset. During a reveal, a note says the leaderboard
+  follows on its own.
 - Finale controls: open the suspense page, reveal the photo winner, reveal the
   quiz winner.
 - Contest controls: close uploads and voting, hide photos, browse every stored
