@@ -193,6 +193,26 @@ test("a refused upload says why where a short phone screen shows it", async ({ b
   await guest.context().close();
 });
 
+// With autofocus, WebKit focused the Question field at a later rendering update, after the host had moved on, and their next keys landed there.
+test("the question form has its Question field focused as it appears, before any frame", async ({ browser }) => {
+  const adminContext = await browser.newContext(laptop);
+  const admin = await openAdmin(adminContext);
+  const focused = await admin.evaluate(async () => {
+    const add = [...document.querySelectorAll("button")].find((b) => b.textContent === "+ Multiple choice")!;
+    add.click();
+    let question: HTMLTextAreaElement | null = null;
+    // Microtasks only: the form renders, but no frame has been drawn yet.
+    for (let i = 0; i < 100 && !question; i++) {
+      await Promise.resolve();
+      question = document.querySelector<HTMLTextAreaElement>(".questions form.editor textarea");
+    }
+    return question !== null && document.activeElement === question;
+  });
+  expect(focused, "no window in which a late focus can move the host's typing").toBe(true);
+  await expect(admin.getByLabel("Question", { exact: true })).toBeFocused();
+  await adminContext.close();
+});
+
 test("the host runs a question; a guest on another tab is called in, answers, and sees the result and the board", async ({ browser }) => {
   const adminContext = await browser.newContext(laptop);
   const admin = await openAdmin(adminContext);
