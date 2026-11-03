@@ -385,18 +385,22 @@ test("quiz screenshots", async ({ browser }) => {
   await kim.waitForTimeout(1500);
   await shot(kim, "19-quiz-question");
   const [kimPick, kimAfter] = plans[0]!.Kim;
-  await Promise.all([playRound(room, plans[0]!), answer(kim, kimPick, Math.max(0, kimAfter - 1500)).then(() => shot(kim, "20-quiz-answered"))]);
-  await expect(admin.getByText("Answers closed")).toBeVisible();
-  await shot(kim, "21-quiz-closed");
-
+  // Testgäst answers wrong, so holding that answer back for the early-reveal confirm leaves the board as planned.
+  const onTime = new Map([...room].filter(([name]) => name !== "Testgäst"));
+  await Promise.all([playRound(onTime, plans[0]!), answer(kim, kimPick, Math.max(0, kimAfter - 1500)).then(() => shot(kim, "20-quiz-answered"))]);
   await step(admin, "Reveal answer");
-  await expect(kim.getByRole("heading", { name: "Rätt!" })).toBeVisible();
+  await expect(admin.getByText(/^Close answers now\?/)).toBeVisible();
+  await shot(admin, "21-admin-reveal-confirm");
+  await admin.locator(".quiz").getByRole("button", { name: "Cancel" }).click();
+  await answer(room.get("Testgäst")!, ...plans[0]!.Testgäst);
+
+  await expect(kim.getByRole("heading", { name: "Rätt!" }), "the last answer reveals at once").toBeVisible();
   await kim.waitForTimeout(1200);
   await shot(kim, "22-quiz-reveal");
+  await expect(admin.getByText("The leaderboard follows on its own in a few seconds.")).toBeVisible();
   await shot(admin, "23-admin-reveal");
 
-  await step(admin, "Show leaderboard");
-  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+  await expect(kim.getByRole("heading", { name: "Topplistan" }), "the leaderboard follows on its own").toBeVisible({ timeout: 15_000 });
   await kim.waitForTimeout(2600);
   await shot(kim, "24-quiz-leaderboard");
 
@@ -406,16 +410,13 @@ test("quiz screenshots", async ({ browser }) => {
   await shot(kim, "25-quiz-number");
   await kim.getByLabel("Din gissning").fill("");
   await Promise.all([playRound(room, plans[1]!), answer(kim, ...plans[1]!.Kim)]);
-  await expect(admin.getByText("Answers closed")).toBeVisible();
-  await step(admin, "Reveal answer");
   await expect(kim.getByRole("heading", { name: "Närmast!" })).toBeVisible();
   await kim.waitForTimeout(800);
   await shot(kim, "26-quiz-reveal-number");
   await expect(room.get("Astrid")!.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible();
   await shot(room.get("Astrid")!, "27-quiz-reveal-number-wrong");
 
-  await step(admin, "Show leaderboard");
-  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible({ timeout: 15_000 });
   await kim.waitForTimeout(2600);
   await shot(kim, "28-quiz-leaderboard-moved");
   await shot(room.get("Testgäst")!, "29-quiz-leaderboard-outside");
@@ -461,22 +462,16 @@ test("quiz videos", async ({ browser }) => {
   await kim.waitForTimeout(1500);
   await step(admin, "Start question 1");
   await Promise.all([playRound(room, plans[0]!), answer(kim, ...plans[0]!.Kim)]);
-  await expect(admin.getByText("Answers closed")).toBeVisible();
-  await kim.waitForTimeout(1500);
-  await step(admin, "Reveal answer");
-  await kim.waitForTimeout(3000);
-  await step(admin, "Show leaderboard");
+  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible({ timeout: 15_000 });
   await kim.waitForTimeout(3500);
   const cycleEnd = Date.now();
 
   await step(admin, "Next question");
   await Promise.all([playRound(room, plans[1]!), answer(kim, ...plans[1]!.Kim)]);
-  await expect(admin.getByText("Answers closed")).toBeVisible();
-  await step(admin, "Reveal answer");
   await expect(kim.getByRole("heading", { name: "Närmast!" })).toBeVisible();
+  await kim.waitForTimeout(4000);
   const reorderStart = Date.now();
-  await kim.waitForTimeout(2000);
-  await step(admin, "Show leaderboard");
+  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible({ timeout: 15_000 });
   await kim.waitForTimeout(4000);
   const reorderEnd = Date.now();
 
@@ -535,7 +530,7 @@ async function finaleRoom(browser: Browser, admin: Page, contextOptions: Paramet
   await step(admin, "Unlock quiz");
   await step(admin, "Start question 1");
   await Promise.all([answer(astrid!, "42"), answer(olle!, "30"), answer(kim!, "42")]);
-  await step(admin, "Reveal answer");
+  await expect(admin.locator(".quiz .phase")).toHaveText("Answer revealed");
   await step(admin, "End quiz");
   await expect(admin.getByText("Joint winners")).toBeVisible();
   return { contexts, astrid: astrid!, olle: olle!, kim: kim! };
@@ -562,34 +557,40 @@ test("finale screenshots and video", async ({ browser }) => {
   await expect(finaleCard.getByText("Tie for first")).toBeVisible();
   await shot(admin, "42-admin-finale-tie");
 
+  await finaleCard.getByRole("button", { name: "Reveal quiz winners" }).click();
+  for (const p of phones) await expect(p.getByText("Quizvinnarna")).toBeVisible();
+  await kim.waitForTimeout(2200);
+  await shot(kim, "43-reveal-quiz-joint-winner");
+  await shot(olle, "44-reveal-quiz");
+  await shot(admin, "45-admin-finale-quiz");
+  await admin.waitForTimeout(1500);
+
   await finaleCard.locator(".tie-photos li", { hasText: "Olle" }).getByRole("button", { name: "Pick as winner" }).click();
   await expect(finaleCard.getByRole("button", { name: "Winner ✓" })).toBeVisible();
   await admin.waitForTimeout(1000);
   await finaleCard.getByRole("button", { name: "Reveal photo winner" }).click();
   for (const p of phones) await expect(p.getByText("tog vinnarbilden", { exact: false })).toBeVisible();
+  await expect(kim.locator(".recap"), "the photo reveal keeps the quiz winners").toContainText("Astrid & Kim Testsson");
   await olle.waitForTimeout(2200);
-  await shot(olle, "43-reveal-photo-winner");
-  await shot(kim, "44-reveal-photo");
-  await shot(admin, "45-admin-finale-photo");
-  await admin.waitForTimeout(1500);
-
-  await finaleCard.getByRole("button", { name: "Reveal quiz winners" }).click();
-  for (const p of phones) await expect(p.getByText("Quizvinnarna")).toBeVisible();
-  await kim.waitForTimeout(2200);
-  await shot(kim, "46-reveal-quiz-joint-winner");
-  await shot(olle, "47-reveal-quiz");
-  await shot(admin, "48-admin-finale-quiz");
+  await shot(olle, "46-reveal-photo-winner");
+  await shot(kim, "47-reveal-photo");
+  await shot(admin, "48-admin-finale-photo");
   await admin.waitForTimeout(1500);
   const finaleEnd = Date.now();
 
   const end = admin.locator(".party-end");
+  await end.getByRole("button", { name: "Reset party…" }).click();
+  await end.getByLabel("Type RESET to confirm").fill("RESET");
+  await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
+  await shot(admin, "49-admin-reset-confirm");
+  await end.getByRole("button", { name: "Cancel" }).click();
   await end.getByRole("button", { name: "End the party" }).click();
   await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
-  await shot(admin, "49-admin-end-confirm");
+  await shot(admin, "50-admin-end-confirm");
   await end.getByRole("button", { name: "Yes, end the party" }).click();
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await end.evaluate((el) => el.scrollIntoView({ block: "end" }));
-  await shot(admin, "50-admin-wipe-confirm");
+  await shot(admin, "51-admin-wipe-confirm");
   await end.getByRole("button", { name: "Yes, wipe everything" }).click();
   for (const p of phones) await expect(p).toHaveURL(/\/$/);
 

@@ -1,5 +1,4 @@
 .quiz-card { display: grid; gap: 16px; }
-.quiz-card.waiting { gap: 14px; margin-right: 6px; padding: 24px 18px 18px; }
 
 .quiz-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; row-gap: 10px; }
 .countdown { display: contents; }

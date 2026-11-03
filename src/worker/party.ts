@@ -64,9 +64,9 @@ const adminCommands: AdminHandlers = {
   "save-question": ({ quiz }, { id, body }) => quiz.save(id, body),
   "delete-question": ({ quiz }, { id }) => quiz.remove(id),
   "move-question": ({ quiz }, { id, to }) => quiz.move(id, to),
-  quiz: ({ quiz, finale, setLiveMode }, { step }) => {
+  quiz: ({ quiz, finale, setLiveMode }, { step, q }) => {
     if (finale.stage() !== "off") return "The finale has started, so the quiz can't change.";
-    const error = quiz.step(step, Date.now());
+    const error = quiz.step(step, Date.now(), q);
     const live = liveModeAfter[step];
     if (!error && live !== undefined) setLiveMode(live);
     return error;
@@ -199,6 +199,20 @@ export class Party extends DurableObject<Env> {
     return null;
   }
 
+  // A fresh party from the host's prepared content: the questions, their photos and the landing photo stay. Every guest's next
+  // snapshot is "gone", as after a wipe.
+  async resetParty(): Promise<void> {
+    this.ctx.storage.transactionSync(() => {
+      this.players.clear();
+      this.contest.clear();
+      this.quiz.lock();
+      this.finale.clear();
+      deleteSetting(this.ctx.storage.sql, LIVE_MODE);
+    });
+    this.broadcast();
+    await this.schedule();
+  }
+
   // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.
   private setLiveMode(on: boolean): void {
     if (on === (this.heartbeat() === "fast")) return;
@@ -226,7 +240,7 @@ export class Party extends DurableObject<Env> {
     let sockets = this.openSockets();
     for (const ws of sockets) ws.send(TICK);
     let wakeAt = this.quiz.wakeAt();
-    // The broadcast may close the round and the sockets of guests who are gone, so both are read again after it.
+    // The broadcast may move the round on and close the sockets of guests who are gone, so both are read again after it.
     if ((wakeAt ?? Infinity) <= now) {
       this.broadcast();
       sockets = this.openSockets();
@@ -236,7 +250,7 @@ export class Party extends DurableObject<Env> {
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
-  // The Durable Object has one alarm, shared by the tick and the open question's close.
+  // The Durable Object has one alarm, shared by the tick and the round's next move.
   private nextWake(now: number, connected: boolean, wakeAt: number | null): number | null {
     const tick = connected ? now + HEARTBEATS[this.heartbeat()].tickMs : null;
     const wanted = [tick, wakeAt].filter((t) => t !== null);
@@ -265,7 +279,7 @@ export class Party extends DurableObject<Env> {
     if (error) return send(ws, { t: "error", message: error });
     this.broadcast(guest?.roster);
     send(ws, { t: "ack" });
-    if (!guest) await this.schedule();
+    await this.schedule();
   }
 
   private adminCommand(message: string): string | null {
@@ -290,13 +304,16 @@ export class Party extends DurableObject<Env> {
     return { players: this.players, contest: this.contest, quiz: this.quiz, finale: this.finale, setLiveMode: (on) => this.setLiveMode(on) };
   }
 
-  override webSocketClose(ws: WebSocket): void {
+  // A guest leaving can close the round, whose leaderboard then needs a wake.
+  override async webSocketClose(ws: WebSocket): Promise<void> {
     ws.close(1000);
     this.broadcast();
+    await this.schedule();
   }
 
-  override webSocketError(): void {
+  override async webSocketError(): Promise<void> {
     this.broadcast();
+    await this.schedule();
   }
 
   private broadcast(roster = this.players.roster()): void {

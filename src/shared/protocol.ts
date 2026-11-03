@@ -59,7 +59,7 @@ export type AdminCmd =
   | { t: "save-question"; id: QuestionId | null; body: QuestionBody }
   | { t: "delete-question"; id: QuestionId }
   | { t: "move-question"; id: QuestionId; to: number }
-  | { t: "quiz"; step: QuizStep }
+  | { t: "quiz"; step: QuizStep; q?: QuestionId }
   | { t: "finale"; step: FinaleStep }
   | { t: "pick-photo"; photo: PhotoId }
   | { t: "joins"; open: boolean }
@@ -131,7 +131,13 @@ const adminCmdParsers: Parsers<AdminCmd> = {
     return photo ? { t: "pick-photo", photo } : null;
   },
   joins: toggle("joins"),
-  quiz: (m) => (typeof m.step === "string" && Object.hasOwn(QUIZ_STEPS, m.step) ? { t: "quiz", step: m.step as QuizStep } : null),
+  quiz: (m) => {
+    if (typeof m.step !== "string" || !Object.hasOwn(QUIZ_STEPS, m.step)) return null;
+    const step = m.step as QuizStep;
+    if (m.q === undefined) return { t: "quiz", step };
+    const q = parseQuestionId(m.q);
+    return q ? { t: "quiz", step, q } : null;
+  },
   liveMode: (m) => (typeof m.on === "boolean" ? { t: "liveMode", on: m.on } : null),
 };
 

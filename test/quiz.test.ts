@@ -1,7 +1,8 @@
-import { evictAllDurableObjects } from "cloudflare:test";
+import { env, evictAllDurableObjects, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import type { PhotoId, QuestionId } from "../src/shared/model";
 import type { AdminCmd, AdminState, Heartbeat } from "../src/shared/protocol";
+import { BOARD_DELAY_MS } from "../src/shared/quiz";
 import { PHOTO_MAX_BYTES } from "../src/worker/photo-store";
 import {
   answer,
@@ -114,10 +115,11 @@ describe("quiz flow", () => {
     expect(await admin.error()).toBe(`"reveal" isn't possible while the quiz is lobby.`);
 
     await start(admin);
+    admin.send({ t: "quiz", step: "leaderboard" });
+    expect(await admin.error()).toBe(`"leaderboard" isn't possible while the quiz is open.`);
     await elapse(22_000);
     expect(await fireAlarm()).toBe(true);
-    await stage(admin, "closed");
-    await step(admin, "reveal", "reveal");
+    await stage(admin, "reveal");
     admin.send({ t: "quiz", step: "start" });
     expect(await admin.error()).toBe("There are no more questions.");
     expect((await step(admin, "end", "ended")).phase).toBe("ended");
@@ -150,7 +152,7 @@ describe("quiz flow", () => {
     closeAll(admin, astrid!.socket, olle!.socket);
   });
 
-  it("closes the question when the alarm fires at the deadline, not before", async () => {
+  it("reveals the question when the alarm fires at the deadline, not before", async () => {
     const admin = await host(choice(), choice({ text: "Nästa", photo: null }));
     const [astrid, olle] = await phones("Astrid", "Olle");
     await step(admin, "unlock", "lobby");
@@ -163,14 +165,14 @@ describe("quiz flow", () => {
 
     await elapse(22_000);
     expect(await fireAlarm()).toBe(true);
-    expect(await stage(admin, "closed")).toEqual({ phase: "closed", q, n: 1, answered: 1, expected: 2 });
-    expect(await view(astrid!, "closed")).toMatchObject({ pick: 0 });
-    expect(await view(olle!, "closed")).toMatchObject({ pick: null });
+    expect(await stage(admin, "reveal")).toEqual({ phase: "reveal", q, n: 1, answered: 1, expected: 2, result: { kind: "choice", correct: 0, counts: [1, 0, 0] } });
+    expect(await view(astrid!, "reveal")).toMatchObject({ pick: 0, points: 1000, score: 1000 });
+    expect(await view(olle!, "reveal")).toMatchObject({ pick: null, points: 0, score: 0 });
     expect(await refused(olle!, q, 0)).toBe("Svaret kom för sent.");
     closeAll(admin, watcher, astrid!.socket, olle!.socket);
   });
 
-  it("shares the one alarm with the liveness check and still closes the question once every socket is gone", async () => {
+  it("shares the one alarm with the liveness check and still moves the round on once every socket is gone", async () => {
     const admin = await host(choice());
     const [astrid] = await phones("Astrid");
     await step(admin, "unlock", "lobby");
@@ -185,13 +187,24 @@ describe("quiz flow", () => {
     expect(wake).toBeLessThanOrEqual(Date.now() + 22_000);
 
     await elapse(22_000);
+    const revealedAfter = Date.now();
     await fireAlarm();
+    const boardWake = await alarmAt();
+    expect(boardWake).toBeGreaterThanOrEqual(revealedAfter + BOARD_DELAY_MS);
+    expect(boardWake).toBeLessThanOrEqual(Date.now() + BOARD_DELAY_MS);
     const watcher = await connectAdmin();
-    expect((await watcher.state()).quiz.stage.phase).toBe("closed");
+    expect((await watcher.state()).quiz.stage.phase).toBe("reveal");
     watcher.close();
+    await expect.poll(() => watcher.closed).toBe(true);
+
+    await elapse(BOARD_DELAY_MS);
+    await fireAlarm();
+    const later = await connectAdmin();
+    expect((await later.state()).quiz.stage.phase).toBe("leaderboard");
+    later.close();
   });
 
-  it("closes early once every online player has answered, without waiting for offline ones", async () => {
+  it("reveals on every phone at once, with points, when every online player has answered, without waiting for offline ones", async () => {
     const admin = await host(choice());
     await joinedCookie("Borta");
     const [astrid, olle] = await phones("Astrid", "Olle");
@@ -201,18 +214,28 @@ describe("quiz flow", () => {
     await answer(astrid!, q, 0);
     expect((await admin.state((s) => s.quiz.stage.phase === "open" && s.quiz.stage.answered === 1)).quiz.stage.phase).toBe("open");
     olle!.socket.send(await answerCmd(olle!, q, 2));
-    expect(await stage(admin, "closed")).toMatchObject({ answered: 2, expected: 2 });
+    expect(await stage(admin, "reveal")).toMatchObject({ answered: 2, expected: 2, result: { counts: [1, 0, 1] } });
+    expect(await view(astrid!, "reveal")).toMatchObject({ pick: 0, points: 1000, score: 1000 });
+    expect(await view(olle!, "reveal")).toMatchObject({ pick: 2, points: 0, score: 0 });
     closeAll(admin, astrid!.socket, olle!.socket);
   });
 
-  it("closes early when the last player who hasn't answered leaves", async () => {
+  it("reveals at once when the last player who hasn't answered leaves, and wakes for the leaderboard", async () => {
     const admin = await host(choice());
     const [astrid, olle] = await phones("Astrid", "Olle");
     await step(admin, "unlock", "lobby");
+    admin.send({ t: "liveMode", on: false });
+    await admin.next((m) => m.t === "state" && m.heartbeat === "slow");
+    await fireAlarm();
     const q = await start(admin);
     await answer(astrid!, q, 0);
+    const before = Date.now();
     olle!.socket.close();
-    expect(await stage(admin, "closed")).toMatchObject({ answered: 1, expected: 1 });
+    expect(await stage(admin, "reveal")).toMatchObject({ answered: 1, expected: 1 });
+    expect(await view(astrid!, "reveal")).toMatchObject({ points: 1000 });
+    const wake = await alarmAt();
+    expect(wake).toBeGreaterThanOrEqual(before + BOARD_DELAY_MS);
+    expect(wake).toBeLessThanOrEqual(Date.now() + BOARD_DELAY_MS);
     closeAll(admin, astrid!.socket);
   });
 
@@ -229,7 +252,6 @@ describe("quiz flow", () => {
     vi.setSystemTime(Date.now() + 2_000);
     await answer(late, q, 0, 99_999);
     await answer(astrid, q, 0, 10_000);
-    await stage(admin, "closed");
     expect(await revealPoints(admin, [astrid, late])).toEqual({ Astrid: 750, "Sen gäst": 950 });
     closeAll(admin, astrid.socket, late.socket);
   });
@@ -246,8 +268,7 @@ describe("quiz flow", () => {
     const again = await phone("Astrid", astrid!.cookie);
     expect(await view(again, "open")).toMatchObject({ pick: 0, question: { id: q } });
     await answer(olle!, q, 1);
-    await stage(admin, "closed");
-    await step(admin, "reveal", "reveal");
+    await stage(admin, "reveal");
     expect(await view(again, "reveal")).toMatchObject({ pick: 0, points: 1000, score: 1000 });
     closeAll(admin, again.socket, olle!.socket);
   });
@@ -263,7 +284,6 @@ describe("quiz flow", () => {
     astrid!.socket.send(await answerCmd(astrid!, q, 0));
     expect((await astrid!.socket.state()).quiz).toMatchObject({ phase: "open", pick: 1 });
     await answer(olle!, q, 0);
-    await stage(admin, "closed");
     expect(await revealPoints(admin, [astrid!, olle!])).toEqual({ Astrid: 0, Olle: 1000 });
     closeAll(admin, astrid!.socket, olle!.socket);
   });
@@ -303,7 +323,7 @@ describe("quiz flow", () => {
     await step(admin, "unlock", "lobby");
     const q = await start(admin);
     await answer(astrid, q, 0);
-    await step(admin, "reveal", "reveal");
+    await stage(admin, "reveal");
 
     await step(admin, "reset", "locked");
     expect(await view(astrid, "locked")).toEqual({ phase: "locked" });
@@ -327,8 +347,147 @@ describe("quiz flow", () => {
     expect(await astrid.socket.next((m) => m.t === "error")).toEqual({ t: "error", message: "Svaret kom för sent." });
 
     await answer(astrid, q, 0);
-    expect((await view(astrid, "closed")).pick).toBe(0);
+    expect((await view(astrid, "reveal")).pick).toBe(0);
     closeAll(admin, astrid.socket);
+  });
+});
+
+describe("the quiz runs itself between questions", () => {
+  const party = () => env.PARTY.getByName("party");
+
+  async function revealed(admin: Admin): Promise<{ astrid: Phone; olle: Phone; q: QuestionId }> {
+    const [astrid, olle] = await phones("Astrid", "Olle");
+    await step(admin, "unlock", "lobby");
+    const q = await start(admin);
+    await answer(astrid!, q, 0);
+    await answer(olle!, q, 1);
+    await stage(admin, "reveal");
+    return { astrid: astrid!, olle: olle!, q };
+  }
+
+  // A second admin window, so the ack it waits for can only be the answer to this command.
+  async function ackedBySecondAdmin(cmd: AdminCmd): Promise<AdminState> {
+    const other = await connectAdmin();
+    await other.state();
+    other.send(cmd);
+    expect(await other.next((m) => m.t === "ack" || m.t === "error"), JSON.stringify(cmd)).toEqual({ t: "ack" });
+    other.close();
+    return other.latest()!;
+  }
+
+  it("wakes about 6 s after the reveal and shows every phone the leaderboard", async () => {
+    const admin = await host(choice());
+    const [astrid, olle] = await phones("Astrid", "Olle");
+    await step(admin, "unlock", "lobby");
+    admin.send({ t: "liveMode", on: false });
+    await admin.next((m) => m.t === "state" && m.heartbeat === "slow");
+    await fireAlarm();
+    const q = await start(admin);
+    await answer(astrid!, q, 0);
+    const before = Date.now();
+    await answer(olle!, q, 1);
+    const after = Date.now();
+    await stage(admin, "reveal");
+
+    const wake = await alarmAt();
+    expect(wake).toBeGreaterThanOrEqual(before + BOARD_DELAY_MS);
+    expect(wake).toBeLessThanOrEqual(after + BOARD_DELAY_MS);
+    await fireAlarm();
+    expect(astrid!.socket.latest()?.quiz.phase).toBe("reveal");
+
+    await elapse(BOARD_DELAY_MS);
+    await fireAlarm();
+    for (const p of [astrid!, olle!]) {
+      expect(await view(p, "leaderboard")).toMatchObject({ n: 1, total: 1, top: [{ name: "Astrid", score: 1000, rank: 1 }, { name: "Olle", score: 0, rank: 2 }] });
+    }
+    expect(await stage(admin, "leaderboard")).toMatchObject({ q, answered: 2 });
+    closeAll(admin, astrid!.socket, olle!.socket);
+  });
+
+  it("lets the host reveal before everyone has answered, and acks a second reveal without changing anything", async () => {
+    const admin = await host(choice());
+    const [astrid, olle] = await phones("Astrid", "Olle");
+    await step(admin, "unlock", "lobby");
+    const q = await start(admin);
+    await answer(astrid!, q, 0);
+
+    expect(await step(admin, "reveal", "reveal")).toMatchObject({ answered: 1, expected: 2 });
+    expect(await view(astrid!, "reveal")).toMatchObject({ points: 1000, score: 1000 });
+    expect(await view(olle!, "reveal")).toMatchObject({ pick: null, points: 0 });
+    expect(await refused(olle!, q, 0)).toBe("Svaret kom för sent.");
+    const shown = (await admin.current()).quiz;
+    const wake = await alarmAt();
+
+    expect((await ackedBySecondAdmin({ t: "quiz", step: "reveal" })).quiz).toEqual(shown);
+    expect(await alarmAt()).toBe(wake);
+    closeAll(admin, astrid!.socket, olle!.socket);
+  });
+
+  it("lets the host show the leaderboard during the reveal, and the later alarm and a late press change nothing", async () => {
+    const admin = await host(choice(), choice());
+    const { astrid, olle } = await revealed(admin);
+    await step(admin, "leaderboard", "leaderboard");
+    const board = await view(astrid, "leaderboard");
+
+    await elapse(BOARD_DELAY_MS);
+    await fireAlarm();
+    await ackedBySecondAdmin({ t: "quiz", step: "leaderboard" });
+    expect((await astrid.socket.state()).quiz, "the next snapshot comes from the second admin connecting").toEqual(board);
+    const after = await ackedBySecondAdmin({ t: "quiz", step: "reveal" });
+    expect(after.quiz.stage).toMatchObject({ phase: "leaderboard", n: 1 });
+    closeAll(admin, astrid.socket, olle.socket);
+  });
+
+  it("ignores a press from another admin view that arrives after its round has moved on", async () => {
+    const admin = await host(choice(), choice());
+    const { astrid, olle, q } = await revealed(admin);
+    const second = await start(admin);
+
+    for (const late of ["reveal", "leaderboard", "start"] as const) await ackedBySecondAdmin({ t: "quiz", step: late, q });
+    const shown = await admin.current();
+    expect(shown.quiz.stage).toMatchObject({ phase: "open", q: second, n: 2 });
+    expect(shown.quiz.played).toEqual([q, second]);
+    expect((await view(astrid, "open")).question.id).toBe(second);
+    await answer(astrid, second, 0);
+    closeAll(admin, astrid.socket, olle.socket);
+  });
+
+  it("still shows the leaderboard when the Durable Object restarts during the reveal", async () => {
+    const admin = await host(choice());
+    const { astrid, olle } = await revealed(admin);
+    await evictAllDurableObjects();
+    await elapse(BOARD_DELAY_MS);
+    expect(await fireAlarm()).toBe(true);
+    expect(await view(astrid, "leaderboard")).toMatchObject({ you: { name: "Astrid", score: 1000, rank: 1 } });
+    expect(await view(olle, "leaderboard")).toMatchObject({ you: { name: "Olle", score: 0, rank: 2 } });
+    closeAll(admin, astrid.socket, olle.socket);
+  });
+
+  it("stays locked when the quiz is reset during the reveal and the alarm fires later", async () => {
+    const admin = await host(choice());
+    const { astrid, olle } = await revealed(admin);
+    await step(admin, "reset", "locked");
+    await astrid.socket.state((s) => s.quiz.phase === "locked");
+    await elapse(BOARD_DELAY_MS);
+    await fireAlarm();
+    const watcher = await connectAdmin();
+    expect((await watcher.state()).quiz.stage).toEqual({ phase: "locked" });
+    expect((await astrid.socket.state()).quiz, "the next snapshot comes from the watcher connecting").toEqual({ phase: "locked" });
+    closeAll(admin, watcher, astrid.socket, olle.socket);
+  });
+
+  it("reveals a round that a party deployed before this change left closed", async () => {
+    const admin = await host(choice());
+    const [astrid, olle] = await phones("Astrid", "Olle");
+    await step(admin, "unlock", "lobby");
+    const q = await start(admin);
+    await answer(astrid!, q, 0);
+    await runInDurableObject(party(), (_, state) => state.storage.kv.put("quiz_phase", "closed"));
+    await elapse(22_000);
+    await fireAlarm();
+    expect(await view(astrid!, "reveal")).toMatchObject({ points: 1000 });
+    expect(await view(olle!, "reveal")).toMatchObject({ pick: null, points: 0 });
+    closeAll(admin, astrid!.socket, olle!.socket);
   });
 });
 
@@ -356,7 +515,7 @@ describe("question photos", () => {
     expect(await photoStatus(first, astrid.cookie)).toBe(200);
     expect(await photoStatus(second, astrid.cookie)).toBe(404);
     await answer(astrid, q, 0);
-    await step(admin, "reveal", "reveal");
+    await stage(admin, "reveal");
     await start(admin);
     expect(await photoStatus(first, astrid.cookie)).toBe(200);
     expect(await photoStatus(second, astrid.cookie)).toBe(200);

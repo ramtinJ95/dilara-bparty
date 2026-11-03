@@ -1,8 +1,10 @@
 import type { PhotoId, PlayerId, QuestionId } from "../shared/model";
 import type { GuestCmdOf } from "../shared/protocol";
 import {
+  BOARD_DELAY_MS,
   GRACE_MS,
   guestQuestion,
+  QUIZ_STEP_DONE,
   stepAllowed,
   type AdminQuiz,
   type AdminStage,
@@ -29,11 +31,12 @@ const PLAYED = "This question has already been played. Reset the quiz to change 
 const LATE = "Svaret kom för sent.";
 const INVALID = "Svaret gick inte att läsa.";
 
-const ROUND_PHASES = ["open", "closed", "reveal", "leaderboard"] as const;
+const ROUND_PHASES = ["open", "reveal", "leaderboard"] as const;
 type RoundPhase = (typeof ROUND_PHASES)[number];
 type IdlePhase = Exclude<Phase, RoundPhase>;
 const inRound = (phase: Phase): phase is RoundPhase => (ROUND_PHASES as readonly Phase[]).includes(phase);
 
+// revealed is when the round was revealed, in ms, and 0 until then.
 type RoundRow = { question_id: QuestionId; n: number; started_at: number; deadline: number; revealed: number };
 type AnswerRow = { question_id: QuestionId; player_id: PlayerId; pick: number; ms: number; points: number | null };
 type Stage = { phase: IdlePhase } | { phase: RoundPhase; round: RoundRow };
@@ -41,6 +44,9 @@ type Stage = { phase: IdlePhase } | { phase: RoundPhase; round: RoundRow };
 export type QuizView = { admin: AdminQuiz; guest: (player: PlayerId) => GuestQuiz };
 
 const closesAt = (round: RoundRow) => round.deadline + GRACE_MS;
+const boardAt = (round: RoundRow) => round.revealed + BOARD_DELAY_MS;
+
+type Advance = { step: QuizStep; at: (round: RoundRow) => number; early?: (round: RoundRow, roster: Roster, online: ReadonlySet<PlayerId>) => boolean };
 
 export class Quiz {
   private readonly sql: SqlStorage;
@@ -54,15 +60,29 @@ export class Quiz {
   private readonly steps: { [K in QuizStep]: { to: Phase; run?: (now: number) => string | void } } = {
     unlock: { to: "lobby", run: (now) => this.kv.put(UNLOCKED_KEY, Math.max(now, (this.kv.get<number>(UNLOCKED_KEY) ?? 0) + 1)) },
     start: { to: "open", run: (now) => this.startNext(now) },
-    reveal: { to: "reveal", run: () => this.writePoints() },
+    reveal: { to: "reveal", run: (now) => this.writePoints(now) },
     leaderboard: { to: "leaderboard" },
     end: { to: "ended" },
     reset: { to: "locked", run: () => this.clear() },
   };
 
-  step(step: QuizStep, now: number): string | null {
-    const { phase } = this.stage();
+  // The round moves on by itself at these times, and an open round also as soon as everyone online has answered.
+  private readonly advances: { [P in RoundPhase]?: Advance } = {
+    open: { step: "reveal", at: closesAt, early: (round, roster, online) => this.allAnswered(round, roster, online) },
+    reveal: { step: "leaderboard", at: boardAt },
+  };
+
+  step(step: QuizStep, now: number, q?: QuestionId): string | null {
+    const stage = this.stage();
+    // A press names the round it was made in. From a second admin view it can arrive after that round has moved on and the next has started.
+    if (q !== undefined && !("round" in stage && stage.round.question_id === q)) return null;
+    const { phase } = stage;
+    if (QUIZ_STEP_DONE[step]?.includes(phase)) return null;
     if (!stepAllowed(step, phase)) return `"${step}" isn't possible while the quiz is ${phase}.`;
+    return this.apply(step, now);
+  }
+
+  private apply(step: QuizStep, now: number): string | null {
     const { to, run } = this.steps[step];
     const error = run?.(now);
     if (error) return error;
@@ -124,13 +144,13 @@ export class Quiz {
     return null;
   }
 
-  // Every snapshot passes through here, so this is where an open round closes once it is due and where each
+  // Every snapshot passes through here, so this is where a round moves on once it is due and where each
   // phone's first sight of the open question is recorded for timing its answer.
   publish(roster: Roster, online: ReadonlySet<PlayerId>, now: number): QuizView {
     let stage = this.stage();
-    if (stage.phase === "open" && this.due(stage.round, roster, online, now)) {
-      this.kv.put(PHASE_KEY, "closed");
-      stage = { phase: "closed", round: stage.round };
+    for (let due = this.dueStep(stage, roster, online, now); due; due = this.dueStep(stage, roster, online, now)) {
+      this.apply(due, now);
+      stage = this.stage();
     }
     if (stage.phase === "open") {
       this.sql.exec(
@@ -152,6 +172,12 @@ export class Quiz {
     });
   }
 
+  // The unlock counter stays, so an answer sent before this is refused as stale after the next unlock.
+  lock(): void {
+    this.clear();
+    this.kv.put(PHASE_KEY, "locked");
+  }
+
   // A question photo is secret until its question has started in this run; a reset hides it again.
   photoStarted(photo: PhotoId): boolean {
     return (
@@ -161,15 +187,24 @@ export class Quiz {
     );
   }
 
-  // When the Durable Object must wake to close the open round, which no message may arrive to trigger.
+  // When the Durable Object must wake to move the round on, which no message may arrive to trigger.
   wakeAt(): number | null {
     const stage = this.stage();
-    return stage.phase === "open" ? closesAt(stage.round) : null;
+    return "round" in stage ? (this.advances[stage.phase]?.at(stage.round) ?? null) : null;
   }
 
   private stage(): Stage {
-    const phase = this.kv.get<Phase>(PHASE_KEY) ?? "locked";
+    const stored = this.kv.get<Phase | "closed">(PHASE_KEY) ?? "locked";
+    // A party deployed mid-round may still hold the old closed phase. Its round is due, so the next publish reveals it.
+    const phase = stored === "closed" ? "open" : stored;
     return inRound(phase) ? { phase, round: this.latestRound() } : { phase };
+  }
+
+  private dueStep(stage: Stage, roster: Roster, online: ReadonlySet<PlayerId>, now: number): QuizStep | null {
+    if (!("round" in stage)) return null;
+    const advance = this.advances[stage.phase];
+    if (!advance) return null;
+    return now >= advance.at(stage.round) || advance.early?.(stage.round, roster, online) ? advance.step : null;
   }
 
   private latestRound(): RoundRow {
@@ -210,7 +245,7 @@ export class Quiz {
     );
   }
 
-  private writePoints(): void {
+  private writePoints(now: number): void {
     const round = this.latestRound();
     const answers = this.sql
       .exec<AnswerRow>("SELECT * FROM answers WHERE question_id = ?", round.question_id)
@@ -219,15 +254,14 @@ export class Quiz {
     answers.forEach((a, i) =>
       this.sql.exec("UPDATE answers SET points = ? WHERE question_id = ? AND player_id = ?", points[i]!, a.question_id, a.player_id),
     );
-    this.sql.exec("UPDATE rounds SET revealed = 1 WHERE question_id = ?", round.question_id);
+    this.sql.exec("UPDATE rounds SET revealed = ? WHERE question_id = ?", now, round.question_id);
   }
 
   private clear(): void {
     this.sql.exec("DELETE FROM answers; DELETE FROM deliveries; DELETE FROM rounds;");
   }
 
-  private due(round: RoundRow, roster: Roster, online: ReadonlySet<PlayerId>, now: number): boolean {
-    if (now >= closesAt(round)) return true;
+  private allAnswered(round: RoundRow, roster: Roster, online: ReadonlySet<PlayerId>): boolean {
     if (online.size === 0) return false;
     const answered = new Set(
       this.sql
@@ -281,7 +315,6 @@ const asked = (c: Current, player: PlayerId) => ({
 
 const roundGuests: { [P in RoundPhase]: (c: Current, player: PlayerId) => GuestQuiz } = {
   open: (c, p) => ({ phase: "open", endsInMs: c.endsInMs, ...asked(c, p) }),
-  closed: (c, p) => ({ phase: "closed", ...asked(c, p) }),
   reveal: (c, p) => ({
     phase: "reveal",
     ...asked(c, p),
@@ -301,7 +334,6 @@ const roundGuests: { [P in RoundPhase]: (c: Current, player: PlayerId) => GuestQ
 
 const adminStages: { [P in RoundPhase]: (c: Current) => AdminStage } = {
   open: (c) => ({ phase: "open", endsInMs: c.endsInMs, ...c.tally }),
-  closed: (c) => ({ phase: "closed", ...c.tally }),
   reveal: (c) => ({ phase: "reveal", result: c.result, ...c.tally }),
   leaderboard: (c) => ({ phase: "leaderboard", result: c.result, ...c.tally }),
 };

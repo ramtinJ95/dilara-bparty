@@ -10,7 +10,7 @@ async function round(admin: Admin, play: (q: Parameters<typeof answer>[1]) => Pr
     await elapse(22_000);
     await fireAlarm();
   }
-  await stage(admin, "closed");
+  await stage(admin, "reveal");
 }
 
 async function quiz(names: string[], ...questions: Parameters<typeof host>): Promise<{ admin: Admin; players: Phone[] }> {
@@ -109,7 +109,6 @@ describe("board", () => {
       await answer(bosse, q, 1);
       await answer(cilla, q, 1);
     });
-    await step(admin, "reveal", "reveal");
     await step(admin, "leaderboard", "leaderboard");
     const first = await view(cilla, "leaderboard");
     expect(first.top.map((r) => [r.name, r.score, r.rank, r.prev])).toEqual([
@@ -123,7 +122,6 @@ describe("board", () => {
       await answer(bosse, q, 2, -1);
       await answer(cilla, q, 1);
     });
-    await step(admin, "reveal", "reveal");
     expect(await view(bosse, "reveal")).toMatchObject({ points: 1000, score: 1000, n: 2, total: 2 });
     await step(admin, "leaderboard", "leaderboard");
     const second = await view(cilla, "leaderboard");
@@ -146,7 +144,6 @@ describe("board", () => {
       },
       false,
     );
-    await step(admin, "reveal", "reveal");
     await step(admin, "leaderboard", "leaderboard");
     const board = await view(players[5]!, "leaderboard");
     expect(board.top.map((r) => r.name)).toEqual(names.slice(0, 5));
@@ -162,7 +159,6 @@ describe("board", () => {
       await answer(olle, q, 0, -1);
       await answer(saga, q, 2);
     });
-    await step(admin, "reveal", "reveal");
     expect((await admin.current()).quiz.winners).toEqual([]);
     await step(admin, "end", "ended");
     const ended: AdminState = await admin.current();
@@ -178,7 +174,6 @@ describe("board", () => {
       await answer(astrid, q, 1);
       await answer(again, q, 0, -1);
     });
-    await step(admin, "reveal", "reveal");
     admin.send({ t: "merge", from: again.id, into: astrid.id });
     const merged = await admin.state((s) => s.players.length === 1);
     expect(merged.quiz.board).toEqual([{ id: astrid.id, name: "Astrid", score: 1000, rank: 1, prev: 1 }]);

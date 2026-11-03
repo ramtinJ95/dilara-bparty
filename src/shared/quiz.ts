@@ -6,6 +6,7 @@ export const OPTIONS = { min: 2, max: 4 } as const;
 export const TEXT_MAX = 200;
 export const OPTION_MAX = 60;
 export const POINTS = { best: 1000, slowest: 500 } as const;
+export const BOARD_DELAY_MS = 6000;
 
 type Common = { text: string; photo: PhotoId | null; seconds: number };
 export type ChoiceBody = Common & { kind: "choice"; options: string[]; correct: number };
@@ -16,19 +17,22 @@ export type Question = QuestionBody & { id: QuestionId };
 
 export type GuestQuestion = Common & { id: QuestionId } & ({ kind: "choice"; options: string[] } | { kind: "number" });
 
-export type Phase = "locked" | "lobby" | "open" | "closed" | "reveal" | "leaderboard" | "ended";
+export type Phase = "locked" | "lobby" | "open" | "reveal" | "leaderboard" | "ended";
 
 export const QUIZ_STEPS = {
   unlock: ["locked"],
   start: ["lobby", "reveal", "leaderboard"],
-  reveal: ["closed"],
+  reveal: ["open"],
   leaderboard: ["reveal"],
   end: ["lobby", "reveal", "leaderboard"],
-  reset: ["lobby", "open", "closed", "reveal", "leaderboard", "ended"],
+  reset: ["lobby", "open", "reveal", "leaderboard", "ended"],
 } as const satisfies Record<string, readonly Phase[]>;
 export type QuizStep = keyof typeof QUIZ_STEPS;
 
 export const stepAllowed = (step: QuizStep, phase: Phase) => (QUIZ_STEPS[step] as readonly Phase[]).includes(phase);
+
+// The server reveals and shows the leaderboard on its own, so a host press can arrive after the step it asked for has happened.
+export const QUIZ_STEP_DONE: Partial<Record<QuizStep, readonly Phase[]>> = { reveal: ["reveal", "leaderboard"], leaderboard: ["leaderboard"] };
 
 export type ChoiceResult = { kind: "choice"; correct: number; counts: number[] };
 export type NumberResult = { kind: "number"; answer: number; closest: { name: string; value: number }[]; guesses: number };
@@ -44,7 +48,6 @@ export type GuestQuiz =
   | { phase: "locked" }
   | ({ phase: "lobby" } & Unlocked)
   | ({ phase: "open"; endsInMs: number } & Asked)
-  | ({ phase: "closed" } & Asked)
   | ({ phase: "reveal"; points: number; score: number; result: RoundResult } & Asked)
   | ({ phase: "leaderboard"; top: BoardRow[]; you: BoardRow | null } & Round)
   | ({ phase: "ended" } & Unlocked);
@@ -54,7 +57,6 @@ export type Tally = { q: QuestionId; n: number; answered: number; expected: numb
 export type AdminStage =
   | { phase: "locked" | "lobby" | "ended" }
   | ({ phase: "open"; endsInMs: number } & Tally)
-  | ({ phase: "closed" } & Tally)
   | ({ phase: "reveal" | "leaderboard"; result: RoundResult } & Tally);
 
 export type AdminQuiz = {

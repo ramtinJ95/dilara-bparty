@@ -30,7 +30,7 @@ const suspense: Step = {
 
 const photo: Step = {
   id: "finale-photo",
-  title: "The host breaks any photo tie and reveals the photo winner on every phone at once; a phone that drops comes back to it",
+  title: "The host breaks any photo tie and reveals the photo winner on every phone at once, under a recap of the quiz winners; a phone that drops comes back to it",
   async run(r) {
     const pick = finaleCard(r).getByRole("button", { name: "Pick as winner" }).first();
     if (await pick.isVisible()) {
@@ -44,8 +44,9 @@ const photo: Step = {
       press(r, "Reveal photo winner", "Photo winner on phones"),
       ...r.guests.map((g) => r.time("photo winner shows", g, () => expect(g.page.getByText("tog vinnarbilden", { exact: false })).toBeVisible({ timeout: SEE_TIMEOUT }))),
     ]);
-    const winner = (await finaleCard(r).locator(".revealed dd b").first().textContent())!;
+    const winner = (await finaleCard(r).locator(".revealed dd").last().locator("b").textContent())!;
     await Promise.all(r.guests.map((g) => r.check(`${g.name} shows ${winner} as the photographer`, () => expect(g.page.getByRole("heading", { name: winner, exact: true })).toBeVisible(), g.page)));
+    await Promise.all(r.guests.map((g) => r.check(`${g.name} keeps the quiz winners as a recap`, () => expect(g.page.locator(".recap")).toContainText(/^Quizvinnar(en|na)/), g.page)));
     await Promise.all(r.guests.map((g) => r.check(`${g.name} ${g.name === winner ? "is" : "isn't"} congratulated on the photo`, () =>
       expect(g.page.getByText("Grattis, det är din bild!")).toHaveCount(g.name === winner ? 1 : 0), g.page)));
 
@@ -68,7 +69,7 @@ const quiz: Step = {
       press(r, /^Reveal quiz winners?$/, "Quiz winner on phones"),
       ...r.guests.map((g) => r.time("quiz winner shows", g, () => expect(g.page.getByText(/^Quizvinnar(en|na)$/)).toBeVisible({ timeout: SEE_TIMEOUT }))),
     ]);
-    const named = finaleCard(r).locator(".revealed dd").last().locator("b");
+    const named = finaleCard(r).locator(".revealed dd").first().locator("b");
     const winners = (await named.count()) ? (await named.textContent())!.split(" & ") : [];
     const cheer = winners.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!";
     await Promise.all(r.guests.map((g) => r.check(`${g.name} ${winners.includes(g.name) ? "is" : "isn't"} congratulated on the quiz`, () =>
@@ -96,7 +97,7 @@ const wipe: Step = {
       await joinByLink(returning.page, r.secrets.join, returning.name.toLowerCase());
       await expect(returning.page.getByRole("heading", { name: "Är det du?" })).toBeVisible({ timeout: SEE_TIMEOUT });
       await returning.page.getByRole("button", { name: "Ja, det är jag" }).click();
-      await expect(returning.page.getByText(/^Quizvinnar(en|na)$/)).toBeVisible({ timeout: SEE_TIMEOUT });
+      await expect(returning.page.getByText("tog vinnarbilden", { exact: false })).toBeVisible({ timeout: SEE_TIMEOUT });
     });
     await r.check("admin reopens joins and ends the party again", async () => {
       await partyEnd(r).getByRole("button", { name: "Reopen joins" }).click();
@@ -129,4 +130,4 @@ const wipe: Step = {
   },
 };
 
-export const finaleSteps: Step[] = [suspense, photo, quiz, wipe];
+export const finaleSteps: Step[] = [suspense, quiz, photo, wipe];

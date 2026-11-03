@@ -61,12 +61,17 @@ code and runs the admin view; it is not a shared game screen.
 - The server owns the clock. Phones count down to a deadline set by the server,
   and answers are accepted until that deadline plus a short grace period, so a
   slow connection does not cost anyone points.
-- Answers close at the deadline or when everyone has answered. The host then
-  reveals the result, and every phone shows whether it was right and how the
-  room answered.
-- After a reveal, the host can show the leaderboard, so it can come after every
-  question or every second one. Every phone shows the top five and the guest's
-  own position, with players animating up and down into their new places.
+- Answers close at the deadline plus the grace period, or as soon as everyone
+  online has answered. The server then reveals the result at once, and every
+  phone shows whether it was right and how the room answered.
+- About 6 seconds after the reveal, the server shows the leaderboard on its
+  own. Every phone shows the top five and the guest's own position, with
+  players animating up and down into their new places. It stays until the host
+  starts the next question.
+- The host can still press Reveal to cut a question short, or Leaderboard to
+  skip the wait. Reveal asks first while guests are still answering, and says
+  how many. A press that arrives after the server has taken that step changes
+  nothing.
 - Scoring rewards speed. A correct multiple-choice answer scores 1000 points
   for an instant answer, falling linearly to 500 at the deadline, rounded to
   whole points. A wrong or missing answer scores 0, so being right always beats
@@ -126,10 +131,12 @@ code and runs the admin view; it is not a shared game screen.
   page: a themed waiting screen that builds anticipation. Photo voting closes
   when it opens.
 - The host then opens the winners page and reveals the winners one at a time,
-  each with its own press: first the winning photo with the photographer's name,
-  then the quiz winner, or the joint winners if first place is tied.
+  each with its own press: first the quiz winner, or the joint winners if first
+  place is tied, then the winning photo with the photographer's name. The photo
+  reveal keeps a small recap of the quiz winners.
 - A tie for the most photo votes shows the tied photos in the admin view, and
-  the host picks the winner before revealing it.
+  the host picks the winner at any point before revealing it, also while the
+  quiz winners are on the phones.
 - Each reveal is a short celebration on every phone at once. The winner's own
   phone also congratulates them. A phone that reconnects during the finale
   lands on the current step.
@@ -141,9 +148,11 @@ code and runs the admin view; it is not a shared game screen.
 - QR code and short join code.
 - Players: list, rename, merge duplicates.
 - Questions: add, edit, delete, reorder, attach a photo.
-- Quiz controls: unlock, start question, reveal, show leaderboard, next, end.
-- Finale controls: open the suspense page, reveal the photo winner, reveal the
-  quiz winner.
+- Quiz controls: unlock, start each question, reveal early, skip ahead to the
+  leaderboard, end, reset. During a reveal, a note says the leaderboard
+  follows on its own.
+- Finale controls: open the suspense page, reveal the quiz winner, reveal the
+  photo winner.
 - Contest controls: close uploads and voting, hide photos, browse every stored
   version, download everything.
 - Landing page photo upload.
@@ -151,3 +160,8 @@ code and runs the admin view; it is not a shared game screen.
   get back in by name.
 - Wipe the data, photos included, once the party has ended. The confirmation
   reminds the host to download the photos first.
+- Reset the party at any time, for a fresh start after a rehearsal. Every
+  guest's phone leaves for the bare page, the players, contest photos, votes,
+  quiz answers and scores and the finale are cleared, and new guests can join
+  again. The questions, their photos and the landing photo stay. The host types
+  RESET to confirm.

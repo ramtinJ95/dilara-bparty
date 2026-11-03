@@ -264,16 +264,13 @@ test("the host runs a question; a guest on another tab is called in, answers, an
   await expect(admin.getByText("1 of 2 answered")).toBeVisible();
   await answer(olle, "Grön");
 
-  await expect(admin.getByText("Answers closed")).toBeVisible();
-  await expect(kim.getByText("Väntar på rätt svar …")).toBeVisible();
-  await admin.getByRole("button", { name: "Reveal answer" }).click();
+  await expect(admin.getByText("Answer revealed"), "the last answer reveals the round at once").toBeVisible();
   await expect(kim.getByRole("heading", { name: "Rätt!" })).toBeVisible();
   await expect(kim.getByText(/^\+[\d\s]+ poäng$/)).toBeVisible();
   await expect(olle.getByRole("heading", { name: "Tyvärr fel" })).toBeVisible();
   await expect(olle.getByText("+0 poäng")).toBeVisible();
 
-  await admin.getByRole("button", { name: "Show leaderboard" }).click();
-  await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+  await expect(kim.getByRole("heading", { name: "Topplistan" }), "the leaderboard follows on its own").toBeVisible({ timeout: 15_000 });
   const first = kim.locator(".lb .row").first();
   await expect(first).toContainText("Kim Testsson");
   await expect(first).toContainText("Du");
