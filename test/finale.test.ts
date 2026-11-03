@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GuestFinale } from "../src/shared/finale";
 import type { PhotoId } from "../src/shared/model";
 import type { AdminCmd, AdminState } from "../src/shared/protocol";
-import { answer, closeAll, host, number, phone, phones, start, step, type Admin, type Phone } from "./support/quiz";
+import { answer, closeAll, host, number, phone, phones, stage, start, step, type Admin, type Phone } from "./support/quiz";
 import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, uploadContestAs } from "./support/worker";
 
 async function adminError(admin: Admin, cmd: AdminCmd): Promise<string> {
@@ -30,7 +30,7 @@ async function playQuiz(admin: Admin, [astrid, olle, saga]: Phone[]): Promise<vo
   await answer(astrid!, q, 42);
   await answer(olle!, q, 42);
   await answer(saga!, q, 1);
-  await step(admin, "reveal", "reveal");
+  await stage(admin, "reveal");
   await step(admin, "end", "ended");
 }
 

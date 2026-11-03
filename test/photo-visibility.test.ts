@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PhotoId } from "../src/shared/model";
 import { newPlayerId, pidCookieValue } from "../src/worker/auth";
-import { answer, closeAll, host, number, phones, start, step, type Phone } from "./support/quiz";
+import { answer, closeAll, host, number, phones, stage, start, step, type Phone } from "./support/quiz";
 import { adminCookie, call, jpeg, JOIN_SECRET, uploadContest, uploadLanding, uploadQuestionPhoto } from "./support/worker";
 
 // "both" sends the admin and the owner's pid cookie; "stale" is a signed pid for a player who doesn't exist.
@@ -98,7 +98,7 @@ describe("photo visibility", () => {
     });
 
     for (const p of all) await answer(p, q, 42);
-    await step(admin, "reveal", "reveal");
+    await stage(admin, "reveal");
     await step(admin, "end", "ended");
     admin.send({ t: "finale", step: "suspense" });
     admin.send({ t: "finale", step: "photo" });

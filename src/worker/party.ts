@@ -226,7 +226,7 @@ export class Party extends DurableObject<Env> {
     let sockets = this.openSockets();
     for (const ws of sockets) ws.send(TICK);
     let wakeAt = this.quiz.wakeAt();
-    // The broadcast may close the round and the sockets of guests who are gone, so both are read again after it.
+    // The broadcast may move the round on and close the sockets of guests who are gone, so both are read again after it.
     if ((wakeAt ?? Infinity) <= now) {
       this.broadcast();
       sockets = this.openSockets();
@@ -236,7 +236,7 @@ export class Party extends DurableObject<Env> {
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
-  // The Durable Object has one alarm, shared by the tick and the open question's close.
+  // The Durable Object has one alarm, shared by the tick and the round's next move.
   private nextWake(now: number, connected: boolean, wakeAt: number | null): number | null {
     const tick = connected ? now + HEARTBEATS[this.heartbeat()].tickMs : null;
     const wanted = [tick, wakeAt].filter((t) => t !== null);
@@ -265,7 +265,7 @@ export class Party extends DurableObject<Env> {
     if (error) return send(ws, { t: "error", message: error });
     this.broadcast(guest?.roster);
     send(ws, { t: "ack" });
-    if (!guest) await this.schedule();
+    await this.schedule();
   }
 
   private adminCommand(message: string): string | null {
@@ -290,13 +290,16 @@ export class Party extends DurableObject<Env> {
     return { players: this.players, contest: this.contest, quiz: this.quiz, finale: this.finale, setLiveMode: (on) => this.setLiveMode(on) };
   }
 
-  override webSocketClose(ws: WebSocket): void {
+  // A guest leaving can close the round, whose leaderboard then needs a wake.
+  override async webSocketClose(ws: WebSocket): Promise<void> {
     ws.close(1000);
     this.broadcast();
+    await this.schedule();
   }
 
-  override webSocketError(): void {
+  override async webSocketError(): Promise<void> {
     this.broadcast();
+    await this.schedule();
   }
 
   private broadcast(roster = this.players.roster()): void {

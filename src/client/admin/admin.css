@@ -89,7 +89,7 @@
 .status::before { content: ""; width: 9px; height: 9px; border: var(--thin); border-radius: 50%; background: var(--rose); }
 .status.on::before { background: var(--green); }
 .phase.lobby, .phase.open, .badge.current { background: var(--ok); }
-.phase.closed, .phase.reveal, .phase.leaderboard, .badge.kind { background: var(--ice); }
+.phase.reveal, .phase.leaderboard, .badge.kind { background: var(--ice); }
 .phase.suspense, .phase.photo, .phase.quiz, .badge.hidden { background: var(--bad); }
 .badge.fame, .badge.tie { background: var(--warn); }
 .badge.removed { border-style: dashed; color: var(--ink-soft); }

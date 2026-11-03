@@ -161,7 +161,10 @@ const party = () => env.PARTY.getByName("party");
 
 export async function elapse(ms: number): Promise<void> {
   await runInDurableObject(party(), (_, state) => {
-    state.storage.sql.exec("UPDATE rounds SET started_at = started_at - ?1, deadline = deadline - ?1", ms);
+    state.storage.sql.exec(
+      "UPDATE rounds SET started_at = started_at - ?1, deadline = deadline - ?1, revealed = CASE WHEN revealed > 0 THEN revealed - ?1 ELSE 0 END",
+      ms,
+    );
     state.storage.sql.exec("UPDATE deliveries SET sent_at = sent_at - ?", ms);
   });
 }

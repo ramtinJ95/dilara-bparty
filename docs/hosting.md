@@ -59,7 +59,7 @@ Free plan allowances per day, compared with a padded estimate for one party
 | Resource | Free per day | Party estimate |
 |---|---|---|
 | Worker requests | 100,000 | 1,000 to 2,000 |
-| Durable Object requests (see [the budget](#durable-object-request-budget)) | 100,000, shared with staging | under 12,500 in the worst case |
+| Durable Object requests (see [the budget](#durable-object-request-budget)) | 100,000, shared with staging | under 13,500 in the worst case |
 | Durable Object duration | 13,000 GB-s | under 1,350 GB-s, even if it never hibernates |
 | SQLite rows written | 100,000 | about 3,000, mostly alarms |
 | SQLite rows read | 5,000,000 | a few thousand |
@@ -134,13 +134,13 @@ for 8 hours, the quiz open for 1 hour, every message counted in full.
 | Votes and vote moves: 20 per phone | 500 | 500 |
 | Quiz answers: 20 questions | 25 × 20 | 500 |
 | Question photo views (`/photos/…`), revalidated on every view: 4 per question | 25 × 20 × 4 | 2,000 |
-| Question closes, from the shared alarm | 20 | 20 |
+| Question closes and leaderboards, from the shared alarm: 2 per question | 20 × 2 | 40 |
 | Quiz and finale steps, question edits by the host | 200 | 200 |
 | Other admin commands and photo uploads | 300 | 300 |
-| **Total** | | **13,210** |
+| **Total** | | **13,230** |
 
 That is well under half of 30,000, our own cap. A quiz that is never ended
-costs 5,460 more alarms, for 18,670. The ticks don't grow with the number of phones,
+costs 5,460 more alarms, for 18,690. The ticks don't grow with the number of phones,
 so more guests cost only their checks, connects and actions. Each alarm also
 writes one SQLite row, under 2,000 of the 100,000 rows a day.
 

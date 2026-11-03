@@ -2,7 +2,7 @@ import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
 import type { GuestCmd } from "../../shared/protocol";
-import type { ChoiceResult, GuestQuestion, GuestQuiz, NumberResult, Phase, RoundResult } from "../../shared/quiz";
+import type { ChoiceResult, GuestQuiz, NumberResult, Phase, RoundResult } from "../../shared/quiz";
 import { formatSv as fmt, LETTERS, parseNumber } from "../answers";
 import { photoUrl } from "../api";
 import { useSecondsLeft } from "../clock";
@@ -20,7 +20,6 @@ export type ViewProps<P extends LiveQuiz["phase"]> = Shared & { quiz: Of<P> };
 const VIEWS: { [P in LiveQuiz["phase"]]: (props: ViewProps<P>) => JSX.Element } = {
   lobby: Lobby,
   open: Open,
-  closed: Closed,
   reveal: Reveal,
   leaderboard: Leaderboard,
   ended: Ended,
@@ -221,35 +220,6 @@ function Guess({ disabled, onSend }: { disabled: boolean; onSend: (n: number) =>
         Skicka
       </button>
     </form>
-  );
-}
-
-function pickText(q: GuestQuestion, pick: number) {
-  return q.kind === "choice" ? `${LETTERS[pick]}. ${q.options[pick] ?? ""}` : fmt(pick);
-}
-
-function Closed({ quiz }: ViewProps<"closed">) {
-  return (
-    <section class="quiz-card card waiting" aria-labelledby="quiz-title">
-      <Cap />
-      <Progress n={quiz.n} total={quiz.total} />
-      <h2 id="quiz-title" class="q-text small">
-        {quiz.question.text}
-      </h2>
-      <p class="your-guess">
-        {quiz.pick === null ? (
-          "Du hann inte svara den här gången."
-        ) : (
-          <>
-            {quiz.question.kind === "choice" ? "Ditt svar" : "Din gissning"}: <b>{pickText(quiz.question, quiz.pick)}</b>
-          </>
-        )}
-      </p>
-      <div class="loading" role="status">
-        <Snowflake />
-        <p>Väntar på rätt svar …</p>
-      </div>
-    </section>
   );
 }
 

@@ -9,7 +9,6 @@ const PHASE_LABEL: Record<Phase, string> = {
   locked: "Locked",
   lobby: "Unlocked, waiting for the first question",
   open: "Question open",
-  closed: "Answers closed",
   reveal: "Answer revealed",
   leaderboard: "Leaderboard on phones",
   ended: "Quiz ended",

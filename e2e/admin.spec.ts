@@ -274,14 +274,12 @@ test("unlock, reset, start, reveal, leaderboard, next and end each reach every p
     expect(await lookOf(p.locator(".q-photo")), "phones show the photo the host attached").toBe("sea");
   }
   await Promise.all([answer(astrid, "Rosa"), answer(kim, "Rosa"), answer(olle, "Blå", 1_500)]);
-  await expect(phase, "everyone answered, so the round closes early").toHaveText("Answers closed");
+  await expect(phase, "everyone answered, so the answer is revealed at once").toHaveText("Answer revealed");
   await expect(quiz.getByText("3 of 3 answered")).toBeVisible();
-
-  await press("Reveal answer");
   await expect(olle.getByRole("heading", { name: "Rätt!" }), "the edited correct option counts").toBeVisible();
   for (const p of [astrid, kim]) await expect(p.getByRole("heading", { name: "Tyvärr fel" })).toBeVisible();
 
-  await press("Show leaderboard");
+  await expect(phase, "the leaderboard follows on its own").toHaveText("Leaderboard on phones", { timeout: 15_000 });
   for (const p of phones) await expect(p.getByRole("heading", { name: "Topplistan" })).toBeVisible();
   await expect(olle.locator(".lb .row").first()).toContainText("Olle");
   await expect(olle.locator(".lb .row").first()).toContainText("Du");
@@ -289,8 +287,7 @@ test("unlock, reset, start, reveal, leaderboard, next and end each reach every p
   await press("Next question");
   for (const p of phones) await expect(p.getByText("Fråga 2 av 2")).toBeVisible();
   await Promise.all([answer(astrid, "12"), answer(kim, "12"), answer(olle, "9")]);
-  await expect(phase).toHaveText("Answers closed");
-  await press("Reveal answer");
+  await expect(phase).toHaveText("Answer revealed");
   for (const p of [astrid, kim]) await expect(p.getByRole("heading", { name: "Närmast!" }), "the edited answer counts: 9 would be closer to the old 10").toBeVisible();
   await expect(olle.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible();
 

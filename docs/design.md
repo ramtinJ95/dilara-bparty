@@ -61,12 +61,16 @@ code and runs the admin view; it is not a shared game screen.
 - The server owns the clock. Phones count down to a deadline set by the server,
   and answers are accepted until that deadline plus a short grace period, so a
   slow connection does not cost anyone points.
-- Answers close at the deadline or when everyone has answered. The host then
-  reveals the result, and every phone shows whether it was right and how the
-  room answered.
-- After a reveal, the host can show the leaderboard, so it can come after every
-  question or every second one. Every phone shows the top five and the guest's
-  own position, with players animating up and down into their new places.
+- Answers close at the deadline plus the grace period, or as soon as everyone
+  online has answered. The server then reveals the result at once, and every
+  phone shows whether it was right and how the room answered.
+- About 6 seconds after the reveal, the server shows the leaderboard on its
+  own. Every phone shows the top five and the guest's own position, with
+  players animating up and down into their new places. It stays until the host
+  starts the next question.
+- The host can still press Reveal to cut a question short, or Leaderboard to
+  skip the wait. A press that arrives after the server has taken that step
+  changes nothing.
 - Scoring rewards speed. A correct multiple-choice answer scores 1000 points
   for an instant answer, falling linearly to 500 at the deadline, rounded to
   whole points. A wrong or missing answer scores 0, so being right always beats
@@ -141,7 +145,8 @@ code and runs the admin view; it is not a shared game screen.
 - QR code and short join code.
 - Players: list, rename, merge duplicates.
 - Questions: add, edit, delete, reorder, attach a photo.
-- Quiz controls: unlock, start question, reveal, show leaderboard, next, end.
+- Quiz controls: unlock, start each question, reveal early, skip ahead to the
+  leaderboard, end, reset.
 - Finale controls: open the suspense page, reveal the photo winner, reveal the
   quiz winner.
 - Contest controls: close uploads and voting, hide photos, browse every stored
