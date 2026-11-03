@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { FINALE_STEPS, finaleBlocker, nextStep, stepTaken, winOf, type AdminFinales, type FinaleKind, type FinaleStage, type FinaleStep, type PhotoWin, type QuizWin } from "../../shared/finale";
 import type { AdminCmd, AdminEntrant, TallyRow } from "../../shared/protocol";
 import type { AdminQuiz } from "../../shared/quiz";
@@ -38,6 +38,11 @@ export function FinaleCard({ kind, finale, quiz, tally, send, live }: Props) {
   const next = nextStep(stage);
   const gate = { quizPhase: quiz.stage.phase, quiz: finale.quiz.stage, photo: finale.photo.stage, tied: finale.tied, pick: finale.pick };
   const blocked = next && finaleBlocker(kind, next, gate);
+
+  // Another admin view can open the suspense page while this one asks, and the question must then go rather than come back after a reset.
+  useEffect(() => {
+    if (confirming && next !== "suspense") setConfirming(false);
+  }, [confirming, next]);
 
   function press(step: FinaleStep) {
     if (step === "suspense" && !confirming) return setConfirming(true);
