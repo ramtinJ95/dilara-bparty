@@ -54,7 +54,7 @@ test("a guest finds the party by code, joins, and shows up live for the admin", 
   await adminContext.close();
 });
 
-test("the bare page stays neutral for a joined guest and wrong links look like nothing", async ({ browser }) => {
+test("the bare page sends a joined guest back to the app, and wrong links look like nothing", async ({ browser }) => {
   const context = await browser.newContext(phone);
   const page = await context.newPage();
   await page.goto(`/j/${secrets.join}`);
@@ -65,8 +65,8 @@ test("the bare page stays neutral for a joined guest and wrong links look like n
   await expect(page.getByRole("heading", { name: "Hej, Astrid!" })).toBeVisible();
 
   await page.goto("/");
-  await expect(page.getByLabel("Kod")).toBeVisible();
-  await expect(page.locator("body")).not.toContainText("Dilara");
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByRole("heading", { name: "Hej, Astrid!" })).toBeVisible();
 
   const wrong = await page.goto("/j/not-the-secret");
   expect(wrong?.status()).toBe(404);
@@ -74,6 +74,27 @@ test("the bare page stays neutral for a joined guest and wrong links look like n
   const robots = await page.goto("/robots.txt");
   expect(await robots?.text()).toContain("Disallow: /");
   expect(robots?.headers()["x-robots-tag"]).toContain("noindex");
+  await context.close();
+});
+
+test("a phone that lost its cookie comes back to the app on its own, without the code", async ({ browser }) => {
+  const context = await browser.newContext(phone);
+  const page = await context.newPage();
+  await page.goto(`/j/${secrets.join}`);
+  await page.getByLabel("Vad heter du?").fill("Saga Sover");
+  await page.getByRole("button", { name: "Gå med" }).click();
+  await expect(page.getByRole("heading", { name: "Hej, Saga Sover!" })).toBeVisible();
+  const pidCookie = async () => (await context.cookies()).find((c) => c.name === "pid")?.value;
+  const joined = await pidCookie();
+
+  for (const path of ["/app", "/", `/j/${secrets.join}`]) {
+    await context.clearCookies();
+    await page.goto(path);
+    await expect(page, `from ${path}`).toHaveURL(/\/app$/);
+    await expect(page.getByRole("heading", { name: "Hej, Saga Sover!" })).toBeVisible();
+    expect(await pidCookie(), `the cookie is back after ${path}`).toBe(joined);
+  }
+  expect(await page.evaluate(() => Object.values(localStorage).join(" ")), "the phone keeps no join secret").not.toContain(secrets.join);
   await context.close();
 });
 
