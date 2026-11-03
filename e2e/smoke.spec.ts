@@ -98,6 +98,19 @@ test("a phone that lost its cookie comes back to the app on its own, without the
   await context.close();
 });
 
+test("a restore that never answers gives up and shows the code field, and keeps the saved identity", async ({ browser }) => {
+  const context = await browser.newContext(phone);
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("pid", "AAAAAAAAAAAAAAAAAAAAAA.signature"));
+  await page.route("**/api/restore", () => {});
+  await page.reload();
+  await expect(page.getByLabel("Kod")).toBeHidden();
+  await expect(page.getByLabel("Kod")).toBeVisible({ timeout: 12_000 });
+  expect(await page.evaluate(() => localStorage.getItem("pid"))).toBe("AAAAAAAAAAAAAAAAAAAAAA.signature");
+  await context.close();
+});
+
 async function joinedPhone(browser: Browser, name: string, options = phone): Promise<Page> {
   const context = await browser.newContext(options);
   const res = await context.request.post("/api/join", { data: { secret: secrets.join, name } });

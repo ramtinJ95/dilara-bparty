@@ -102,6 +102,22 @@ test("a phone that lost its identity rejoins by name and keeps it", async ({ bro
   await expect(onlineDot(host, forgetful)).toBeVisible();
 });
 
+test("a phone whose cookie went while the app stayed open gets it back on its next reconnect, without a reload", async ({ browser }) => {
+  const sleepy = tagged("Gäst Sömnig");
+  const host = await admin(browser);
+  const { page, line } = await phone(browser, "good", sleepy);
+  const joined = (await page.context().cookies()).find((c) => c.name === "pid")?.value;
+
+  await page.context().clearCookies();
+  await line.cut("clean");
+  await expect(reconnecting(page)).toBeVisible();
+  await line.restore();
+  await expect(reconnecting(page)).toHaveCount(0, { timeout: 15_000 });
+  await expect(onlineDot(host, sleepy)).toBeVisible();
+  await expect(page).toHaveURL(/\/app$/);
+  expect((await page.context().cookies()).find((c) => c.name === "pid")?.value).toBe(joined);
+});
+
 const dropped = (page: Page) => page.getByText("Anslutningen bröts.", { exact: false });
 const uploaded = (page: Page) => page.getByText("Inga röster än");
 

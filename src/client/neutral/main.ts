@@ -9,7 +9,7 @@ const error = form.querySelector<HTMLParagraphElement>("#error")!;
 
 if (hasSession()) {
   form.hidden = true;
-  if (await restoreSession()) location.replace("/app");
+  if ((await restoreSession()) === "restored") location.replace("/app");
   else form.hidden = false;
 }
 

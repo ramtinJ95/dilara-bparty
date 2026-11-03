@@ -22,15 +22,31 @@ export function forgetSession(): void {
 
 export const hasSession = () => !!storage()?.getItem(KEY);
 
-// A refused copy is forgotten. One that failed to reach the server is kept for the next load.
-export async function restoreSession(): Promise<boolean> {
+export type Restore = "restored" | "refused" | "unreached";
+
+// The pages wait for this before they show anything, so a stalled line gives up and shows them.
+const RESTORE_WITHIN_MS = 8_000;
+
+// A refused copy is forgotten. One that didn't reach the server is kept for the next try.
+export async function restoreSession(): Promise<Restore> {
   const pid = storage()?.getItem(KEY);
-  if (!pid) return false;
+  if (!pid) return "refused";
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), RESTORE_WITHIN_MS);
   try {
-    const res = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pid }) });
-    if (res.status === 403) forgetSession();
-    return res.ok;
+    const res = await fetch("/api/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pid }),
+      signal: abort.signal,
+    });
+    if (res.ok) return "restored";
+    if (res.status !== 403) return "unreached";
+    forgetSession();
+    return "refused";
   } catch {
-    return false;
+    return "unreached";
+  } finally {
+    clearTimeout(timer);
   }
 }

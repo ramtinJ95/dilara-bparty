@@ -12,7 +12,7 @@ const photoId = meta("landing-photo");
 const pid = meta("pid");
 
 if (pid) rememberSession(pid);
-if (secret && (await restoreSession())) location.replace("/app");
+if (secret && (await restoreSession()) === "restored") location.replace("/app");
 else {
   pauseWhenHidden();
   render(
