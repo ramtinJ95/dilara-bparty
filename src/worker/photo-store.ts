@@ -20,6 +20,10 @@ export class PhotoStore {
     return id;
   }
 
+  clear(kinds: PhotoKind[]): void {
+    this.sql.exec("DELETE FROM photos WHERE kind IN (SELECT value FROM json_each(?))", JSON.stringify(kinds));
+  }
+
   get(id: PhotoId, withBytes: boolean): StoredPhoto | null {
     const columns = withBytes ? "kind, mime, bytes" : "kind, mime, NULL AS bytes";
     const [row] = this.sql.exec<StoredPhoto>(`SELECT ${columns} FROM photos WHERE id = ?`, id).toArray();

@@ -264,6 +264,7 @@ h2 .muted { font: 600 14px var(--text); }
 .party-end { grid-column: 1 / -1; display: grid; gap: 12px; }
 .party-end h2, .party-end > p { margin: 0; }
 .party-end .state { font-weight: 700; }
+.party-end .field { width: 180px; }
 
 @media (max-width: 900px) {
   .grid, .contest-body { grid-template-columns: 1fr; }

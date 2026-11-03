@@ -2,7 +2,7 @@ import { VOTES_PER_GUEST, type PhotoId, type PlayerId, type UploadKey } from "..
 import type { AdminContest, EntryStatus, GuestContest, TallyRow } from "../shared/protocol";
 import type { PhotoStore, PhotoUpload } from "./photo-store";
 import type { Roster } from "./players";
-import { putSetting, readSettings, type Settings } from "./settings";
+import { deleteSetting, putSetting, readSettings, type Settings } from "./settings";
 
 export type Entry = {
   photo: PhotoId;
@@ -144,6 +144,12 @@ export class Contest {
       "DELETE FROM votes WHERE voter = ? AND id NOT IN (SELECT id FROM votes WHERE voter = ? ORDER BY id LIMIT ?)",
       into, into, VOTES_PER_GUEST,
     );
+  }
+
+  clear(): void {
+    this.sql.exec("DELETE FROM votes; DELETE FROM entries;");
+    this.photos.clear(["contest", "thumb"]);
+    for (const key of Object.values(SETTINGS)) deleteSetting(this.sql, key);
   }
 
   snapshot(settings: Settings = readSettings(this.sql)): ContestSnapshot {

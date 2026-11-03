@@ -442,6 +442,38 @@ test("the finale opens suspense, closes voting, and reveals the joint quiz winne
   await expect(finale.locator(".tie"), "the tie is settled").toHaveCount(0);
 });
 
+test("resetting the party sends every phone away and keeps the questions and the landing photo for a fresh start", async () => {
+  const end = card(".party-end");
+  await end.getByRole("button", { name: "Reset party…" }).click();
+  await expect(end.getByText("Reset the party? Every guest leaves", { exact: false })).toBeVisible();
+  await expect(end.getByText("The questions, their photos and the landing photo stay.", { exact: false })).toBeVisible();
+  const confirm = end.getByRole("button", { name: "Yes, reset the party" });
+  const word = end.getByLabel("Type RESET to confirm");
+  await expect(confirm).toBeDisabled();
+  await word.fill("reset");
+  await expect(confirm, "only the exact word unlocks the reset").toBeDisabled();
+  await word.fill("RESET");
+  await confirm.click();
+
+  for (const p of [astrid, olle, kim, kimAgain]) await expect(p, "every phone leaves for the bare page").toHaveURL(/\/$/);
+  await expect(admin.getByText("Nobody has joined yet.")).toBeVisible();
+  await expect(card(".contest").getByText("Nobody has uploaded yet.")).toBeVisible();
+  await expect(card(".quiz .phase")).toHaveText("Locked");
+  await expect(card(".finale .phase")).toHaveText("Not started");
+  await expect(end.getByText("New guests can join.")).toBeVisible();
+  await expect(admin.locator(".questions > ol > li"), "the questions stay").toHaveCount(2);
+  await expect(admin.locator(".questions > ol > li").filter({ hasText: "Played" }), "and none has been played").toHaveCount(0);
+  await expect(card(".landing-photo").getByAltText("Current landing photo")).toBeVisible();
+
+  await astrid.goto(`/j/${secrets.join}`);
+  expect(await lookOf(astrid.getByAltText("Dilara")), "the join page keeps its photo").toBe("snow");
+  await joinByLink(astrid, secrets.join, "Astrid");
+  await expect(greeting(astrid, "Astrid"), "the join link works again, with no Är det du?").toBeVisible();
+  await expect(admin.getByRole("region", { name: /^Players 1 · 1 online$/ })).toBeVisible();
+  await uploadContestPhoto(astrid, "rose");
+  await expect(card(".contest").getByText("Nobody has uploaded yet."), "uploads are open again").toHaveCount(0);
+});
+
 test("ending the party refuses new guests but lets a known guest back in by name, and the wipe empties everything", async ({ browser }) => {
   const end = card(".party-end");
   await end.getByRole("button", { name: "End the party" }).click();
@@ -457,7 +489,7 @@ test("ending the party refuses new guests but lets a known guest back in by name
   await expect(end.getByText("New guests can join.")).toBeVisible();
   await stranger.page.getByRole("button", { name: "Gå med" }).click();
   await expect(stranger.page, "reopened joins let the new guest in").toHaveURL(/\/app$/);
-  await expect(stranger.page.getByText("Quizvinnarna"), "and they land on the finale").toBeVisible();
+  await expect(greeting(stranger.page, "Vera Testsson")).toBeVisible();
   await stranger.context.close();
   await end.getByRole("button", { name: "End the party" }).click();
   await end.getByRole("button", { name: "Yes, end the party" }).click();
@@ -467,14 +499,14 @@ test("ending the party refuses new guests but lets a known guest back in by name
   await joinByLink(lostCookie.page, secrets.join, "astrid");
   await expect(lostCookie.page.getByRole("heading", { name: "Är det du?" })).toBeVisible();
   await lostCookie.page.getByRole("button", { name: "Ja, det är jag" }).click();
-  await expect(lostCookie.page.getByText("Grattis, du delar segern!"), "a known guest gets back in as themselves after the end").toBeVisible();
-  await expect(admin.getByRole("region", { name: /^Players 6 · / })).toBeVisible();
+  await expect(greeting(lostCookie.page, "Astrid"), "a known guest gets back in as themselves after the end").toBeVisible();
+  await expect(admin.getByRole("region", { name: /^Players 2 · / })).toBeVisible();
 
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await expect(end.getByText("Download the photos first!", { exact: false }), "the wipe reminds the host to download").toBeVisible();
-  await expect(end.getByRole("button", { name: "Download all (zip, 4)" })).toBeVisible();
+  await expect(end.getByRole("button", { name: "Download all (zip, 1)" })).toBeVisible();
   await end.getByRole("button", { name: "Yes, wipe everything" }).click();
-  for (const p of [astrid, olle, kim, kimAgain, lostCookie.page]) await expect(p, "every phone leaves for the bare page").toHaveURL(/\/$/);
+  for (const p of [astrid, lostCookie.page]) await expect(p, "every phone leaves for the bare page").toHaveURL(/\/$/);
   await expect(admin.getByText("Nobody has joined yet.")).toBeVisible();
   await expect(card(".questions").getByText("No questions yet. Add the first one below.")).toBeVisible();
   await expect(card(".contest").getByText("Nobody has uploaded yet.")).toBeVisible();

@@ -169,6 +169,12 @@ export class Quiz {
     });
   }
 
+  // The unlock counter stays, so an answer sent before this is refused as stale after the next unlock.
+  lock(): void {
+    this.clear();
+    this.kv.put(PHASE_KEY, "locked");
+  }
+
   // A question photo is secret until its question has started in this run; a reset hides it again.
   photoStarted(photo: PhotoId): boolean {
     return (

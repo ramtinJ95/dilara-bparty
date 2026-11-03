@@ -160,3 +160,8 @@ code and runs the admin view; it is not a shared game screen.
   get back in by name.
 - Wipe the data, photos included, once the party has ended. The confirmation
   reminds the host to download the photos first.
+- Reset the party at any time, for a fresh start after a rehearsal. Every
+  guest's phone leaves for the bare page, the players, contest photos, votes,
+  quiz answers and scores and the finale are cleared, and new guests can join
+  again. The questions, their photos and the landing photo stay. The host types
+  RESET to confirm.

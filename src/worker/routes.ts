@@ -188,6 +188,13 @@ export const routes: Route[] = [
     return error ? Response.json({ error }, { status: 409 }) : status(204);
   })),
 
+  // A form on a sibling subdomain could post here with the Lax admin cookie, so only this origin may.
+  route("POST", "/api/admin/party/reset", adminOnly(async (ctx) => {
+    if (!sameOrigin(ctx.req)) return status(403);
+    await party(ctx.env).resetParty();
+    return status(204);
+  })),
+
   route("POST", CONTEST_UPLOAD_PATH, uploadContest),
 
   route("PUT", "/api/admin/question-photo", adminOnly((ctx) => adminPhoto(ctx, (upload) => party(ctx.env).addQuestionPhoto(upload)))),

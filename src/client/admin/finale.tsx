@@ -127,17 +127,37 @@ function Revealed({ finale }: { finale: AdminFinale }) {
   );
 }
 
-type Ending = { kind: "idle" } | { kind: "end" } | { kind: "wipe" } | { kind: "wiping" } | { kind: "failed"; error: string };
+type Ending =
+  | { kind: "idle" }
+  | { kind: "end" }
+  | { kind: "wipe" }
+  | { kind: "wiping" }
+  | { kind: "reset"; typed: string }
+  | { kind: "resetting" }
+  | { kind: "failed"; what: "Wipe" | "Reset"; error: string };
+
+const RESET_WORD = "RESET";
+
+async function request(path: string, method: string): Promise<string | null> {
+  const res = await fetch(path, { method }).catch(() => null);
+  if (res?.ok) return null;
+  const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+  return body?.error ?? "No connection. Try again.";
+}
 
 export function PartyEnd({ joins, entrants, send, live }: { joins: boolean; entrants: AdminEntrant[]; send: Send; live: boolean }) {
   const [ending, setEnding] = useState<Ending>({ kind: "idle" });
 
   async function wipe() {
     setEnding({ kind: "wiping" });
-    const res = await fetch("/api/admin/party", { method: "DELETE" }).catch(() => null);
-    if (res?.ok) return setEnding({ kind: "idle" });
-    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
-    setEnding({ kind: "failed", error: body?.error ?? "No connection. Try again." });
+    const error = await request("/api/admin/party", "DELETE");
+    setEnding(error ? { kind: "failed", what: "Wipe", error } : { kind: "idle" });
+  }
+
+  async function reset() {
+    setEnding({ kind: "resetting" });
+    const error = await request("/api/admin/party/reset", "POST");
+    setEnding(error ? { kind: "failed", what: "Reset", error } : { kind: "idle" });
   }
 
   return (
@@ -179,6 +199,39 @@ export function PartyEnd({ joins, entrants, send, live }: { joins: boolean; entr
             </button>
           </div>
         </div>
+      ) : ending.kind === "reset" || ending.kind === "resetting" ? (
+        <div class="confirm">
+          <p class="warning">
+            Reset the party? Every guest leaves, and their names, contest photos, votes, quiz answers and scores and the finale are cleared. New
+            guests can join again. The questions, their photos and the landing photo stay. It can't be undone.
+          </p>
+          <DownloadAll entrants={entrants} />
+          <label class="stack">
+            <span>Type {RESET_WORD} to confirm</span>
+            <input
+              class="field"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck={false}
+              value={ending.kind === "reset" ? ending.typed : RESET_WORD}
+              disabled={ending.kind === "resetting"}
+              onInput={(e) => setEnding({ kind: "reset", typed: e.currentTarget.value })}
+            />
+          </label>
+          <div class="row">
+            <button
+              class="btn small danger"
+              type="button"
+              disabled={ending.kind === "resetting" || ending.typed !== RESET_WORD}
+              onClick={() => void reset()}
+            >
+              {ending.kind === "resetting" ? "Resetting…" : "Yes, reset the party"}
+            </button>
+            <button class="btn small secondary" type="button" onClick={() => setEnding({ kind: "idle" })}>
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : (
         <div class="row">
           {joins ? (
@@ -195,11 +248,14 @@ export function PartyEnd({ joins, entrants, send, live }: { joins: boolean; entr
               </button>
             </>
           )}
+          <button class="btn small secondary" type="button" onClick={() => setEnding({ kind: "reset", typed: "" })}>
+            Reset party…
+          </button>
         </div>
       )}
       {ending.kind === "failed" && (
         <p class="error" role="alert">
-          Wipe failed: {ending.error}
+          {ending.what} failed: {ending.error}
         </p>
       )}
       {joins && <p class="muted">End the party before you wipe its data.</p>}

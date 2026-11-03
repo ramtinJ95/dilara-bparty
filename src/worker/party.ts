@@ -199,6 +199,20 @@ export class Party extends DurableObject<Env> {
     return null;
   }
 
+  // A fresh party from the host's prepared content: the questions, their photos and the landing photo stay. Every guest's next
+  // snapshot is "gone", as after a wipe.
+  async resetParty(): Promise<void> {
+    this.ctx.storage.transactionSync(() => {
+      this.players.clear();
+      this.contest.clear();
+      this.quiz.lock();
+      this.finale.clear();
+      deleteSetting(this.ctx.storage.sql, LIVE_MODE);
+    });
+    this.broadcast();
+    await this.schedule();
+  }
+
   // Only from an admin command: its broadcast carries the new heartbeat, and its schedule() moves the alarm.
   private setLiveMode(on: boolean): void {
     if (on === (this.heartbeat() === "fast")) return;

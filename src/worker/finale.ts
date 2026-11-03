@@ -59,6 +59,10 @@ export class Finale {
     return null;
   }
 
+  clear(): void {
+    for (const key of [STAGE_KEY, PICK_KEY, PHOTO_KEY, QUIZ_KEY, JOINS_CLOSED_KEY]) this.kv.delete(key);
+  }
+
   joinsOpen(): boolean {
     return this.kv.get<boolean>(JOINS_CLOSED_KEY) !== true;
   }

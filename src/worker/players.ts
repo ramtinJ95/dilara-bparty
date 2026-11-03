@@ -52,6 +52,10 @@ export class Players {
     return { ok: true, value: { from: source.id, into: target.id } };
   }
 
+  clear(): void {
+    this.sql.exec("DELETE FROM players");
+  }
+
   roster(): Roster {
     const rows = this.sql.exec<PlayerRow>("SELECT * FROM players ORDER BY created_at, id").toArray();
     const byId = new Map(rows.map((row) => [row.id, toPlayer(row)]));
