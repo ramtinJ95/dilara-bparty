@@ -1,4 +1,5 @@
-import { expect, test, type Browser, type BrowserContext, type FileChooser, type Locator, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, type FileChooser, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import jsQR from "jsqr";
 import { readFileSync } from "node:fs";
 import { crc32 } from "node:zlib";

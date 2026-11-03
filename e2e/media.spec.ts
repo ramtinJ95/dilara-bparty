@@ -1,4 +1,5 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, renameSync, rmSync } from "node:fs";

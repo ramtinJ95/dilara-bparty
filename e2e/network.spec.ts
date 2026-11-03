@@ -1,4 +1,5 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { type Browser, type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop, versionsOf } from "./drive";
 import { shapeNetwork, type Line, type ProfileName } from "./phone-network";
 import { noise, pngFile } from "./placeholder";
