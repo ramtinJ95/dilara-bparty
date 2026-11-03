@@ -7,11 +7,15 @@ npm ci --no-audit --no-fund
 npm run typecheck
 npm test
 # A failed browser test's page snapshot goes into the output, since the runner keeps nothing else.
+# The review log shows only the tail, so each test's name and error come after its snapshot, and its source is left out.
+section() { awk -v want="$1" '/^# /{at=$0} at==want' "$2"; }
 e2e() {
   npm run "$1" && return
   find test-results -name error-context.md | while read -r context; do
     echo "=== $context"
-    cat "$context"
+    section "# Page snapshot" "$context"
+    section "# Test info" "$context"
+    section "# Error details" "$context"
   done
   exit 1
 }
