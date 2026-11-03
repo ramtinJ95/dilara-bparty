@@ -37,9 +37,10 @@ describe("privacy", () => {
     }
   });
 
-  it("keeps the bare page and everything it loads free of party details, even for a joined guest", async () => {
+  it("keeps the bare page and everything it loads free of party details for anyone who hasn't joined", async () => {
     const cookie = await joinedCookie("Astrid");
-    for (const res of [await call("/"), await call("/", { cookie })]) {
+    const [id] = cookie.slice("pid=".length).split(".");
+    for (const res of [await call("/"), await call("/", { cookie: `pid=${id}.forged` })]) {
       expect(res.status).toBe(200);
       const html = await res.text();
       const assets = assetPaths(html);

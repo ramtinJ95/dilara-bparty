@@ -5,6 +5,7 @@ import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
 import { Cap, Icicles } from "../ice";
 import { useLive } from "../live";
+import { forgetSession } from "../session";
 import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
 import { Finale } from "./finale";
 import { GalleryPanel } from "./gallery";
@@ -96,7 +97,7 @@ export function Shell() {
   const [tab, select] = useHashTab();
   const [toast, showToast] = useToast();
   const { state, status, send, check } = useLive<GuestState>("/ws", (msg) =>
-    msg.t === "gone" ? location.replace("/") : msg.t === "error" && showToast(msg.message),
+    msg.t === "gone" ? (forgetSession(), location.replace("/")) : msg.t === "error" && showToast(msg.message),
   );
   const live = status.kind === "open";
   const uploader = useUploader(state, state?.contest.mine?.id ?? null, live);

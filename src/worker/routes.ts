@@ -18,6 +18,11 @@ const party = (env: Env) => env.PARTY.getByName("party");
 
 const guest = (ctx: Ctx) => playerFromCookie(readCookie(ctx.req, "pid"), ctx.env.JOIN_SECRET);
 
+const joined = async (ctx: Ctx) => {
+  const id = await guest(ctx);
+  return id !== null && (await party(ctx.env).isPlayer(id));
+};
+
 const isAdmin = (ctx: Ctx) => isAdminCookie(readCookie(ctx.req, "admin"), ctx.env.ADMIN_SECRET);
 
 const adminOnly = (handler: Route["handler"]): Route["handler"] => async (ctx) => ((await isAdmin(ctx)) ? handler(ctx) : notFound());
@@ -36,13 +41,13 @@ const page = ({ req, env }: Ctx, name: Page) => env.ASSETS.fetch(new URL(`/${nam
 
 const entry = async (ctx: Ctx, name: Page) => pageResponse(await page(ctx, name));
 
-function pageResponse(asset: Response, landingPhoto?: PhotoId | null): Response {
+// Meta values are ids and signatures, base64url and dots only, so they need no escaping.
+function pageResponse(asset: Response, meta: Record<string, string> = {}): Response {
   const res = new Response(asset.body, asset);
   res.headers.set("Cache-Control", "no-store");
-  if (!landingPhoto) return res;
-  return new HTMLRewriter()
-    .on("head", { element: (head) => void head.append(`<meta name="landing-photo" content="${landingPhoto}">`, { html: true }) })
-    .transform(res);
+  const tags = Object.entries(meta).map(([name, content]) => `<meta name="${name}" content="${content}">`);
+  if (tags.length === 0) return res;
+  return new HTMLRewriter().on("head", { element: (head) => void head.append(tags.join(""), { html: true }) }).transform(res);
 }
 
 const IMMUTABLE = "private, max-age=31536000, immutable";
@@ -123,7 +128,7 @@ const route = (method: string, pathname: string, handler: Route["handler"]): Rou
 });
 
 export const routes: Route[] = [
-  route("GET", "/", (ctx) => entry(ctx, "neutral")),
+  route("GET", "/", async (ctx) => ((await joined(ctx)) ? redirect("/app") : entry(ctx, "neutral"))),
 
   route("POST", "/api/code", async (ctx) => {
     const { code } = await readJson(ctx.req);
@@ -137,7 +142,7 @@ export const routes: Route[] = [
     if (!joinSecretMatches(ctx, ctx.params.secret)) return notFound();
     const id = await guest(ctx);
     const [asset, entered] = await Promise.all([page(ctx, "guest"), party(ctx.env).guestEntry(id)]);
-    if (!entered.joined) return pageResponse(asset, entered.landingPhoto);
+    if (!entered.joined) return pageResponse(asset, entered.landingPhoto ? { "landing-photo": entered.landingPhoto } : {});
     await asset.body?.cancel();
     return redirect("/app");
   }),
@@ -160,7 +165,20 @@ export const routes: Route[] = [
     return Response.json({ status: "joined" } satisfies JoinResponse, { headers: { "Set-Cookie": cookie } });
   }),
 
-  route("GET", "/app", async (ctx) => ((await guest(ctx)) ? entry(ctx, "guest") : redirect("/"))),
+  // The page hands the guest a copy of their signed identity, for /api/restore when Safari loses the cookie.
+  route("GET", "/app", async (ctx) => {
+    const pid = readCookie(ctx.req, "pid");
+    return (await guest(ctx)) ? pageResponse(await page(ctx, "guest"), { pid: pid! }) : redirect("/");
+  }),
+
+  // Restores only a player who still exists, so a phone is never signed back in to a player a reset or a wipe deleted.
+  // Joins that closed at the end of the party stop new guests only.
+  route("POST", "/api/restore", async (ctx) => {
+    const { pid } = await readJson(ctx.req);
+    const id = sameOrigin(ctx.req) && typeof pid === "string" ? await playerFromCookie(pid, ctx.env.JOIN_SECRET) : null;
+    if (!id || !(await party(ctx.env).isPlayer(id))) return status(403);
+    return new Response(null, { status: 204, headers: { "Set-Cookie": setCookie("pid", pid as string) } });
+  }),
 
   route("GET", "/ws", async (ctx) => {
     const playerId = await guest(ctx);
