@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { FINALE_ORDER, finaleBlocker, nextStep, type AdminFinale, type FinaleStage, type FinaleStep } from "../../shared/finale";
+import { FINALE_STEPS, finaleBlocker, nextStep, stepTaken, winOf, type AdminFinales, type FinaleKind, type FinaleStage, type FinaleStep, type PhotoWin, type QuizWin } from "../../shared/finale";
 import type { AdminCmd, AdminEntrant, TallyRow } from "../../shared/protocol";
 import type { AdminQuiz } from "../../shared/quiz";
 import { photoUrl } from "../api";
@@ -7,58 +7,67 @@ import { DownloadAll } from "./contest";
 import { plural } from "./format";
 
 type Send = (cmd: AdminCmd) => void;
-type Props = { finale: AdminFinale; quiz: AdminQuiz; tally: TallyRow[]; send: Send; live: boolean };
+type Props = { kind: FinaleKind; finale: AdminFinales; quiz: AdminQuiz; tally: TallyRow[]; send: Send; live: boolean };
 
 const STAGE_LABEL: Record<FinaleStage, string> = {
   off: "Not started",
   suspense: "Suspense page on phones",
-  quiz: "Quiz winner on phones",
-  photo: "Photo winner on phones",
+  reveal: "Winner on phones",
+  done: "Revealed",
 };
 
-const STEP_LABEL: Record<FinaleStep, (quiz: AdminQuiz) => string> = {
-  suspense: () => "Open suspense page",
-  quiz: (quiz) => (quiz.winners.length > 1 ? "Reveal quiz winners" : "Reveal quiz winner"),
-  photo: () => "Reveal photo winner",
+type Card = { title: string; steps: Record<FinaleStep, (quiz: AdminQuiz) => string>; confirm: string };
+
+const CARDS: Record<FinaleKind, Card> = {
+  quiz: {
+    title: "Quiz finale",
+    steps: { suspense: () => "Open suspense page", reveal: (quiz) => (quiz.winners.length > 1 ? "Reveal quiz winners" : "Reveal quiz winner") },
+    confirm: "Open the quiz finale? Every phone moves to the quiz suspense page. The quiz can't change after this.",
+  },
+  photo: {
+    title: "Photo finale",
+    steps: { suspense: () => "Open suspense page", reveal: () => "Reveal photo winner" },
+    confirm: "Open the photo finale? Uploads and voting close and every phone moves to the photo suspense page.",
+  },
 };
 
-const STEPS = FINALE_ORDER.filter((s): s is FinaleStep => s !== "off");
-
-export function FinaleControls({ finale, quiz, tally, send, live }: Props) {
+export function FinaleCard({ kind, finale, quiz, tally, send, live }: Props) {
   const [confirming, setConfirming] = useState(false);
-  const next = nextStep(finale.stage);
-  const blocked = next && finaleBlocker(next, { quizPhase: quiz.stage.phase, tied: finale.tied, pick: finale.pick });
-  const done = (step: FinaleStep) => FINALE_ORDER.indexOf(step) <= FINALE_ORDER.indexOf(finale.stage);
+  const card = CARDS[kind];
+  const { stage } = finale[kind];
+  const next = nextStep(stage);
+  const gate = { quizPhase: quiz.stage.phase, quiz: finale.quiz.stage, photo: finale.photo.stage, tied: finale.tied, pick: finale.pick };
+  const blocked = next && finaleBlocker(kind, next, gate);
 
   function press(step: FinaleStep) {
     if (step === "suspense" && !confirming) return setConfirming(true);
     setConfirming(false);
-    send({ t: "finale", step });
+    send({ t: "finale", kind, step });
   }
 
   return (
-    <section class="card finale" aria-labelledby="finale-title">
-      <h2 id="finale-title">
-        Finale <span class={`phase ${finale.stage}`}>{STAGE_LABEL[finale.stage]}</span>
+    <section class={`card finale ${kind}-finale`} aria-labelledby={`${kind}-finale-title`}>
+      <h2 id={`${kind}-finale-title`}>
+        {card.title} <span class={`phase ${stage}`}>{STAGE_LABEL[stage]}</span>
       </h2>
       <ol class="finale-steps">
-        {STEPS.map((step) => (
-          <li key={step} class={done(step) ? "done" : step === next ? "next" : undefined}>
-            {STEP_LABEL[step](quiz)}
+        {FINALE_STEPS.map((step) => (
+          <li key={step} class={stepTaken(step, stage) ? "done" : step === next ? "next" : undefined}>
+            {card.steps[step](quiz)}
           </li>
         ))}
       </ol>
       {next && !confirming && (
         <button class="btn finale-next" type="button" disabled={!live || blocked !== null} onClick={() => press(next)}>
-          {STEP_LABEL[next](quiz)}
+          {card.steps[next](quiz)}
         </button>
       )}
       {blocked && <p class="muted">{blocked}</p>}
       {confirming && (
         <div class="confirm">
-          <p class="warning">Open the finale? Voting closes and every phone moves to the suspense page. The quiz can't change after this.</p>
+          <p class="warning">{card.confirm}</p>
           <div class="row">
-            <button class="btn small" type="button" disabled={!live} onClick={() => press("suspense")}>
+            <button class="btn small" type="button" disabled={!live || blocked !== null} onClick={() => press("suspense")}>
               Yes, open suspense page
             </button>
             <button class="btn small secondary" type="button" onClick={() => setConfirming(false)}>
@@ -67,15 +76,16 @@ export function FinaleControls({ finale, quiz, tally, send, live }: Props) {
           </div>
         </div>
       )}
-      {finale.tied.length > 1 && finale.stage !== "photo" && (
+      {kind === "photo" && next && finale.tied.length > 1 && (
         <TiePicker rows={tally.filter((r) => finale.tied.includes(r.photo))} pick={finale.pick} send={send} live={live} />
       )}
-      <Revealed finale={finale} />
+      {stage === "reveal" && <p class="muted auto-next">Phones go back to the party on their own in a minute.</p>}
+      {stepTaken("reveal", stage) && (kind === "quiz" ? <QuizRevealed winners={winOf(finale.quiz) ?? []} /> : <PhotoRevealed photo={winOf(finale.photo)} />)}
     </section>
   );
 }
 
-function TiePicker({ rows, pick, send, live }: { rows: TallyRow[]; pick: AdminFinale["pick"]; send: Send; live: boolean }) {
+function TiePicker({ rows, pick, send, live }: { rows: TallyRow[]; pick: AdminFinales["pick"]; send: Send; live: boolean }) {
   return (
     <div class="tie">
       <h3>
@@ -102,30 +112,28 @@ function TiePicker({ rows, pick, send, live }: { rows: TallyRow[]; pick: AdminFi
   );
 }
 
-function Revealed({ finale }: { finale: AdminFinale }) {
-  if (finale.stage !== "quiz" && finale.stage !== "photo") return null;
-  return (
-    <dl class="revealed">
-      <dt>{finale.quiz.length > 1 ? "Quiz winners" : "Quiz winner"}</dt>
-      <dd>{finale.quiz.length > 0 ? <b>{finale.quiz.map((w) => w.name).join(" & ")}</b> : "Nobody scored"}</dd>
-      {finale.stage === "photo" && (
+const QuizRevealed = ({ winners }: { winners: QuizWin[] }) => (
+  <dl class="revealed">
+    <dt>{winners.length > 1 ? "Quiz winners" : "Quiz winner"}</dt>
+    <dd>{winners.length > 0 ? <b>{winners.map((w) => w.name).join(" & ")}</b> : "Nobody scored"}</dd>
+  </dl>
+);
+
+const PhotoRevealed = ({ photo }: { photo: PhotoWin | null }) => (
+  <dl class="revealed">
+    <dt>Best photo</dt>
+    <dd>
+      {photo ? (
         <>
-          <dt>Best photo</dt>
-          <dd>
-            {finale.photo ? (
-              <>
-                <img src={photoUrl(finale.photo.thumb)} alt="" />
-                <b>{finale.photo.name}</b> · {plural(finale.photo.votes, "vote", "votes")}
-              </>
-            ) : (
-              "No photos in the contest"
-            )}
-          </dd>
+          <img src={photoUrl(photo.thumb)} alt="" />
+          <b>{photo.name}</b> · {plural(photo.votes, "vote", "votes")}
         </>
+      ) : (
+        "No photos in the contest"
       )}
-    </dl>
-  );
-}
+    </dd>
+  </dl>
+);
 
 type Ending =
   | { kind: "idle" }
@@ -202,8 +210,8 @@ export function PartyEnd({ joins, entrants, send, live }: { joins: boolean; entr
       ) : ending.kind === "reset" || ending.kind === "resetting" ? (
         <div class="confirm">
           <p class="warning">
-            Reset the party? Every guest leaves, and their names, contest photos, votes, quiz answers and scores and the finale are cleared. New
-            guests can join again. The questions, their photos and the landing photo stay. It can't be undone.
+            Reset the party? Every guest leaves, and their names, contest photos, votes, quiz answers and scores and both finales are cleared.
+            New guests can join again. The questions, their photos and the landing photo stay. It can't be undone.
           </p>
           <DownloadAll entrants={entrants} />
           <label class="stack">

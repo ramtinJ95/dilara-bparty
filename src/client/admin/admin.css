@@ -90,7 +90,8 @@
 .status.on::before { background: var(--green); }
 .phase.lobby, .phase.open, .badge.current { background: var(--ok); }
 .phase.reveal, .phase.leaderboard, .badge.kind { background: var(--ice); }
-.phase.suspense, .phase.photo, .phase.quiz, .badge.hidden { background: var(--bad); }
+.finale .phase.suspense, .finale .phase.reveal, .badge.hidden { background: var(--bad); }
+.finale .phase.done { background: var(--ok); }
 .badge.fame, .badge.tie { background: var(--warn); }
 .badge.removed { border-style: dashed; color: var(--ink-soft); }
 .count { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 7px; background: var(--ink); color: #fff; font-size: 14px; vertical-align: 2px; }

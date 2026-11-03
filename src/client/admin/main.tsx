@@ -1,5 +1,6 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
+import { quizLock } from "../../shared/finale";
 import { formatJoinCode } from "../../shared/join-code";
 import type { AdminCmd, AdminState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
@@ -8,7 +9,7 @@ import { useLive } from "../live";
 import "../theme.css";
 import "./admin.css";
 import { Contest } from "./contest";
-import { FinaleControls, PartyEnd } from "./finale";
+import { FinaleCard, PartyEnd } from "./finale";
 import { LandingPhoto } from "./landing-photo";
 import { Players } from "./players";
 import { Qr } from "./qr";
@@ -61,8 +62,15 @@ function Admin() {
             <p class="url muted">{joinUrl}</p>
           </section>
           <div class="side">
-            <QuizControls quiz={state.quiz} deadline={deadline} send={sendCmd} live={live} frozen={state.finale.stage !== "off"} />
-            <FinaleControls finale={state.finale} quiz={state.quiz} tally={state.contest.tally} send={sendCmd} live={live} />
+            <QuizControls
+              quiz={state.quiz}
+              deadline={deadline}
+              send={sendCmd}
+              live={live}
+              frozen={quizLock({ quiz: state.finale.quiz.stage, photo: state.finale.photo.stage }) !== null}
+            />
+            <FinaleCard kind="quiz" finale={state.finale} quiz={state.quiz} tally={state.contest.tally} send={sendCmd} live={live} />
+            <FinaleCard kind="photo" finale={state.finale} quiz={state.quiz} tally={state.contest.tally} send={sendCmd} live={live} />
             <Players players={state.players} send={sendCmd} live={live} />
           </div>
           <Questions questions={state.quiz.questions} played={state.quiz.played} send={sendCmd} live={live} />
