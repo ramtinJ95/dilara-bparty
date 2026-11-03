@@ -101,7 +101,6 @@ export class Finale {
     return { quiz: view(this.stored("quiz"), now).stage, photo: view(this.stored("photo"), now).stage };
   }
 
-  // Marks each reveal whose time on the phones is up as done, and says whether any was.
   settle(now: number): boolean {
     let moved = false;
     for (const kind of FINALE_KINDS) {

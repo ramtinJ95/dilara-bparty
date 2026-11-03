@@ -105,7 +105,6 @@ function QuizReveal({ winners, you, back }: { winners: QuizWin[]; you: PlayerId;
   );
 }
 
-// The Quiz tab once the winners are out: the same news, calmer, for as long as the party lasts.
 export function QuizWinners({ winners, you }: { winners: QuizWin[]; you: PlayerId }) {
   const cheer = quizCheer(winners, you);
   return (
