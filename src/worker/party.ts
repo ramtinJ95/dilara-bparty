@@ -16,7 +16,7 @@ import {
   type Heartbeat,
   type ServerMsg,
 } from "../shared/protocol";
-import { quizLock, type GuestFinales } from "../shared/finale";
+import { finaleOnPhones, quizLock, quizRunning, type GuestFinales } from "../shared/finale";
 import type { AdminQuiz, QuizStep } from "../shared/quiz";
 import { joinCode } from "./auth";
 import { Finale } from "./finale";
@@ -66,11 +66,12 @@ const adminCommands: AdminHandlers = {
   "delete-question": ({ quiz }, { id }) => quiz.remove(id),
   "move-question": ({ quiz }, { id, to }) => quiz.move(id, to),
   quiz: ({ quiz, finale, setLiveMode }, { step, q }) => {
-    const locked = quizLock(finale.stages(Date.now()));
+    const stages = finale.stages(Date.now());
+    const locked = quizLock(stages);
     if (locked) return locked;
     const error = quiz.step(step, Date.now(), q);
     const live = liveModeAfter[step];
-    if (!error && live !== undefined) setLiveMode(live);
+    if (!error && live !== undefined && (live || !finaleOnPhones(stages))) setLiveMode(live);
     return error;
   },
   finale: ({ finale, quiz, contest, players, setLiveMode }, { kind, step }) => {
@@ -344,8 +345,7 @@ export class Party extends DurableObject<Env> {
     const online = new Set(roles.flatMap((r) => (r.role === "guest" ? (roster.rootOf(r.playerId)?.id ?? []) : [])));
     const quiz = this.quiz.publish(roster, online, now);
     const phase = quiz.admin.stage.phase;
-    const onPhones = Object.values(this.finale.stages(now)).some((s) => s === "suspense" || s === "reveal");
-    if (this.finale.settle(now) && (phase === "locked" || phase === "ended") && !onPhones) this.setLiveMode(false);
+    if (this.finale.settle(now) && !quizRunning(phase) && !finaleOnPhones(this.finale.stages(now))) this.setLiveMode(false);
     const settings = readSettings(this.ctx.storage.sql);
     const contest = this.contest.snapshot(settings);
     const finale = this.finale.guest(roster, now);

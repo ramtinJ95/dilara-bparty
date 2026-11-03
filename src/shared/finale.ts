@@ -34,9 +34,12 @@ export const nextStep = (stage: FinaleStage): FinaleStep | null => FINALE_STEPS[
 // A step at or behind the stage has been taken; only the one right after it can be taken now.
 export const stepTaken = (step: FinaleStep, stage: FinaleStage) => FINALE_STEPS.indexOf(step) < STAGE_STEP[stage];
 
+// A suspense page or a reveal is on the phones, so the fast heartbeat stays on.
+export const finaleOnPhones = (stages: Record<FinaleKind, FinaleStage>) => FINALE_KINDS.some((k) => stages[k] === "suspense" || stages[k] === "reveal");
+
 export type FinaleGate = { quizPhase: Phase; quiz: FinaleStage; photo: FinaleStage; tied: readonly PhotoId[]; pick: PhotoId | null };
 
-const quizRunning = (phase: Phase) => phase !== "locked" && phase !== "ended";
+export const quizRunning = (phase: Phase) => phase !== "locked" && phase !== "ended";
 
 // Shared with the admin view, so a disabled button says what the server would answer. At most one suspense page is on the phones.
 export const FINALE_BLOCKERS = {
