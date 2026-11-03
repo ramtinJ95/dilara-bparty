@@ -4,7 +4,8 @@ import { chromiumLaunchOptions } from "./e2e/drive.ts";
 const port = Number(process.env.E2E_PORT ?? 4317);
 const devPort = port + 1;
 // Headless WebKit draws in software: three idle phones with the snow falling kept 90% of the pylon's 4 CPUs busy, 5% with motion reduced.
-const webkit = { ...devices["Desktop Safari"], launchOptions: {}, reducedMotion: "reduce" as const };
+// Desktop Safari draws at 2x. On the 4 GB review runner, WebKit's pages at 2x left 78 MB free, and pages stalled.
+const webkit = { ...devices["Desktop Safari"], deviceScaleFactor: 1, launchOptions: {}, reducedMotion: "reduce" as const };
 
 export default defineConfig({
   testDir: "e2e",

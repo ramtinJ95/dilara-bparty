@@ -1,12 +1,13 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { CONTEST_UPLOAD_PATH } from "../src/shared/api";
 import { LOOKS, placeholder, pngFile, type Look } from "./placeholder";
 import { secrets } from "./server";
-import { addQuestion, answer, fillQuestion, type QuestionSpec } from "./drive";
-import { joinViaApi, laptop, openAdmin, openShell, phone } from "./support";
+import { addQuestion, answer, fillQuestion, phone, type QuestionSpec } from "./drive";
+import { joinViaApi, laptop, openAdmin, openShell } from "./support";
 
 const out = "artifacts";
 
@@ -51,9 +52,9 @@ test("screenshots", async ({ browser }) => {
   await admin.locator('.landing-photo input[type="file"]').setInputFiles({ name: "snow.png", mimeType: "image/png", buffer: await placeholder(admin, LOOKS.snow) });
   await expect(admin.getByAltText("Current landing photo")).toBeVisible();
 
-  const offline = await joinViaApi(browser, "Olle");
+  const offline = await joinViaApi(browser, "Olle", phone);
   await offline.close();
-  const online = await Promise.all(["Astrid", "Testgäst", "Kim Testsson"].map((n) => joinViaApi(browser, n)));
+  const online = await Promise.all(["Astrid", "Testgäst", "Kim Testsson"].map((n) => joinViaApi(browser, n, phone)));
   await Promise.all(online.map((c) => openShell(c)));
 
   const guestContext = await browser.newContext(phone);
@@ -123,7 +124,7 @@ async function vote(page: Page, nth: number, times: number, section: "current" |
 }
 
 test("contest screenshots", async ({ browser }) => {
-  const [maja, nils, elin, viggo] = await Promise.all(["Maja", "Nils", "Elin", "Viggo"].map((n) => joinViaApi(browser, n)));
+  const [maja, nils, elin, viggo] = await Promise.all(["Maja", "Nils", "Elin", "Viggo"].map((n) => joinViaApi(browser, n, phone)));
   const majaPage = await openShell(maja!);
   await majaPage.getByRole("button", { name: "Mitt foto" }).click();
   await expect(majaPage.getByRole("button", { name: "Välj bild" })).toBeVisible();
@@ -341,7 +342,7 @@ async function quizRoom(browser: Browser, admin: Page) {
   if ((await admin.locator(".questions > ol > li").count()) === 0) {
     for (const q of quizQuestions(await placeholder(admin, LOOKS.snow))) await addQuestion(admin, q);
   }
-  const pages = await Promise.all(bots.map(async (name) => openShell(await joinViaApi(browser, name))));
+  const pages = await Promise.all(bots.map(async (name) => openShell(await joinViaApi(browser, name, phone))));
   return new Map(bots.map((name, i) => [name, pages[i]!]));
 }
 
@@ -367,7 +368,7 @@ test("quiz screenshots", async ({ browser }) => {
   await admin.evaluate(() => scrollTo(0, 0));
 
   const room = await quizRoom(browser, admin);
-  const kimContext = await joinViaApi(browser, "Kim Testsson");
+  const kimContext = await joinViaApi(browser, "Kim Testsson", phone);
   const kim = await openShell(kimContext);
   await kim.getByRole("button", { name: "Galleri" }).click();
 

@@ -1,4 +1,5 @@
-import { expect, test, type Browser, type Page, type WebSocketRoute } from "@playwright/test";
+import { type Browser, type Page, type WebSocketRoute } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { secrets } from "./server";
 import { addQuestion, answer, reconnecting, unlockPopup } from "./drive";
