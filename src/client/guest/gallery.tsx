@@ -1,9 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
-import { VOTES_PER_GUEST } from "../../shared/model";
+import type { PhotoWin } from "../../shared/finale";
+import { VOTES_PER_GUEST, type PhotoId } from "../../shared/model";
 import type { GalleryPhoto, GuestCmd, GuestContest } from "../../shared/protocol";
 import { photoUrl } from "../api";
 import { GalleryIcon, Snowflake, Sparkle } from "../icons";
 import { Cap, Icicles } from "../ice";
+import { PhotoWinner } from "./finale";
 
 type Vote = { canVote: boolean; send: (cmd: GuestCmd) => void; votesLeft: number };
 
@@ -49,7 +51,9 @@ function Card({ photo, vote, view }: { photo: GalleryPhoto; vote: Vote; view: (p
   );
 }
 
-function Lightbox({ photo, close }: { photo: GalleryPhoto; close: () => void }) {
+type Shown = { id: PhotoId; thumb: PhotoId };
+
+function Lightbox({ photo, close }: { photo: Shown; close: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     addEventListener("keydown", onKey);
@@ -67,8 +71,10 @@ function Lightbox({ photo, close }: { photo: GalleryPhoto; close: () => void }) 
 
 const leftText = (left: number) => (left === 0 ? "Alla röster är använda" : `${left} av ${VOTES_PER_GUEST} röster kvar`);
 
-export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: GuestContest; live: boolean; send: (cmd: GuestCmd) => void; toMyPhoto: () => void }) {
-  const [open, setOpen] = useState<GalleryPhoto | null>(null);
+type Props = { contest: GuestContest; winner: PhotoWin | null; live: boolean; send: (cmd: GuestCmd) => void; toMyPhoto: () => void };
+
+export function GalleryPanel({ contest, winner, live, send, toMyPhoto }: Props) {
+  const [open, setOpen] = useState<Shown | null>(null);
   const vote: Vote = { canVote: live && contest.voting, send, votesLeft: contest.votesLeft };
   const current = contest.gallery.filter((p) => !p.fame);
   const fame = contest.gallery.filter((p) => p.fame);
@@ -76,6 +82,7 @@ export function GalleryPanel({ contest, live, send, toMyPhoto }: { contest: Gues
   return (
     <section class="gallery" aria-labelledby="panel-title">
       <h2 id="panel-title">Galleri</h2>
+      {winner && <PhotoWinner photo={winner} open={() => setOpen({ id: winner.photo, thumb: winner.thumb })} />}
       {contest.voting ? (
         <div class="votes-left card" role="status">
           <Cap />
