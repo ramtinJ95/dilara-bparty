@@ -32,6 +32,12 @@ describe("what covers the guest app", () => {
     expect(onStage(finales({ stage: "off" }, reveal), left("quiz")), "leaving the other finale changes nothing").toEqual({ kind: "photo", view: reveal });
   });
 
+  it("gives way to a quiz the host starts during a reveal, but not a suspense page", () => {
+    const reveal = { stage: "reveal", win: photoWin, backInMs: 40_000 } as const;
+    expect(onStage(finales({ stage: "off" }, reveal), left(), true)).toBeNull();
+    expect(onStage(finales({ stage: "off" }, { stage: "suspense" }), left(), true)).toEqual({ kind: "photo", view: { stage: "suspense" } });
+  });
+
   it("is the later of two reveals, then the other until the phone leaves that too", () => {
     const quizReveal = { stage: "reveal", win: quizWin, backInMs: 10_000 } as const;
     const photoReveal = { stage: "reveal", win: null, backInMs: 55_000 } as const;

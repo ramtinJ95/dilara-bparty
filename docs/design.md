@@ -156,6 +156,7 @@ code and runs the admin view; it is not a shared game screen.
 - After a reveal, `Tillbaka till festen` takes the guest back to the app, and
   a minute after the reveal every phone goes back on its own. The Quiz tab
   then shows the quiz winners, and the gallery opens with the winning photo.
+  A quiz the host starts during that minute takes over the phones at once.
 - A phone that joins or reconnects during a finale lands on the current step:
   the suspense page, the reveal for the rest of its minute, or the app.
 - Each winner is fixed when it is revealed.

@@ -1,6 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { winOf, type FinaleKind } from "../../shared/finale";
+import { quizRunning, winOf, type FinaleKind } from "../../shared/finale";
 import type { GuestCmd, GuestState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
@@ -145,7 +145,7 @@ export function Shell() {
   const deadline = useDeadline(state, quiz?.phase === "open" ? quiz.endsInMs : null);
   const unlock = useUnlockNotice(quiz && quiz.phase !== "locked" && quiz.phase !== "ended" ? quiz.unlockedAt : null, onQuizTab);
   const waitingForYou = quiz?.phase === "open" && quiz.pick === null && !onQuizTab;
-  const staged = state && onStage(state.finale, dismissed);
+  const staged = state && onStage(state.finale, dismissed, quizRunning(state.quiz.phase));
 
   if (state && staged) {
     return (
