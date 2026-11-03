@@ -1,5 +1,5 @@
-// Screenshots every guest state at 390 and 360 px, plus the admin at 1440 px, for a restyle PR. It plays the whole party up to the
-// quiz winner, which can't be undone, so point it only at a fresh local instance seeded with `npm run seed -- --base-url <url> --bots`.
+// Screenshots every guest state at 390 and 360 px, plus the admin at 1440 px, for a restyle PR. It plays the whole party through the
+// photo winner, which can't be undone, so point it only at a fresh local instance seeded with `npm run seed -- --base-url <url> --bots`.
 // Usage: node e2e/tour.ts <local base url> [out dir]
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -123,14 +123,10 @@ await kim.waitForTimeout(1500);
 await shot(kim, "quiz-question");
 await kim.locator(".choice").nth(1).click();
 await shot(kim, "quiz-answered");
-await expect(kim.getByText("Väntar på rätt svar …")).toBeVisible({ timeout: 30000 });
-await shot(kim, "quiz-closed");
-await click("Reveal answer");
-await expect(kim.locator(".verdict")).toBeVisible();
+await expect(kim.locator(".verdict")).toBeVisible({ timeout: 30000 });
 await shot(kim, "quiz-reveal");
-await full(kim, "quiz-reveal");
-await click("Show leaderboard");
-await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+await shot(admin, "admin-reveal", false);
+await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible({ timeout: 15000 });
 await kim.waitForTimeout(2000);
 await shot(kim, "quiz-leaderboard");
 await shot(admin, "admin-leaderboard", false);
@@ -140,10 +136,9 @@ await expect(kim.locator(".q-photo")).toBeVisible({ timeout: 15000 });
 await kim.waitForTimeout(800);
 await shot(kim, "quiz-question-photo");
 await full(kim, "quiz-question-photo");
-await expect(kim.getByText("Väntar på rätt svar …").or(kim.getByText("Tiden är ute!"))).toBeVisible({ timeout: 60000 });
+await expect(kim.getByText("Tiden är ute!").or(kim.locator(".verdict"))).toBeVisible({ timeout: 60000 });
 await shot(kim, "quiz-missed");
-await click("Reveal answer");
-await expect(kim.locator(".verdict")).toBeVisible();
+await expect(kim.locator(".verdict")).toBeVisible({ timeout: 15000 });
 await shot(kim, "quiz-reveal-none");
 
 await click("Next question");
@@ -151,12 +146,9 @@ await expect(kim.locator(".guess")).toBeVisible();
 await shot(kim, "quiz-number");
 await kim.getByLabel("Din gissning").fill("42");
 await kim.getByRole("button", { name: "Skicka" }).click();
-await expect(kim.getByText("Väntar på rätt svar …")).toBeVisible({ timeout: 30000 });
-await click("Reveal answer");
-await expect(kim.locator(".verdict")).toBeVisible();
+await expect(kim.locator(".verdict")).toBeVisible({ timeout: 30000 });
 await shot(kim, "quiz-reveal-number");
-await click("Show leaderboard");
-await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible();
+await expect(kim.getByRole("heading", { name: "Topplistan" })).toBeVisible({ timeout: 15000 });
 await kim.waitForTimeout(2000);
 await shot(kim, "quiz-leaderboard-2");
 
@@ -176,15 +168,6 @@ await full(admin, "admin-before-finale");
 await click("Open suspense page");
 await expect(kim.locator(".suspense")).toBeVisible();
 await shot(kim, "finale-suspense");
-await click("Reveal photo winner");
-const pick = admin.getByRole("button", { name: "Pick as winner" });
-if (await pick.first().isVisible().catch(() => false)) {
-  await pick.first().click();
-  await click("Reveal photo winner");
-}
-await expect(kim.locator(".win-photo")).toBeVisible();
-await kim.waitForTimeout(2500);
-await shot(kim, "finale-photo");
 const winnerPhone = async (name: string) => {
   const [, page] = await phone();
   await page.goto(`/j/${JOIN}`);
@@ -195,11 +178,17 @@ const winnerPhone = async (name: string) => {
   await page.waitForTimeout(2500);
   return page;
 };
-await shot(await winnerPhone((await kim.locator("#finale-title").textContent())!), "finale-photo-own");
 await click(/^Reveal quiz winner/);
 await kim.waitForTimeout(2500);
 await shot(kim, "finale-quiz");
 await shot(await winnerPhone((await kim.locator("#finale-title").textContent())!.split(" & ")[0]!), "finale-quiz-own");
+const pick = admin.getByRole("button", { name: "Pick as winner" });
+if (await pick.first().isVisible().catch(() => false)) await pick.first().click();
+await click("Reveal photo winner");
+await expect(kim.locator(".win-photo")).toBeVisible();
+await kim.waitForTimeout(2500);
+await shot(kim, "finale-photo");
+await shot(await winnerPhone((await kim.locator("#finale-title").textContent())!), "finale-photo-own");
 await shot(admin, "admin-finale", false);
 
 await browser.close();
