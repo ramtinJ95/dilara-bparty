@@ -314,6 +314,9 @@ test("the quiz finale shows its suspense page and the joint winners on every pho
   await expect(finale.getByText("Open the quiz finale? Every phone moves to the quiz suspense page. The quiz can't change after this.")).toBeVisible();
   await finale.getByRole("button", { name: "Yes, open suspense page" }).click();
   for (const p of phones) await expect(p.getByRole("heading", { name: "Vem vann quizet?" })).toBeVisible();
+  await olle.context().clearCookies();
+  await olle.goto("/");
+  await expect(olle.getByRole("heading", { name: "Vem vann quizet?" }), "a phone that lost its cookie restores it and lands on the suspense page").toBeVisible();
   await expect(kim.getByRole("button", { name: "Galleri" }), "the tabs are gone from phones").toHaveCount(0);
   await expect(finale.locator(".phase")).toHaveText("Suspense page on phones");
   await expect(heartbeatState(admin)).toHaveText("Fast heartbeat on");
@@ -473,6 +476,9 @@ test("the photo finale closes uploads and voting, reveals the picked tied photo 
   }
   expect(await lookOf(kim.getByAltText("Vinnarbilden av Olle Testsson"))).toBe("rose");
   await expect(olle.getByText("Grattis, det är din bild!")).toBeVisible();
+  await olle.context().clearCookies();
+  await olle.reload();
+  await expect(olle.getByText("Grattis, det är din bild!"), "a phone that restored its cookie lands on the reveal as the winner").toBeVisible();
   for (const p of [astrid, kim]) await expect(p.getByText("Grattis, det är din bild!")).toHaveCount(0);
   await expect(finale.locator(".revealed dd"), "the admin view names the photographer").toContainText("Olle Testsson");
   await expect(finale.locator(".tie"), "the tie is settled").toHaveCount(0);
