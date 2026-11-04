@@ -35,9 +35,9 @@ export async function joinByLink(phone: Page, joinSecret: string, name: string):
 }
 
 // As on another browser: the cookie and the app's copy of it are both gone, so only the name gets the guest back in.
+// This clears every origin's storage, so it works from about:blank too, where a page can't reach the party's localStorage.
 export async function forgetIdentity(phone: Page): Promise<void> {
-  await phone.context().clearCookies();
-  if (phone.url().startsWith("http")) await phone.evaluate(() => localStorage.clear());
+  await phone.context().setStorageState({ cookies: [], origins: [] });
 }
 
 export async function renameFromAdmin(admin: Page, from: string, to: string): Promise<void> {
