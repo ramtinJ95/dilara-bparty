@@ -128,6 +128,7 @@ describe("photo finale", () => {
         stage: "reveal",
         win: { photo, thumb: expect.any(String), owner: astrid.id, name: "Astrid", votes: 1 },
         backInMs: REVEAL_SHOW_MS,
+        at: expect.any(Number),
       });
     }
 
@@ -221,7 +222,7 @@ describe("both finales", () => {
     }
     const shown = await admin.current();
     expect(named(shown.finale.quiz.stage === "reveal" ? shown.finale.quiz.win : [])).toEqual(JOINT);
-    expect(shown.finale.photo).toEqual({ stage: "reveal", win: null, backInMs: REVEAL_SHOW_MS });
+    expect(shown.finale.photo).toEqual({ stage: "reveal", win: null, backInMs: REVEAL_SHOW_MS, at: expect.any(Number) });
 
     vi.setSystemTime(t0 + REVEAL_SHOW_MS);
     await fireAlarm();

@@ -1,6 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { quizRunning, winOf, type FinaleKind } from "../../shared/finale";
+import { quizRunning, winOf } from "../../shared/finale";
 import type { GuestCmd, GuestState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
@@ -11,7 +11,7 @@ import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
 import { Finale, QuizWinners } from "./finale";
 import { GalleryPanel } from "./gallery";
 import { MyPhotoPanel } from "./my-photo";
-import { onStage } from "./on-stage";
+import { onStage, readLeft, writeLeft } from "./on-stage";
 import { Quiz } from "./quiz";
 import { UnlockPopup, useUnlockNotice } from "./unlock";
 import { useUploader, type Uploader } from "./use-upload";
@@ -125,8 +125,7 @@ function useRestoreOnRefusal(status: LiveStatus) {
 export function Shell() {
   const [tab, select] = useHashTab();
   const [toast, showToast] = useToast();
-  // Each phone leaves a reveal on its own button; the server's broadcast at the end of the reveal brings back the rest.
-  const [dismissed, setDismissed] = useState<ReadonlySet<FinaleKind>>(new Set());
+  const [left, setLeft] = useState(readLeft);
   const { state, status, send, check } = useLive<GuestState>("/ws", (msg) =>
     msg.t === "gone" ? (forgetSession(), location.replace("/")) : msg.t === "error" && showToast(msg.message),
   );
@@ -145,7 +144,7 @@ export function Shell() {
   const deadline = useDeadline(state, quiz?.phase === "open" ? quiz.endsInMs : null);
   const unlock = useUnlockNotice(quiz && quiz.phase !== "locked" && quiz.phase !== "ended" ? quiz.unlockedAt : null, onQuizTab);
   const waitingForYou = quiz?.phase === "open" && quiz.pick === null && !onQuizTab;
-  const staged = state && onStage(state.finale, dismissed, quizRunning(state.quiz.phase));
+  const staged = state && onStage(state.finale, left, quizRunning(state.quiz.phase));
 
   if (state && staged) {
     return (
@@ -155,7 +154,7 @@ export function Shell() {
             {pill}
           </div>
         )}
-        <Finale staged={staged} finales={state.finale} you={state.you.id} back={() => setDismissed(new Set([...dismissed, staged.kind]))} />
+        <Finale staged={staged} finales={state.finale} you={state.you.id} back={() => staged.view.stage === "reveal" && (writeLeft(staged.view.at), setLeft(staged.view.at))} />
       </div>
     );
   }

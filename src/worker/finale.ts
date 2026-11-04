@@ -69,7 +69,7 @@ const KINDS: { [K in FinaleKind]: Kind<K> } = {
 function view<W>(stored: Stored<W> | undefined, now: number): FinaleView<W> {
   if (!stored) return { stage: "off" };
   if (stored.stage === "suspense") return stored;
-  if (stored.stage === "revealed" && now < stored.at + REVEAL_SHOW_MS) return { stage: "reveal", win: stored.win, backInMs: stored.at + REVEAL_SHOW_MS - now };
+  if (stored.stage === "revealed" && now < stored.at + REVEAL_SHOW_MS) return { stage: "reveal", win: stored.win, backInMs: stored.at + REVEAL_SHOW_MS - now, at: stored.at };
   return { stage: "done", win: stored.win };
 }
 
