@@ -633,3 +633,91 @@ test("finale screenshots and video", async ({ browser }) => {
     `${out}/finale.gif`,
   ]);
 });
+
+// Safari on an iPhone SE shows 375x548 of its 375x667 screen while both toolbars are up.
+const fitSizes = [[390, 844], [375, 667], [375, 548], [360, 780]] as const;
+
+async function fitQuestions(admin: Page): Promise<[string, QuestionSpec][]> {
+  const wide = await placeholder(admin, LOOKS.snow, [1200, 900]);
+  const tall = await placeholder(admin, LOOKS.snow, [900, 1200]);
+  return [
+    ["photo-short", { kind: "choice", text: "Hur många armar har en snöflinga?", options: ["Sex", "Fyra", "Åtta", "Tolv"], correct: 0, seconds: 120, photo: wide }],
+    ["photo-long", { kind: "choice", text: "Vem bor i det här slottet av is?", options: ["En isbjörn som åker skridskor", "En pingvin med mössa", "En snögubbe utan näsa", "Ett rådjur i snön"], correct: 1, seconds: 120, photo: tall }],
+    ["no-photo", { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå", "Rosa"], correct: 0, seconds: 120 }],
+    ["number", { kind: "number", text: "Hur många snöbollar ryms i en hink?", answer: "40", seconds: 120, photo: wide }],
+    [
+      "very-long",
+      {
+        kind: "choice",
+        text: "Om en snögubbe står ute i solen en hel eftermiddag i april, vad händer då med hans morotsnäsa och hans fina hatt?",
+        options: ["Näsan ramlar av och hatten blåser bort", "Ingenting, han är gjord av magisk is", "Han smälter till en stor vattenpöl", "Han går in i skuggan och vilar"],
+        correct: 2,
+        seconds: 120,
+        photo: tall,
+      },
+    ],
+  ];
+}
+
+test("quiz fit screenshots", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const admin = await openAdmin(await browser.newContext(laptop));
+  await wipeParty(admin);
+  const questions = await fitQuestions(admin);
+  for (const [, q] of questions) await addQuestion(admin, q);
+  const phones = await Promise.all(
+    fitSizes.map(async ([width, height], i) => [`${width}x${height}`, await openShell(await joinViaApi(browser, `Testgäst ${i + 1}`, { ...phone, viewport: { width, height } }))] as const),
+  );
+  await step(admin, "Unlock quiz");
+  for (const [n, [id]] of questions.entries()) {
+    await step(admin, n === 0 ? "Start question 1" : "Next question");
+    for (const [size, page] of phones) {
+      await expect(page.locator(".choices, .guess")).toBeVisible();
+      await page.waitForTimeout(400);
+      await shot(page, `quiz-fit-${id}-${size}`);
+    }
+    if (n === 0) {
+      await phones[0]![1].locator(".choice").nth(2).tap();
+      await expect(phones[0]![1].getByText("Svar skickat!")).toBeVisible();
+      await shot(phones[0]![1], "quiz-fit-photo-short-answered-390x844");
+    }
+    await step(admin, "Reveal answer");
+    await step(admin, "Yes, reveal answer");
+    await expect(admin.locator(".quiz .phase")).toHaveText("Answer revealed");
+  }
+  await Promise.all(browser.contexts().map((c) => c.close()));
+});
+
+test("quiz fit video", async ({ browser }) => {
+  const videoDir = `${out}/video-tmp`;
+  const size = { width: 375, height: 667 };
+  const admin = await openAdmin(await browser.newContext(laptop));
+  await wipeParty(admin);
+  const [short, , , , long] = await fitQuestions(admin);
+  await addQuestion(admin, short![1]);
+  await addQuestion(admin, long![1]);
+  const context = await joinViaApi(browser, "Testgäst Kim", { ...phone, viewport: size, deviceScaleFactor: 1, recordVideo: { dir: videoDir, size } });
+  const kim = await context.newPage();
+  await kim.goto("/app");
+  await step(admin, "Unlock quiz");
+  await step(admin, "Start question 1");
+  await expect(kim.locator(".choices")).toBeVisible();
+  await kim.waitForTimeout(1500);
+  await kim.locator(".choice").nth(2).tap();
+  await expect(kim.locator(".verdict"), "the only guest's answer reveals the round").toBeVisible();
+  await kim.waitForTimeout(1500);
+  await step(admin, "Next question");
+  const cue = kim.getByRole("button", { name: "Scrolla ner för att svara" });
+  await expect(cue).toBeVisible();
+  await kim.waitForTimeout(2000);
+  await cue.tap();
+  await kim.waitForTimeout(1000);
+  await kim.locator(".choice").nth(3).tap();
+  await expect(kim.locator(".verdict")).toBeVisible();
+  await kim.waitForTimeout(2000);
+  const video = kim.video()!;
+  await Promise.all(browser.contexts().map((c) => c.close()));
+  renameSync(await video.path(), `${out}/quiz-fit.webm`);
+  rmSync(videoDir, { recursive: true, force: true });
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", "1.5", "-i", `${out}/quiz-fit.webm`, "-vf", gifFilter(375), `${out}/quiz-fit.gif`]);
+});
