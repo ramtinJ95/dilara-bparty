@@ -1,6 +1,6 @@
 import { type Browser, type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop, versionsOf } from "./drive";
+import { forgetIdentity, greeting, joinByLink, onlineDot, openAdmin, reconnecting, renameFromAdmin, adminRow, laptop, versionsOf } from "./drive";
 import { shapeNetwork, type Line, type ProfileName } from "./phone-network";
 import { noise, pngFile } from "./placeholder";
 import { secrets } from "./server";
@@ -84,12 +84,12 @@ test("a frozen background tab catches up when it resumes, with or without its so
   await expect(onlineDot(host, locked)).toBeVisible();
 });
 
-test("a phone that lost its cookie rejoins by name and keeps its identity", async ({ browser }) => {
+test("a phone that lost its identity rejoins by name and keeps it", async ({ browser }) => {
   const forgetful = tagged("Gäst Glömsk");
   const host = await admin(browser);
   const { page } = await phone(browser, "slow-4g", forgetful);
 
-  await page.context().clearCookies();
+  await forgetIdentity(page);
   await page.reload();
   await expect(page.getByLabel("Kod")).toBeVisible({ timeout: 15_000 });
   await expect(onlineDot(host, forgetful)).toHaveCount(0);
@@ -100,6 +100,35 @@ test("a phone that lost its cookie rejoins by name and keeps its identity", asyn
   await expect(greeting(page, forgetful)).toBeVisible({ timeout: 15_000 });
   await expect(adminRow(host, forgetful)).toHaveCount(1);
   await expect(onlineDot(host, forgetful)).toBeVisible();
+});
+
+test("a phone whose cookie went while the app stayed open gets it back on its next reconnect, without a reload", async ({ browser }) => {
+  const sleepy = tagged("Gäst Sömnig");
+  const host = await admin(browser);
+  const { page, line } = await phone(browser, "good", sleepy);
+  const joined = (await page.context().cookies()).find((c) => c.name === "pid")?.value;
+
+  await page.context().clearCookies();
+  await line.cut("clean");
+  await expect(reconnecting(page)).toBeVisible();
+  await line.restore();
+  await expect(reconnecting(page)).toHaveCount(0, { timeout: 15_000 });
+  await expect(onlineDot(host, sleepy)).toBeVisible();
+  await expect(page).toHaveURL(/\/app$/);
+  expect((await page.context().cookies()).find((c) => c.name === "pid")?.value).toBe(joined);
+});
+
+test("an open app whose cookie went and whose saved identity is refused leaves for the bare page", async ({ browser }) => {
+  const { page, line } = await phone(browser, "good", tagged("Gäst Borta"));
+  await page.evaluate(() => localStorage.setItem("pid", `${localStorage.getItem("pid")!.split(".")[0]}.forged`));
+
+  await page.context().clearCookies();
+  await line.cut("clean");
+  await expect(reconnecting(page)).toBeVisible();
+  await line.restore();
+  await expect(page.getByLabel("Kod")).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/$/);
+  expect(await page.evaluate(() => localStorage.getItem("pid"))).toBeNull();
 });
 
 const dropped = (page: Page) => page.getByText("Anslutningen bröts.", { exact: false });

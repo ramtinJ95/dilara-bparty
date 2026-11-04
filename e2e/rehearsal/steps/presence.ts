@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { greeting, guestsHere, joinByCode, joinByLink, onlineDot, reconnecting, renameFromAdmin, setFastHeartbeat } from "../../drive.ts";
+import { forgetIdentity, greeting, guestsHere, joinByCode, joinByLink, onlineDot, reconnecting, renameFromAdmin, setFastHeartbeat } from "../../drive.ts";
 import type { Outage } from "../../phone-network.ts";
 import type { Guest, Rehearsal, Step } from "../rehearsal.ts";
 
@@ -139,7 +139,7 @@ const rejoin: Step = {
     await Promise.all(
       forgetful.map((g) =>
         r.time("rejoin by name", g, async () => {
-          await g.context.clearCookies();
+          await forgetIdentity(g.page);
           await joinByLink(g.page, r.secrets.join, g.name.toLowerCase());
           await expect(g.page.getByRole("heading", { name: "Är det du?" })).toBeVisible({ timeout: JOIN_TIMEOUT });
           await g.page.getByRole("button", { name: "Ja, det är jag" }).click();

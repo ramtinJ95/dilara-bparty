@@ -453,9 +453,21 @@ test("resetting the party sends every phone away and keeps the questions and the
   await word.fill("reset");
   await expect(confirm, "only the exact word unlocks the reset").toBeDisabled();
   await word.fill("RESET");
+  const saved = await astrid.evaluate(() => localStorage.getItem("pid"));
+  expect(saved, "a joined phone keeps a copy of its signed identity").toMatch(/^[\w-]+\.[\w-]+$/);
   await confirm.click();
 
   for (const p of [astrid, olle, kim, kimAgain]) await expect(p, "every phone leaves for the bare page").toHaveURL(/\/$/);
+  for (const p of [astrid, olle, kim, kimAgain]) {
+    await p.reload();
+    await expect(p.getByLabel("Kod"), "and stays there, not signed back in to a deleted player").toBeVisible();
+    await expect(p).toHaveURL(/\/$/);
+  }
+  expect(await astrid.evaluate(() => localStorage.getItem("pid")), "the reset clears the copy").toBeNull();
+  await astrid.evaluate((pid) => localStorage.setItem("pid", pid!), saved);
+  await astrid.reload();
+  await expect(astrid.getByLabel("Kod"), "a phone that slept through the reset is refused and stays on the bare page").toBeVisible();
+  expect(await astrid.evaluate(() => localStorage.getItem("pid")), "and forgets the refused copy").toBeNull();
   await expect(admin.getByText("Nobody has joined yet.")).toBeVisible();
   await expect(card(".contest").getByText("Nobody has uploaded yet.")).toBeVisible();
   await expect(card(".quiz .phase")).toHaveText("Locked");

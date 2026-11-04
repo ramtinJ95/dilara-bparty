@@ -149,8 +149,12 @@ export class Party extends DurableObject<Env> {
     return result;
   }
 
+  isPlayer(id: PlayerId): boolean {
+    return this.players.resolve(id) !== undefined;
+  }
+
   guestEntry(id: PlayerId | null): GuestEntry {
-    if (id && this.players.resolve(id) !== undefined) return { joined: true };
+    if (id && this.isPlayer(id)) return { joined: true };
     return { joined: false, landingPhoto: this.landingPhoto() };
   }
 

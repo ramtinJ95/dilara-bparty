@@ -9,7 +9,7 @@ A guest opens the join link from the QR code, or types the short code on the bar
 - `join-name-rules` rejects an empty or blank name (button disabled), names over 30 characters (input stops) and control characters (alert).
 - `join-closed` refuses a new name after the host ends the party with `Kalaset är slut. Tack för att du var med!` (see [finale.md](./finale.md)). An existing name can still reclaim.
 - `join-cookie` sends a joined guest who opens the link again straight to `/app`.
-- `join-neutral` keeps `/`, wrong links and `/guest.html` free of party content.
+- `join-neutral` keeps `/`, wrong links and `/guest.html` free of party content for anyone who hasn't joined. A joined phone that opens `/` goes to `/app` (see [stay-signed-in.md](./stay-signed-in.md)).
 
 ## How to get to it (user POV)
 
@@ -29,7 +29,7 @@ Preconditions:
 - **Wrong code.** Run `await page.getByLabel("Kod").fill("AAA 222")` and click `Fortsätt`. The alert reads `Fel kod, försök igen.`
 - **Name rules.** With an empty name, `Gå med` is disabled. Fill a name with a control character such as `"a\u0007b"` and submit. The alert reads `Namnet innehåller tecken som inte fungerar.`
 - **Cookie holds.** On the joined phone, run `await page.goto(\`/j/${JOIN_SECRET}\`)`. The URL becomes `/app` with the same greeting.
-- **Neutral.** Run `await page.goto("/")`. The body has no `Dilara`. `page.goto("/j/not-the-secret")` and `page.goto("/guest.html")` answer 404.
+- **Neutral.** On a phone that hasn't joined, run `await page.goto("/")`. The body has no `Dilara`. `page.goto("/j/not-the-secret")` and `page.goto("/guest.html")` answer 404.
 - **Proof.** `scripts/journeys/join-by-link.ts` runs link entry, admin, and cookie end to end and saves five evidence files.
 
 ## Gotchas

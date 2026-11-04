@@ -4,7 +4,8 @@ import type { GuestCmd, GuestState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
 import { Cap, Icicles } from "../ice";
-import { useLive } from "../live";
+import { useLive, type LiveStatus } from "../live";
+import { forgetSession, hasSession, restoreSession } from "../session";
 import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
 import { Finale } from "./finale";
 import { GalleryPanel } from "./gallery";
@@ -92,13 +93,33 @@ function useResendHeld(state: GuestState | null, live: boolean, send: (cmd: Gues
   }, [state]);
 }
 
+// The server refuses the socket of a page whose cookie Safari dropped while it stayed open, and the refusal looks like any failed
+// connect. So the first failed connect of an outage that reaches the server asks once for the cookie back, and the next retry uses it.
+// A refused copy means the player is gone, and no socket will open to say so.
+function useRestoreOnRefusal(status: LiveStatus) {
+  const last = useRef(status.kind);
+  const asked = useRef(false);
+  useEffect(() => {
+    if (status.kind === "open") asked.current = false;
+    const refused = status.kind === "waiting" && last.current === "connecting";
+    last.current = status.kind;
+    if (!refused || asked.current || !hasSession()) return;
+    asked.current = true;
+    void restoreSession().then((result) => {
+      if (result === "refused") location.replace("/");
+      if (result === "unreached") asked.current = false;
+    });
+  }, [status]);
+}
+
 export function Shell() {
   const [tab, select] = useHashTab();
   const [toast, showToast] = useToast();
   const { state, status, send, check } = useLive<GuestState>("/ws", (msg) =>
-    msg.t === "gone" ? location.replace("/") : msg.t === "error" && showToast(msg.message),
+    msg.t === "gone" ? (forgetSession(), location.replace("/")) : msg.t === "error" && showToast(msg.message),
   );
   const live = status.kind === "open";
+  useRestoreOnRefusal(status);
   const uploader = useUploader(state, state?.contest.mine?.id ?? null, live);
   const upload = { ...uploader, pick: (file: File) => (check(), uploader.pick(file)), retry: () => (check(), uploader.retry()) };
   const choose = (t: Tab) => (check(), select(t));

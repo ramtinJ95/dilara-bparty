@@ -20,7 +20,7 @@ Preconditions:
 - Baseline instance and a laptop page on the admin view.
 - A player `Testgäst <tag>` joined from another phone (`joinByLink`).
 
-- **Lose the cookie.** Use a fresh `phone()`, or on the joined phone run `await page.context().clearCookies()` and `await page.reload()`. The reload lands on the neutral code page, because `/app` without a cookie redirects to `/`.
+- **Lose the identity.** Use a fresh `phone()`, or on the joined phone run `await forgetIdentity(page)` from `e2e/drive.ts` and `await page.reload()`. The reload lands on the neutral code page. Clearing only the cookie is not enough: the phone's copy in `localStorage` signs it back in (see [stay-signed-in.md](./stay-signed-in.md)).
 - **Type the same name.** Run `joinByLink(page, JOIN_SECRET, "testgäst <tag>")`. The heading `Är det du?` appears with the text `Någon har redan gått med som` and the stored spelling of the name.
 - **Say yes.** Run `await page.getByRole("button", { name: "Ja, det är jag" }).click()`. `greeting(page, "Testgäst <tag>")` is visible, with the stored spelling.
 - **Admin has one player.** Run `await expect(admin.locator(".players li .name").getByText(name, { exact: true })).toHaveCount(1)` and `await expect(onlineDot(admin, name)).toBeVisible()`.
