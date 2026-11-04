@@ -71,3 +71,9 @@ export const CheckIcon = () => (
     <path d="M5 12.5l4.5 4.5L19 7.5" />
   </svg>
 );
+
+export const ArrowDownIcon = () => (
+  <svg viewBox="0 0 24 24" {...line} stroke-width="2.6" aria-hidden="true">
+    <path d="M12 4.5v14M6 13l6 6 6-6" />
+  </svg>
+);

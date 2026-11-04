@@ -157,6 +157,11 @@
 .shell header .icicles.a { left: 34px; }
 .shell header .icicles.b { right: 90px; width: 40px; }
 .shell main { display: grid; gap: 18px; max-width: 520px; margin: 0 auto; padding: 22px 16px 12px; }
+.shell header.compact { padding-top: calc(env(safe-area-inset-top) + 10px); padding-bottom: 10px; }
+.shell header.compact h1 { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.shell header.compact .online { display: none; }
+.shell:has(.quiz-card.open) { display: flex; flex-direction: column; }
+.shell:has(.quiz-card.open) main { display: flex; flex: 1 0 auto; flex-direction: column; width: 100%; padding-top: 16px; }
 
 .tabs {
   position: fixed;

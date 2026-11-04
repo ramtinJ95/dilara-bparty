@@ -1,12 +1,12 @@
-import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import type { ComponentChildren, JSX, RefObject } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { PhotoId } from "../../shared/model";
 import type { GuestCmd } from "../../shared/protocol";
 import type { ChoiceResult, GuestQuiz, NumberResult, Phase, RoundResult } from "../../shared/quiz";
 import { formatSv as fmt, LETTERS, parseNumber } from "../answers";
 import { photoUrl } from "../api";
 import { useSecondsLeft } from "../clock";
-import { CheckIcon, Snowflake, Sparkle, Tiara } from "../icons";
+import { ArrowDownIcon, CheckIcon, Snowflake, Sparkle, Tiara } from "../icons";
 import { Cap, Icicles } from "../ice";
 import { elapsedMs, heldAnswer, holdAnswer, markShown, roundKey } from "./answer-clock";
 import { Leaderboard } from "./board";
@@ -68,34 +68,64 @@ function Progress({ n, total }: { n: number; total: number }) {
   );
 }
 
-type PhotoState = "loading" | "shown" | "none";
+type PhotoState = { kind: "loading" } | { kind: "none" } | { kind: "shown"; ratio: number };
 
 // The question waits for its photo so the answer timer starts with everything on screen.
 function usePhoto(photo: PhotoId | null): PhotoState {
-  const [done, setDone] = useState<{ photo: PhotoId; ok: boolean } | null>(null);
+  const [done, setDone] = useState<{ photo: PhotoId; ratio: number | null } | null>(null);
   useEffect(() => {
     if (!photo) return;
     let current = true;
     const img = new Image();
-    img.onload = () => current && setDone({ photo, ok: true });
-    img.onerror = () => current && setDone({ photo, ok: false });
+    img.onload = () => current && setDone({ photo, ratio: img.naturalWidth / img.naturalHeight || 1 });
+    img.onerror = () => current && setDone({ photo, ratio: null });
     img.src = photoUrl(photo);
     return () => {
       current = false;
     };
   }, [photo]);
-  if (!photo) return "none";
-  if (done?.photo !== photo) return "loading";
-  return done.ok ? "shown" : "none";
+  if (!photo) return { kind: "none" };
+  if (done?.photo !== photo) return { kind: "loading" };
+  return done.ratio === null ? { kind: "none" } : { kind: "shown", ratio: done.ratio };
+}
+
+// Four options this short fit two to a row on a 360 px phone, in at most two lines and without breaking a word.
+const twoByTwo = (options: string[]) => options.length === 4 && options.every((o) => o.length <= 16 && o.split(" ").every((word) => word.length <= 9));
+
+// True while the bottom of the answer area is below the tab bar, so the guest can tell there is more to answer.
+function useHiddenBelow(ready: boolean): [RefObject<HTMLElement | null>, boolean] {
+  const end = useRef<HTMLElement>(null);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const el = end.current;
+    if (!el) return;
+    let io: IntersectionObserver | undefined;
+    const watch = () => {
+      io?.disconnect();
+      const tabs = document.querySelector(".tabs")?.getBoundingClientRect().height ?? 0;
+      io = new IntersectionObserver(([e]) => e && setHidden(!e.isIntersecting && e.boundingClientRect.top >= e.rootBounds!.bottom), {
+        rootMargin: `0px 0px -${Math.round(tabs)}px 0px`,
+      });
+      io.observe(el);
+    };
+    watch();
+    addEventListener("resize", watch);
+    return () => {
+      io?.disconnect();
+      removeEventListener("resize", watch);
+    };
+  }, [ready]);
+  return [end, hidden];
 }
 
 function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
   const q = quiz.question;
   const clock = roundKey(quiz.unlockedAt, q.id);
   const photo = usePhoto(q.photo);
-  const ready = photo !== "loading";
+  const ready = photo.kind !== "loading";
   const left = useSecondsLeft(deadline);
   const [held, setHeld] = useState(() => heldAnswer(clock));
+  const [end, hiddenBelow] = useHiddenBelow(ready);
   useEffect(() => {
     if (ready) markShown(clock);
   }, [ready, clock]);
@@ -113,7 +143,7 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
   };
 
   return (
-    <section class="quiz-card" aria-labelledby="quiz-title">
+    <section class="quiz-card open" aria-labelledby="quiz-title">
       <div class="quiz-top">
         <Progress n={quiz.n} total={quiz.total} />
         <Countdown seconds={q.seconds} left={left} />
@@ -125,8 +155,8 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
         </div>
       ) : (
         <>
-          {photo === "shown" && q.photo && (
-            <figure class="q-frame card">
+          {photo.kind === "shown" && q.photo && (
+            <figure class="q-frame card" style={{ aspectRatio: photo.ratio }}>
               <Cap />
               <img class="q-photo" src={photoUrl(q.photo)} alt="" />
             </figure>
@@ -134,27 +164,30 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
           <h2 id="quiz-title" class="q-text">
             {q.text}
           </h2>
-          {q.kind === "choice" ? (
-            <div class="choices">
-              {q.options.map((o, i) => (
-                <button key={i} type="button" class={pick === i ? "choice picked" : "choice"} disabled={locked} aria-pressed={pick === i} onClick={() => answer(i)}>
-                  <span class="letter">{LETTERS[i]}</span>
-                  <span>{o}</span>
-                  {pick === i && (
-                    <span class="check">
-                      <CheckIcon />
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : pick === null ? (
-            <Guess disabled={timeUp} onSend={answer} />
-          ) : (
-            <p class="your-guess">
-              Din gissning: <b>{fmt(pick)}</b>
-            </p>
-          )}
+          <div class="q-answer">
+            {q.kind === "choice" ? (
+              <div class={twoByTwo(q.options) ? "choices grid" : "choices"}>
+                {q.options.map((o, i) => (
+                  <button key={i} type="button" class={pick === i ? "choice picked" : "choice"} disabled={locked} aria-pressed={pick === i} onClick={() => answer(i)}>
+                    <span class="letter">{LETTERS[i]}</span>
+                    <span>{o}</span>
+                    {pick === i && (
+                      <span class="check">
+                        <CheckIcon />
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : pick === null ? (
+              <Guess disabled={timeUp} onSend={answer} />
+            ) : (
+              <p class="your-guess">
+                Din gissning: <b>{fmt(pick)}</b>
+              </p>
+            )}
+            <i class="q-end" ref={end} />
+          </div>
           {confirmed ? (
             <p class="answer-note sent" role="status">
               <CheckIcon /> Svar skickat!
@@ -169,6 +202,12 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
                 Tiden är ute!
               </p>
             )
+          )}
+          {hiddenBelow && !locked && (
+            <button type="button" class="more-below" onClick={() => scrollTo({ top: document.documentElement.scrollHeight })}>
+              Scrolla ner för att svara
+              <ArrowDownIcon />
+            </button>
           )}
         </>
       )}
