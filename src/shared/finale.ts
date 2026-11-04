@@ -19,8 +19,8 @@ export type Winner = { quiz: QuizWin[]; photo: PhotoWin | null };
 export type FinaleView<W> =
   | { stage: "off" }
   | { stage: "suspense" }
-  // The celebration on the phones, until backInMs from this snapshot.
-  | { stage: "reveal"; win: W; backInMs: number }
+  // The celebration on the phones, until backInMs from this snapshot. at is the server's time of the reveal, the same on every snapshot.
+  | { stage: "reveal"; win: W; backInMs: number; at: number }
   // Back in the app, with the winner kept.
   | { stage: "done"; win: W };
 export type FinaleStage = FinaleView<unknown>["stage"];

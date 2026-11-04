@@ -138,6 +138,13 @@ async function uploadContestPhoto(guest: Page, look: LookName) {
   await expect(guest.getByText("Inga röster än"), "the upload finished").toBeVisible(uploaded);
 }
 
+// The earlier reveal must still be on the phones when the later one is left, or the check after Back proves nothing. A run too slow for
+// that is noted, not failed, so a slow machine never turns this into a race against the reveal's minute.
+async function overlap(earlier: Locator) {
+  const stage = await earlier.locator(".phase").textContent();
+  if (stage !== "Winner on phones") test.info().annotations.push({ type: "no overlap", description: `the earlier reveal had ended (${stage})` });
+}
+
 async function newPhone(browser: Browser): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext(phone);
   return { context, page: await context.newPage() };
@@ -201,9 +208,11 @@ test("the host adds both kinds of question, edits, reorders and deletes them, an
   const row = (n: number) => card(".questions > ol > li").nth(n - 1);
   await expect(card(".questions").getByText("No questions yet. Add the first one below.")).toBeVisible();
 
-  await addQuestion(admin, { kind: "number", text: "Hur många ballonger hänger i taket?", answer: "10" });
+  // The quiz test checks every phone while a question is open, which took over 20 s in WebKit on a slow Mac, so the default
+  // 20 s limit closed the question before the early reveal the test presses. Only the host or the last answer closes these.
+  await addQuestion(admin, { kind: "number", text: "Hur många ballonger hänger i taket?", answer: "10", seconds: 120 });
   await addQuestion(admin, { kind: "choice", text: "Vad blir vatten när det fryser?", options: ["Is", "Sand", "Sylt"], correct: 0 });
-  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0 });
+  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0, seconds: 120 });
   await expect(texts).toHaveText(["Hur många ballonger hänger i taket?", "Vad blir vatten när det fryser?", "Vilken färg har snö?"]);
   await expect(row(1).locator(".badge.kind")).toHaveText("Closest number");
   await expect(row(1)).toContainText("Answer: 10");
@@ -593,7 +602,7 @@ test("after the wipe, the photo finale runs before the quiz has started, and the
   const photoFinale = card(".photo-finale");
   const quizFinale = card(".quiz-finale");
   const quiz = card(".quiz");
-  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0 });
+  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0, seconds: 120 });
   for (const [p, name] of [[olle, "Olle"], [kim, "Kim Testsson"]] as const) {
     await joinByLink(p, secrets.join, name);
     await expect(greeting(p, name)).toBeVisible();
@@ -610,12 +619,15 @@ test("after the wipe, the photo finale runs before the quiz has started, and the
   await expect(olle.getByText("Grattis, det är din bild!")).toBeVisible();
   await expect(kim.getByText("tog vinnarbilden · 0 röster")).toBeVisible();
   await expect(kim.locator(".recap"), "no quiz winners to recap yet").toHaveCount(0);
-  for (const p of [olle, kim]) await p.getByRole("button", { name: "Tillbaka till festen" }).click();
-  await tab(kim, "Galleri");
-  await expect(kim.locator(".photo-winner")).toContainText("Olle");
+  await olle.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await olle.reload();
+  await expect(greeting(olle, "Olle"), "a reveal the phone left stays left after a reload").toBeVisible();
+  await tab(olle, "Galleri");
+  await expect(olle.locator(".photo-winner")).toContainText("Olle");
 
   await quiz.getByRole("button", { name: "Unlock quiz" }).click();
-  for (const p of [olle, kim]) await unlockPopup(p).getByRole("button", { name: "Till quizet" }).click();
+  await unlockPopup(olle).getByRole("button", { name: "Till quizet" }).click();
+  await expect(kim.getByRole("heading", { name: "Quizet börjar snart!" }), "the quiz takes kim off the photo winner, onto the Quiz tab kim was on").toBeVisible();
   await quiz.getByRole("button", { name: "Start question 1" }).click();
   await Promise.all([answer(olle, "Vit"), answer(kim, "Blå")]);
   await expect(quiz.locator(".phase")).toHaveText("Answer revealed");
@@ -628,12 +640,56 @@ test("after the wipe, the photo finale runs before the quiz has started, and the
   await quizFinale.getByRole("button", { name: "Reveal quiz winner" }).click();
   await expect(olle.getByText("Grattis, du vann!")).toBeVisible();
   await expect(kim.getByText("Quizvinnaren")).toBeVisible();
+  await overlap(photoFinale);
   for (const p of [olle, kim]) await p.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await expect(greeting(kim, "Kim Testsson"), "back from the quiz winners goes to the party, not to the earlier photo winner kim never left").toBeVisible();
   await expect(olle.locator(".quiz-winners")).toContainText("Grattis, du vann!");
   await tab(kim, "Galleri");
   await expect(kim.locator(".photo-winner"), "the gallery keeps the photo winner").toContainText("Olle");
+});
 
+test("after a reset, the quiz finale runs before the photo finale, and back from either reveal goes to the party, also after a reload", async () => {
+  const photoFinale = card(".photo-finale");
+  const quizFinale = card(".quiz-finale");
+  const quiz = card(".quiz");
   const end = card(".party-end");
+  await end.getByRole("button", { name: "Reset party…" }).click();
+  await end.getByLabel("Type RESET to confirm").fill("RESET");
+  await end.getByRole("button", { name: "Yes, reset the party" }).click();
+  for (const p of [olle, kim]) await expect(p, "every phone leaves for the bare page").toHaveURL(/\/$/);
+  for (const [p, name] of [[olle, "Olle"], [kim, "Kim Testsson"]] as const) {
+    await joinByLink(p, secrets.join, name);
+    await expect(greeting(p, name)).toBeVisible();
+  }
+
+  await quiz.getByRole("button", { name: "Unlock quiz" }).click();
+  for (const p of [olle, kim]) await expect(p.getByRole("heading", { name: "Quizet börjar snart!" })).toBeVisible();
+  await quiz.getByRole("button", { name: "Start question 1" }).click();
+  await Promise.all([answer(olle, "Vit"), answer(kim, "Blå")]);
+  await expect(quiz.locator(".phase")).toHaveText("Answer revealed");
+  await quiz.getByRole("button", { name: "End quiz" }).click();
+  await quizFinale.getByRole("button", { name: "Open suspense page" }).click();
+  await quizFinale.getByRole("button", { name: "Yes, open suspense page" }).click();
+  await quizFinale.getByRole("button", { name: "Reveal quiz winner" }).click();
+  for (const p of [olle, kim]) await expect(p.getByText("Quizvinnaren")).toBeVisible();
+  await olle.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await olle.reload();
+  await expect(greeting(olle, "Olle"), "a reveal the phone left stays left after a reload").toBeVisible();
+
+  await photoFinale.getByRole("button", { name: "Open suspense page" }).click();
+  await photoFinale.getByRole("button", { name: "Yes, open suspense page" }).click();
+  await photoFinale.getByRole("button", { name: "Reveal photo winner" }).click();
+  for (const p of [olle, kim]) await expect(p.getByText("Inga bilder var med den här gången")).toBeVisible();
+  await overlap(quizFinale);
+  for (const p of [olle, kim]) await p.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await expect(greeting(kim, "Kim Testsson"), "back from the photo winner goes to the party, not to the earlier quiz winners kim never left").toBeVisible();
+  await expect(greeting(olle, "Olle")).toBeVisible();
+  for (const [p, name] of [[olle, "Olle"], [kim, "Kim Testsson"]] as const) {
+    await p.reload();
+    await expect(greeting(p, name), "neither reveal comes back after a reload").toBeVisible();
+  }
+  await expect(olle.locator(".quiz-winners")).toContainText("Grattis, du vann!");
+
   await end.getByRole("button", { name: "End the party" }).click();
   await end.getByRole("button", { name: "Yes, end the party" }).click();
   await end.getByRole("button", { name: "Wipe all data…" }).click();
