@@ -2,10 +2,14 @@ type Migration = string | ((storage: DurableObjectStorage) => void);
 
 // The single finale became a quiz finale and a photo finale. Its stage said how far it had got, and each revealed winner is
 // already frozen in the shape the new finales keep.
-function splitFinale({ kv }: DurableObjectStorage): void {
+function splitFinale({ kv, sql }: DurableObjectStorage): void {
   const stage = kv.get<"suspense" | "quiz" | "photo">("finale_stage");
   const done = (key: string) => ({ stage: "done", win: kv.get(key) ?? (key === "finale_quiz" ? [] : null) });
-  if (stage === "suspense") kv.put("quiz_finale", { stage: "suspense" });
+  // The old suspense page ran on the slow heartbeat; the new one runs on the fast one until its reveal is over.
+  if (stage === "suspense") {
+    kv.put("quiz_finale", { stage: "suspense" });
+    sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('live_mode', 'on')");
+  }
   if (stage === "quiz" || stage === "photo") kv.put("quiz_finale", done("finale_quiz"));
   if (stage === "photo") kv.put("photo_finale", done("finale_photo"));
   for (const key of ["finale_stage", "finale_quiz", "finale_photo"]) kv.delete(key);

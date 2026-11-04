@@ -26,10 +26,14 @@ async function finales(): Promise<AdminState["finale"]> {
 }
 
 describe("a party deployed with the single finale", () => {
-  it("keeps an open suspense page as the quiz finale's, so the quiz stays frozen", async () => {
+  it("keeps an open suspense page as the quiz finale's, so the quiz stays frozen, on the fast heartbeat through its reveal", async () => {
     await seedLegacy({ finale_stage: "suspense" });
-    expect(await finales()).toMatchObject({ quiz: { stage: "suspense" }, photo: { stage: "off" } });
+    const admin = await connectAdmin();
+    expect(await admin.next((m) => m.t === "state")).toMatchObject({ heartbeat: "fast", state: { finale: { quiz: { stage: "suspense" }, photo: { stage: "off" } } } });
     expect(await legacyKeys()).toEqual([]);
+    admin.send({ t: "finale", kind: "quiz", step: "reveal" });
+    expect(await admin.next((m) => m.t === "state" && m.state.finale.quiz.stage === "reveal")).toMatchObject({ heartbeat: "fast" });
+    admin.close();
   });
 
   it("keeps a revealed quiz winner, back in the app", async () => {
