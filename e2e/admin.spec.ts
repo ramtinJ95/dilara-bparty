@@ -279,11 +279,13 @@ test("unlock, reset, start, an early reveal and leaderboard, the automatic ones,
 
   await press("Start question 1");
   await expect(phase).toHaveText("Question open");
-  for (const p of phones) {
-    await expect(p.getByText("Fråga 1 av 2")).toBeVisible();
-    await expect(p.getByText("Vilken färg har snöflingan på bilden?"), "phones show the edited text").toBeVisible();
-    expect(await lookOf(p.locator(".q-photo")), "phones show the photo the host attached").toBe("sea");
-  }
+  await Promise.all(
+    phones.map(async (p) => {
+      await expect(p.getByText("Fråga 1 av 2")).toBeVisible();
+      await expect(p.getByText("Vilken färg har snöflingan på bilden?"), "phones show the edited text").toBeVisible();
+      expect(await lookOf(p.locator(".q-photo")), "phones show the photo the host attached").toBe("sea");
+    }),
+  );
   await Promise.all([answer(astrid, "Rosa"), answer(olle, "Blå", 1_500)]);
   await expect(quiz.getByText("2 of 3 answered")).toBeVisible();
   await press("Reveal answer");
@@ -305,8 +307,10 @@ test("unlock, reset, start, an early reveal and leaderboard, the automatic ones,
   await Promise.all([answer(astrid, "12"), answer(kim, "12"), answer(olle, "9")]);
   await expect(phase, "everyone answered, so the answer is revealed at once").toHaveText("Answer revealed");
   await expect(quiz.getByText("3 of 3 answered")).toBeVisible();
-  for (const p of [astrid, kim]) await expect(p.getByRole("heading", { name: "Närmast!" }), "the edited answer counts: 9 would be closer to the old 10").toBeVisible();
-  await expect(olle.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible();
+  await Promise.all([
+    ...[astrid, kim].map((p) => expect(p.getByRole("heading", { name: "Närmast!" }), "the edited answer counts: 9 would be closer to the old 10").toBeVisible()),
+    expect(olle.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible(),
+  ]);
   await expect(phase, "the leaderboard follows on its own").toHaveText("Leaderboard on phones", { timeout: 15_000 });
   for (const p of phones) await expect(p.getByRole("heading", { name: "Topplistan" })).toBeVisible();
 
