@@ -502,6 +502,8 @@ test("quiz videos", async ({ browser }) => {
 
 async function wipeParty(admin: Page) {
   const end = admin.locator(".party-end");
+  // The card draws with the first snapshot, after "Live", so wait for it before asking which state the party is in.
+  await expect(end.getByRole("button", { name: /^(End the party|Wipe all data…)$/ })).toBeVisible();
   if (await end.getByRole("button", { name: "End the party" }).isVisible()) {
     await end.getByRole("button", { name: "End the party" }).click();
     await end.getByRole("button", { name: "Yes, end the party" }).click();

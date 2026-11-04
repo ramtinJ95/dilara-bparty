@@ -26,6 +26,8 @@ const uploaded = { timeout: 20_000 };
 test.beforeAll(async ({ browser }) => {
   admin = await openAdmin(await browser.newContext(laptop));
   const end = card(".party-end");
+  // The card draws with the first snapshot, after "Live", so wait for it before asking which state the party is in.
+  await expect(end.getByRole("button", { name: /^(End the party|Wipe all data…)$/ })).toBeVisible();
   if (await end.getByRole("button", { name: "End the party" }).isVisible()) {
     await end.getByRole("button", { name: "End the party" }).click();
     await end.getByRole("button", { name: "Yes, end the party" }).click();
