@@ -1,4 +1,4 @@
-import { type Browser, type Page, type WebSocketRoute } from "@playwright/test";
+import { type Browser, type Locator, type Page, type WebSocketRoute } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { secrets } from "./server";
@@ -323,4 +323,109 @@ test("the host runs a question; a guest on another tab is called in, answers, an
   await expect(admin.getByText("1 of 2 answered")).toBeVisible();
 
   await Promise.all([adminContext.close(), kimContext.close(), olleContext.close()]);
+});
+
+// An iPhone SE in Safari with both toolbars showing.
+const shortPhone = { viewport: { width: 375, height: 548 }, isMobile: true, hasTouch: true };
+
+// One finger at the option's centre, where it is on screen now. Locator.tap would scroll it into view first and hide an option the tab bar covers.
+async function touch(page: Page, target: Locator): Promise<void> {
+  const box = (await target.boundingBox())!;
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+const aboveTabBar = (target: Locator) =>
+  target.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return box.top >= 0 && box.bottom <= document.querySelector(".tabs")!.getBoundingClientRect().top;
+  });
+
+test("on a short phone the whole question fits above the tab bar, and one tap on any option answers once, also after scrolling", async ({ browser }) => {
+  const adminContext = await browser.newContext(laptop);
+  const admin = await openAdmin(adminContext);
+  const quizCard = admin.locator(".quiz");
+  if (await quizCard.getByRole("button", { name: "Reset quiz" }).isEnabled()) {
+    await quizCard.getByRole("button", { name: "Reset quiz" }).click();
+    await quizCard.getByRole("button", { name: "Yes, reset quiz" }).click();
+  }
+  const rows = admin.locator(".questions > ol > li");
+  while ((await rows.count()) > 0) {
+    await rows.first().getByRole("button", { name: "Delete" }).click();
+    await rows.first().getByRole("button", { name: "Delete question" }).click();
+  }
+  const photo = await placeholder(admin, LOOKS.snow, [1200, 900]);
+  await addQuestion(admin, { kind: "choice", text: "Hur många armar har en snöflinga?", options: ["Sex", "Fyra", "Åtta", "Tolv"], correct: 0, seconds: 90, photo });
+  await addQuestion(admin, {
+    kind: "choice",
+    text: "Om en snögubbe står ute i solen en hel eftermiddag i april, vad händer då med hans morotsnäsa och hans fina hatt?",
+    options: ["Näsan ramlar av och hatten blåser bort", "Ingenting, han är gjord av magisk is", "Han smälter till en stor vattenpöl", "Han går in i skuggan och vilar"],
+    correct: 2,
+    seconds: 90,
+    photo: await placeholder(admin, LOOKS.snow, [900, 1200]),
+  });
+
+  const phones = await Promise.all(
+    ["Ada", "Bo", "Cia", "Dan"].map(async (name) => {
+      const page = await (await joinViaApi(browser, `Testgäst ${name}`, shortPhone)).newPage();
+      const sent: { pick: number; ms: number }[] = [];
+      page.on("websocket", (ws) =>
+        ws.on("framesent", ({ payload }) => {
+          const msg = JSON.parse(String(payload)) as { t: string; pick: number; ms: number };
+          if (msg.t === "answer") sent.push(msg);
+        }),
+      );
+      await page.goto("/app");
+      await expect(page.getByRole("heading", { name: `Hej, Testgäst ${name}!` })).toBeVisible();
+      return { page, sent };
+    }),
+  );
+  await expect(admin.getByRole("region", { name: / · 4 online$/ })).toBeVisible({ timeout: 15_000 });
+  await quizCard.getByRole("button", { name: "Unlock quiz" }).click();
+  await quizCard.getByRole("button", { name: "Start question 1" }).click();
+  const shownAt = await Promise.all(phones.map(({ page }) => expect(page.locator(".choices")).toBeVisible().then(() => Date.now())));
+
+  for (const [i, { page, sent }] of phones.entries()) {
+    const options = page.locator(".choice");
+    for (const target of [page.locator(".secs"), page.locator(".q-photo"), ...(await options.all())]) {
+      expect(await aboveTabBar(target), "the countdown, the photo and every option are on screen without scrolling").toBe(true);
+    }
+    const [a, b] = [(await options.nth(0).boundingBox())!, (await options.nth(1).boundingBox())!];
+    expect(b.y, "four short options sit two to a row").toBe(a.y);
+    expect(Math.min(a.width, a.height), "each option is at least 44 px each way").toBeGreaterThanOrEqual(44);
+    await expect(page.locator(".more-below")).toHaveCount(0);
+
+    await page.waitForTimeout(700);
+    const before = Date.now() - shownAt[i]!;
+    await touch(page, options.nth(i));
+    const after = Date.now() - shownAt[i]!;
+    // The last answer reveals the round at once, so its phone can be past the question by now.
+    await expect(page.locator(".choice.picked").or(page.locator(".verdict")), "the first tap picks the option").toBeVisible();
+    await expect.poll(() => sent.length).toBe(1);
+    expect(sent[0]!.pick).toBe(i);
+    expect(sent[0]!.ms, "the answer clock stopped at the tap").toBeGreaterThanOrEqual(before - 250);
+    expect(sent[0]!.ms).toBeLessThanOrEqual(after + 1000);
+  }
+  await expect(admin.getByText("Answer revealed")).toBeVisible();
+  for (const { page } of phones) await expect(page.locator(".verdict")).toBeVisible();
+
+  await quizCard.getByRole("button", { name: "Next question" }).click();
+  for (const [i, { page, sent }] of phones.entries()) {
+    const options = page.locator(".choice");
+    const cue = page.getByRole("button", { name: "Scrolla ner för att svara" });
+    await expect(options).toHaveCount(4);
+    await expect(cue, "a question too long for the screen says there is more below").toBeVisible();
+    expect(await aboveTabBar(options.nth(3))).toBe(false);
+    if (i < 2) await touch(page, cue);
+    else await page.evaluate(() => scrollBy(0, innerHeight));
+    await expect(cue).toBeHidden();
+    expect(await aboveTabBar(options.nth(i)), "scrolled down, the options are above the tab bar").toBe(true);
+    await touch(page, options.nth(i));
+    await expect(page.locator(".choice.picked").or(page.locator(".verdict")), "the first tap after scrolling picks the option").toBeVisible();
+    await expect.poll(() => sent.length).toBe(2);
+    expect(sent[1]!.pick).toBe(i);
+  }
+  await expect(admin.getByText("Answer revealed")).toBeVisible();
+  for (const { sent } of phones) expect(sent, "each phone sent each answer once").toHaveLength(2);
+
+  await Promise.all([adminContext.close(), ...phones.map(({ page }) => page.context().close())]);
 });
