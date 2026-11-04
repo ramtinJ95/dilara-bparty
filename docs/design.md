@@ -67,6 +67,15 @@ code and runs the admin view; it is not a shared game screen.
   - Vibration works on Android but not on iPhone Safari, so it is only a bonus.
 - The host starts each question. Phones show the question, the options, any
   photo and a countdown.
+  - The whole question fits above the tab bar without scrolling on a 375x548
+    screen, an iPhone SE in Safari with both toolbars showing. The photo takes
+    the height the rest leaves, shown whole, between a small minimum and a
+    maximum. Four short options sit two to a row. Every option is at least
+    44 px each way.
+  - A question too long for the screen shows a button, "Scrolla ner för att
+    svara", until the options are in view. A guest who has to scroll can tap
+    an option that is still moving, and iPhone Safari takes that first tap as
+    stopping the scroll, not as an answer.
 - The server owns the clock. Phones count down to a deadline set by the server,
   and answers are accepted until that deadline plus a short grace period, so a
   slow connection does not cost anyone points.
