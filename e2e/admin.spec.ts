@@ -208,9 +208,11 @@ test("the host adds both kinds of question, edits, reorders and deletes them, an
   const row = (n: number) => card(".questions > ol > li").nth(n - 1);
   await expect(card(".questions").getByText("No questions yet. Add the first one below.")).toBeVisible();
 
-  await addQuestion(admin, { kind: "number", text: "Hur många ballonger hänger i taket?", answer: "10" });
+  // The quiz test checks every phone while a question is open, which took over 20 s in WebKit on a slow Mac, so the default
+  // 20 s limit closed the question before the early reveal the test presses. Only the host or the last answer closes these.
+  await addQuestion(admin, { kind: "number", text: "Hur många ballonger hänger i taket?", answer: "10", seconds: 120 });
   await addQuestion(admin, { kind: "choice", text: "Vad blir vatten när det fryser?", options: ["Is", "Sand", "Sylt"], correct: 0 });
-  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0 });
+  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0, seconds: 120 });
   await expect(texts).toHaveText(["Hur många ballonger hänger i taket?", "Vad blir vatten när det fryser?", "Vilken färg har snö?"]);
   await expect(row(1).locator(".badge.kind")).toHaveText("Closest number");
   await expect(row(1)).toContainText("Answer: 10");
@@ -600,7 +602,7 @@ test("after the wipe, the photo finale runs before the quiz has started, and the
   const photoFinale = card(".photo-finale");
   const quizFinale = card(".quiz-finale");
   const quiz = card(".quiz");
-  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0 });
+  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå"], correct: 0, seconds: 120 });
   for (const [p, name] of [[olle, "Olle"], [kim, "Kim Testsson"]] as const) {
     await joinByLink(p, secrets.join, name);
     await expect(greeting(p, name)).toBeVisible();

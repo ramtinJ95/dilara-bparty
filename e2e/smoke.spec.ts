@@ -251,8 +251,9 @@ test("the question form has its Question field focused as it appears, before any
 test("the host runs a question; a guest on another tab is called in, answers, and sees the result and the board", async ({ browser }) => {
   const adminContext = await browser.newContext(laptop);
   const admin = await openAdmin(adminContext);
-  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå", "Grön"], correct: 0, photo: await placeholder(admin, LOOKS.snow) });
-  await addQuestion(admin, { kind: "number", text: "Hur många morötter behöver en snögubbe?", answer: "1" });
+  // Long enough that no question closes on its deadline while the test is still clicking, however slow the browser is.
+  await addQuestion(admin, { kind: "choice", text: "Vilken färg har snö?", options: ["Vit", "Blå", "Grön"], correct: 0, seconds: 120, photo: await placeholder(admin, LOOKS.snow) });
+  await addQuestion(admin, { kind: "number", text: "Hur många morötter behöver en snögubbe?", answer: "1", seconds: 120 });
   await expect(admin.locator(".questions > ol > li")).toHaveCount(2);
 
   const kimContext = await joinViaApi(browser, "Kim Testsson");
