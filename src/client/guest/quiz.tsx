@@ -92,9 +92,9 @@ function usePhoto(photo: PhotoId | null): PhotoState {
 // Four options this short fit two to a row on a 360 px phone, in at most two lines and without breaking a word.
 const twoByTwo = (options: string[]) => options.length === 4 && options.every((o) => o.length <= 16 && o.split(" ").every((word) => word.length <= 9));
 
-// True while part of the answer area is below the tab bar, so the guest can tell there is more to answer.
-function useHiddenBelow(ready: boolean): [RefObject<HTMLDivElement | null>, boolean] {
-  const end = useRef<HTMLDivElement>(null);
+// True while the bottom of the answer area is below the tab bar, so the guest can tell there is more to answer.
+function useHiddenBelow(ready: boolean): [RefObject<HTMLElement | null>, boolean] {
+  const end = useRef<HTMLElement>(null);
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     const el = end.current;
@@ -103,9 +103,8 @@ function useHiddenBelow(ready: boolean): [RefObject<HTMLDivElement | null>, bool
     const watch = () => {
       io?.disconnect();
       const tabs = document.querySelector(".tabs")?.getBoundingClientRect().height ?? 0;
-      io = new IntersectionObserver(([e]) => e && setHidden(e.intersectionRatio < 0.99 && e.boundingClientRect.bottom > e.rootBounds!.bottom), {
+      io = new IntersectionObserver(([e]) => e && setHidden(!e.isIntersecting && e.boundingClientRect.top >= e.rootBounds!.bottom), {
         rootMargin: `0px 0px -${Math.round(tabs)}px 0px`,
-        threshold: [0, 0.99],
       });
       io.observe(el);
     };
@@ -165,7 +164,7 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
           <h2 id="quiz-title" class="q-text">
             {q.text}
           </h2>
-          <div class="q-answer" ref={end}>
+          <div class="q-answer">
             {q.kind === "choice" ? (
               <div class={twoByTwo(q.options) ? "choices grid" : "choices"}>
                 {q.options.map((o, i) => (
@@ -187,6 +186,7 @@ function Open({ quiz, deadline, send, live }: ViewProps<"open">) {
                 Din gissning: <b>{fmt(pick)}</b>
               </p>
             )}
+            <i class="q-end" ref={end} />
           </div>
           {confirmed ? (
             <p class="answer-note sent" role="status">

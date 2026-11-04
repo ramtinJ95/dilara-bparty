@@ -31,6 +31,7 @@
 .q-text.small { font-size: 19px; line-height: 1.2; }
 
 .q-answer { display: grid; }
+.q-end { height: 0; }
 .choices { display: grid; gap: 10px; padding-right: 6px; }
 .choices.grid { grid-template-columns: 1fr 1fr; }
 .choice {
