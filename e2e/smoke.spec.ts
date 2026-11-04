@@ -347,18 +347,25 @@ test("on a short phone the whole question fits above the tab bar, and one tap on
   if (await quizCard.getByRole("button", { name: "Reset quiz" }).isEnabled()) {
     await quizCard.getByRole("button", { name: "Reset quiz" }).click();
     await quizCard.getByRole("button", { name: "Yes, reset quiz" }).click();
+    await expect(quizCard.locator(".phase")).toHaveText("Locked");
   }
   const rows = admin.locator(".questions > ol > li");
-  while ((await rows.count()) > 0) {
+  for (let n = await rows.count(); n > 0; n--) {
     await rows.first().getByRole("button", { name: "Delete" }).click();
     await rows.first().getByRole("button", { name: "Delete question" }).click();
+    await expect(rows).toHaveCount(n - 1);
   }
   const photo = await placeholder(admin, LOOKS.snow, [1200, 900]);
   await addQuestion(admin, { kind: "choice", text: "Hur många armar har en snöflinga?", options: ["Sex", "Fyra", "Åtta", "Tolv"], correct: 0, seconds: 90, photo });
   await addQuestion(admin, {
     kind: "choice",
     text: "Om en snögubbe står ute i solen en hel eftermiddag i april, vad händer då med hans morotsnäsa och hans fina hatt?",
-    options: ["Näsan ramlar av och hatten blåser bort", "Ingenting, han är gjord av magisk is", "Han smälter till en stor vattenpöl", "Han går in i skuggan och vilar"],
+    options: [
+      "Näsan ramlar av, hatten blåser bort och halsduken flyger",
+      "Ingenting alls, för han är gjord av magisk is från ett slott",
+      "Han smälter långsamt till en stor och blank pöl i gräset",
+      "Han går in i skuggan under granen och vilar till kvällen",
+    ],
     correct: 2,
     seconds: 90,
     photo: await placeholder(admin, LOOKS.snow, [900, 1200]),
