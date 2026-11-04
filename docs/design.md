@@ -135,22 +135,31 @@ code and runs the admin view; it is not a shared game screen.
 
 ## Finale
 
-- Each competition has its own prize.
-- When the last quiz question is done, the host moves everyone to a suspense
-  page: a themed waiting screen that builds anticipation. Photo voting closes
-  when it opens.
-- The host then opens the winners page and reveals the winners one at a time,
-  each with its own press: first the quiz winner, or the joint winners if first
-  place is tied, then the winning photo with the photographer's name. The photo
-  reveal keeps a small recap of the quiz winners.
+- Each competition has its own prize and its own finale. The host runs the
+  quiz finale right after the quiz and the photo finale whenever they like,
+  usually hours later. Either can come first.
+- Each finale takes two presses. The first opens its suspense page, a themed
+  waiting screen that builds anticipation. The second reveals the winner: the
+  quiz winner, or the joint winners if first place is tied, or the winning
+  photo with the photographer's name.
+- The quiz finale opens once the quiz has ended, and the quiz can't change
+  after that. Uploads and voting stay open.
+- The photo finale's suspense page closes uploads and voting. It can't open
+  while the quiz is running, and the quiz waits while it is on the phones.
+- Only one suspense page is on the phones at a time, so the other finale
+  opens once this one is revealed.
 - A tie for the most photo votes shows the tied photos in the admin view, and
-  the host picks the winner at any point before revealing it, also while the
-  quiz winners are on the phones.
+  the host picks the winner at any point before revealing it.
 - Each reveal is a short celebration on every phone at once. The winner's own
-  phone also congratulates them. A phone that reconnects during the finale
-  lands on the current step.
-- Once the suspense page is open, the quiz can't change, and each winner is
-  fixed when it is revealed.
+  phone also congratulates them. The photo reveal keeps a small recap of the
+  quiz winners once they are out.
+- After a reveal, `Tillbaka till festen` takes the guest back to the app, and
+  a minute after the reveal every phone goes back on its own. The Quiz tab
+  then shows the quiz winners, and the gallery opens with the winning photo.
+  A quiz the host starts during that minute takes over the phones at once.
+- A phone that joins or reconnects during a finale lands on the current step:
+  the suspense page, the reveal for the rest of its minute, or the app.
+- Each winner is fixed when it is revealed.
 
 ## Admin view
 
@@ -160,8 +169,9 @@ code and runs the admin view; it is not a shared game screen.
 - Quiz controls: unlock, start each question, reveal early, skip ahead to the
   leaderboard, end, reset. During a reveal, a note says the leaderboard
   follows on its own.
-- Finale controls: open the suspense page, reveal the quiz winner, reveal the
-  photo winner.
+- Finale controls, one card per finale: open its suspense page, confirmed with
+  what it does, and reveal its winner. While a winner is on the phones, a note
+  says the phones go back to the party on their own.
 - Contest controls: close uploads and voting, hide photos, browse every stored
   version, download everything.
 - Landing page photo upload.
@@ -171,6 +181,6 @@ code and runs the admin view; it is not a shared game screen.
   reminds the host to download the photos first.
 - Reset the party at any time, for a fresh start after a rehearsal. Every
   guest's phone leaves for the bare page, the players, contest photos, votes,
-  quiz answers and scores and the finale are cleared, and new guests can join
+  quiz answers and scores and both finales are cleared, and new guests can join
   again. The questions, their photos and the landing photo stay. The host types
   RESET to confirm.

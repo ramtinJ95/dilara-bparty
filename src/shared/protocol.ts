@@ -1,4 +1,4 @@
-import { isFinaleStep, type AdminFinale, type FinaleStep, type GuestFinale } from "./finale";
+import { isFinaleKind, isFinaleStep, type AdminFinales, type FinaleKind, type FinaleStep, type GuestFinales } from "./finale";
 import { parsePhotoId, parsePlayerId, parseQuestionId, type PhotoId, type PlayerId, type QuestionId } from "./model";
 import { parseQuestionBody, QUIZ_STEPS, type AdminQuiz, type GuestQuiz, type QuestionBody, type QuizStep } from "./quiz";
 
@@ -12,7 +12,7 @@ export type GuestContest = {
   inFame: number;
   gallery: GalleryPhoto[];
 };
-export type GuestState = { you: { id: PlayerId; name: string }; online: number; contest: GuestContest; quiz: GuestQuiz; finale: GuestFinale };
+export type GuestState = { you: { id: PlayerId; name: string }; online: number; contest: GuestContest; quiz: GuestQuiz; finale: GuestFinales };
 
 export type EntryStatus = "current" | "replaced" | "removed";
 export type AdminVersion = {
@@ -35,13 +35,14 @@ export type AdminState = {
   landingPhoto: PhotoId | null;
   contest: AdminContest;
   quiz: AdminQuiz;
-  finale: AdminFinale;
+  finale: AdminFinales;
 };
 
 export type Heartbeat = "fast" | "slow";
 
 // Phones never ping. The server's alarm sends every socket a tick, one request for all of them since outgoing messages are free,
-// and a phone that hears nothing for silentMs reconnects. Fast from unlock until the quiz ends or is reset, or while the admin turns it on; slow the rest of the day, so the radio can idle.
+// and a phone that hears nothing for silentMs reconnects. Fast from unlock until the quiz ends or is reset, from opening a finale's suspense page
+// until its reveal has been on the phones for REVEAL_SHOW_MS, or while the admin turns it on; slow the rest of the day, so the radio can idle.
 export const HEARTBEATS: Record<Heartbeat, { tickMs: number; silentMs: number }> = {
   fast: { tickMs: 4_000, silentMs: 11_000 },
   slow: { tickMs: 30_000, silentMs: 70_000 },
@@ -60,7 +61,7 @@ export type AdminCmd =
   | { t: "delete-question"; id: QuestionId }
   | { t: "move-question"; id: QuestionId; to: number }
   | { t: "quiz"; step: QuizStep; q?: QuestionId }
-  | { t: "finale"; step: FinaleStep }
+  | { t: "finale"; kind: FinaleKind; step: FinaleStep }
   | { t: "pick-photo"; photo: PhotoId }
   | { t: "joins"; open: boolean }
   | { t: "liveMode"; on: boolean };
@@ -125,7 +126,7 @@ const adminCmdParsers: Parsers<AdminCmd> = {
     const id = parseQuestionId(m.id);
     return id && Number.isInteger(m.to) ? { t: "move-question", id, to: m.to as number } : null;
   },
-  finale: (m) => (isFinaleStep(m.step) ? { t: "finale", step: m.step } : null),
+  finale: (m) => (isFinaleKind(m.kind) && isFinaleStep(m.step) ? { t: "finale", kind: m.kind, step: m.step } : null),
   "pick-photo": (m) => {
     const photo = parsePhotoId(m.photo);
     return photo ? { t: "pick-photo", photo } : null;

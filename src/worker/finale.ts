@@ -1,58 +1,129 @@
-import { FINALE_BLOCKERS, nextStep, type AdminFinale, type FinaleStage, type FinaleStep, type GuestFinale, type PhotoWin, type QuizWin } from "../shared/finale";
+import {
+  FINALE_KINDS,
+  finaleBlocker,
+  nextStep,
+  REVEAL_SHOW_MS,
+  stepTaken,
+  type AdminFinales,
+  type FinaleKind,
+  type FinaleStage,
+  type FinaleStep,
+  type FinaleView,
+  type GuestFinales,
+  type PhotoWin,
+  type QuizWin,
+  type Winner,
+} from "../shared/finale";
 import type { PhotoId, PlayerId } from "../shared/model";
 import type { TallyRow } from "../shared/protocol";
 import type { AdminQuiz } from "../shared/quiz";
 import type { Roster } from "./players";
 
-const STAGE_KEY = "finale_stage";
 const PICK_KEY = "finale_pick";
-const PHOTO_KEY = "finale_photo";
-const QUIZ_KEY = "finale_quiz";
 const JOINS_CLOSED_KEY = "joins_closed";
 
 // Winners are frozen at their reveal, so a later rename, merge or vote never changes what the phones celebrated.
 type FrozenPhoto = Omit<PhotoWin, "name">;
 type FrozenQuiz = Omit<QuizWin, "name">;
+type Frozen = { quiz: FrozenQuiz[]; photo: FrozenPhoto | null };
 
-export type FinaleInputs = { quiz: AdminQuiz; tally: TallyRow[]; closeVoting: () => void };
+// Nothing is stored until the suspense page opens. A reveal is on the phones until at + REVEAL_SHOW_MS, and settle() then marks it done.
+type Stored<W> = { stage: "suspense" } | { stage: "revealed"; at: number; win: W } | { stage: "done"; win: W };
+
+export type FinaleInputs = { quiz: AdminQuiz; tally: TallyRow[]; goLive: () => void; closeContest: () => void };
+
+type Root = (id: PlayerId) => { id: PlayerId; name: string };
+
+type Kind<K extends FinaleKind> = {
+  key: string;
+  open?: (inputs: FinaleInputs) => void;
+  freeze: (inputs: FinaleInputs, pick: PhotoId | null) => Frozen[K];
+  named: (win: Frozen[K], root: Root) => Winner[K];
+};
 
 const leaders = (tally: TallyRow[]) => tally.filter((r) => r.rank === 1);
+
+const KINDS: { [K in FinaleKind]: Kind<K> } = {
+  quiz: {
+    key: "quiz_finale",
+    freeze: ({ quiz }) => {
+      const scores = new Map(quiz.board.map((r) => [r.id, r.score]));
+      return quiz.winners.map((id) => ({ id, score: scores.get(id) ?? 0 }));
+    },
+    // Joint winners merged into one player after the reveal are one winner.
+    named: (win, root) => [...new Map(win.map((w) => [root(w.id).id, { ...root(w.id), score: w.score }])).values()],
+  },
+  photo: {
+    key: "photo_finale",
+    open: ({ closeContest }) => closeContest(),
+    freeze: ({ tally }, pick) => {
+      const top = leaders(tally);
+      const win = top.length > 1 ? top.find((r) => r.photo === pick) : top[0];
+      return win ? { photo: win.photo, thumb: win.thumb, owner: win.player, votes: win.votes } : null;
+    },
+    named: (win, root) => win && { ...win, owner: root(win.owner).id, name: root(win.owner).name },
+  },
+};
+
+// The phones' view follows the clock, so a reveal is over on time even if the alarm that settles it runs late.
+function view<W>(stored: Stored<W> | undefined, now: number): FinaleView<W> {
+  if (!stored) return { stage: "off" };
+  if (stored.stage === "suspense") return stored;
+  if (stored.stage === "revealed" && now < stored.at + REVEAL_SHOW_MS) return { stage: "reveal", win: stored.win, backInMs: stored.at + REVEAL_SHOW_MS - now };
+  return { stage: "done", win: stored.win };
+}
 
 export class Finale {
   constructor(private readonly kv: SyncKvStorage) {}
 
-  private readonly steps: { [S in FinaleStep]: (inputs: FinaleInputs) => string | void } = {
-    suspense: ({ quiz, closeVoting }) => FINALE_BLOCKERS.suspense({ quizPhase: quiz.stage.phase }) ?? closeVoting(),
-    quiz: ({ quiz }) => {
-      const scores = new Map(quiz.board.map((r) => [r.id, r.score]));
-      this.kv.put<FrozenQuiz[]>(QUIZ_KEY, quiz.winners.map((id) => ({ id, score: scores.get(id) ?? 0 })));
+  private readonly steps: { [S in FinaleStep]: (kind: FinaleKind, inputs: FinaleInputs, now: number) => Stored<Frozen[FinaleKind]> } = {
+    suspense: (kind, inputs) => {
+      inputs.goLive();
+      KINDS[kind].open?.(inputs);
+      return { stage: "suspense" };
     },
-    photo: ({ tally }) => {
-      const top = leaders(tally);
-      const pick = this.kv.get<PhotoId>(PICK_KEY) ?? null;
-      const error = FINALE_BLOCKERS.photo({ tied: top.map((r) => r.photo), pick });
-      if (error) return error;
-      const win = top.length > 1 ? top.find((r) => r.photo === pick) : top[0];
-      this.kv.put<FrozenPhoto | null>(PHOTO_KEY, win ? { photo: win.photo, thumb: win.thumb, owner: win.player, votes: win.votes } : null);
-    },
+    reveal: (kind, inputs, now) => ({ stage: "revealed", at: now, win: KINDS[kind].freeze(inputs, this.picked()) }),
   };
 
-  stage(): FinaleStage {
-    return this.kv.get<FinaleStage>(STAGE_KEY) ?? "off";
-  }
-
-  step(step: FinaleStep, inputs: FinaleInputs): string | null {
-    const stage = this.stage();
-    if (stage === step) return null;
-    if (nextStep(stage) !== step) return `"${step}" isn't the next finale step.`;
-    const error = this.steps[step](inputs);
+  // A press of a step already taken is a late double press, and changes nothing.
+  step(kind: FinaleKind, step: FinaleStep, inputs: FinaleInputs, now: number): string | null {
+    const stages = this.stages(now);
+    if (stepTaken(step, stages[kind])) return null;
+    if (nextStep(stages[kind]) !== step) return `"${step}" isn't the next step of the ${kind} finale.`;
+    const leading = leaders(inputs.tally).map((r) => r.photo);
+    const error = finaleBlocker(kind, step, { quizPhase: inputs.quiz.stage.phase, ...stages, tied: leading, pick: this.picked() });
     if (error) return error;
-    this.kv.put(STAGE_KEY, step);
+    this.kv.put(KINDS[kind].key, this.steps[step](kind, inputs, now));
     return null;
   }
 
+  stages(now: number): { [K in FinaleKind]: FinaleStage } {
+    return { quiz: view(this.stored("quiz"), now).stage, photo: view(this.stored("photo"), now).stage };
+  }
+
+  settle(now: number): boolean {
+    let moved = false;
+    for (const kind of FINALE_KINDS) {
+      const stored = this.stored(kind);
+      if (stored?.stage !== "revealed" || view(stored, now).stage !== "done") continue;
+      this.kv.put(KINDS[kind].key, { stage: "done", win: stored.win });
+      moved = true;
+    }
+    return moved;
+  }
+
+  // When the Durable Object must wake to send the phones back to the party.
+  wakeAt(): number | null {
+    const due = FINALE_KINDS.flatMap((kind) => {
+      const stored = this.stored(kind);
+      return stored?.stage === "revealed" ? [stored.at + REVEAL_SHOW_MS] : [];
+    });
+    return due.length > 0 ? Math.min(...due) : null;
+  }
+
   pick(photo: PhotoId, tally: TallyRow[]): string | null {
-    if (this.stage() === "photo") return "The photo winner has already been revealed.";
+    const stored = this.stored("photo");
+    if (stored && stored.stage !== "suspense") return "The photo winner has already been revealed.";
     const top = leaders(tally);
     if (top.length < 2 || !top.some((r) => r.photo === photo)) return "That photo isn't tied for first.";
     this.kv.put(PICK_KEY, photo);
@@ -60,7 +131,7 @@ export class Finale {
   }
 
   clear(): void {
-    for (const key of [STAGE_KEY, PICK_KEY, PHOTO_KEY, QUIZ_KEY, JOINS_CLOSED_KEY]) this.kv.delete(key);
+    for (const key of [KINDS.quiz.key, KINDS.photo.key, PICK_KEY, JOINS_CLOSED_KEY]) this.kv.delete(key);
   }
 
   joinsOpen(): boolean {
@@ -73,39 +144,30 @@ export class Finale {
 
   // A revealed winner stays visible to guests even if it is later hidden or replaced.
   revealedPhoto(id: PhotoId): boolean {
-    const photo = this.kv.get<FrozenPhoto | null>(PHOTO_KEY);
-    return photo?.photo === id || photo?.thumb === id;
+    const stored = this.stored("photo");
+    const win = stored && "win" in stored ? stored.win : null;
+    return win?.photo === id || win?.thumb === id;
   }
 
-  guest(roster: Roster): GuestFinale {
-    const root = (id: PlayerId) => roster.rootOf(id) ?? { id, name: "" };
-    const photo = this.kv.get<FrozenPhoto | null>(PHOTO_KEY) ?? null;
-    const won = photo && { ...photo, owner: root(photo.owner).id, name: root(photo.owner).name };
-    // Joint winners merged into one player after the reveal are one winner.
-    const quizWinners = () => {
-      const byRoot = new Map<PlayerId, QuizWin>();
-      for (const w of this.kv.get<FrozenQuiz[]>(QUIZ_KEY) ?? []) {
-        const { id, name } = root(w.id);
-        byRoot.set(id, { id, name, score: w.score });
-      }
-      return [...byRoot.values()];
+  guest(roster: Roster, now: number): GuestFinales {
+    const root: Root = (id) => roster.rootOf(id) ?? { id, name: "" };
+    const named = <K extends FinaleKind>(kind: K): GuestFinales[K] => {
+      const shown = view(this.stored(kind), now);
+      return ("win" in shown ? { ...shown, win: KINDS[kind].named(shown.win, root) } : shown) as GuestFinales[K];
     };
-    const views: { [S in FinaleStage]: () => GuestFinale } = {
-      off: () => ({ stage: "off" }),
-      suspense: () => ({ stage: "suspense" }),
-      quiz: () => ({ stage: "quiz", quiz: quizWinners() }),
-      photo: () => ({ stage: "photo", quiz: quizWinners(), photo: won }),
-    };
-    return views[this.stage()]();
+    return { quiz: named("quiz"), photo: named("photo") };
   }
 
-  admin(guest: GuestFinale, tally: TallyRow[]): AdminFinale {
+  admin(guest: GuestFinales, tally: TallyRow[]): AdminFinales {
     const top = leaders(tally);
-    return {
-      ...guest,
-      tied: top.length > 1 ? top.map((r) => r.photo) : [],
-      pick: this.kv.get<PhotoId>(PICK_KEY) ?? null,
-      joins: this.joinsOpen(),
-    };
+    return { ...guest, tied: top.length > 1 ? top.map((r) => r.photo) : [], pick: this.picked(), joins: this.joinsOpen() };
+  }
+
+  private picked(): PhotoId | null {
+    return this.kv.get<PhotoId>(PICK_KEY) ?? null;
+  }
+
+  private stored<K extends FinaleKind>(kind: K): Stored<Frozen[K]> | undefined {
+    return this.kv.get<Stored<Frozen[K]>>(KINDS[kind].key);
   }
 }

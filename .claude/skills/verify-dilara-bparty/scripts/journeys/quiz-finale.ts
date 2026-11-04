@@ -26,7 +26,8 @@ try {
   await openAdmin(admin, secrets.admin);
   const heartbeat = heartbeatState(admin);
   const phase = admin.locator(".quiz .phase");
-  const finale = admin.locator(".finale");
+  const quizFinale = admin.locator(".quiz-finale");
+  const photoFinale = admin.locator(".photo-finale");
   await expect(heartbeat).toHaveText("Fast heartbeat off");
 
   const join = async (letter: string, profile: "good" | "bad-3g") => {
@@ -132,30 +133,47 @@ try {
   for (const p of [a, b, c]) await expect(heading(p.page, "Quizet är slut!")).toBeVisible(SEE);
   await v.evidence(admin, "06-admin-quiz-ended");
 
-  await finale.getByRole("button", { name: "Open suspense page" }).click();
-  await finale.getByRole("button", { name: "Yes, open suspense page" }).click();
-  await expect(finale.locator(".phase")).toHaveText("Suspense page on phones");
-  for (const p of [a, b, c]) await expect(heading(p.page, "Och vinnarna är…")).toBeVisible(SEE);
-  await expect(admin.getByText("Voting closed")).toBeVisible();
-  await expect(admin.getByRole("button", { name: "Reset quiz", exact: true })).toBeDisabled();
-  await v.evidence(a.page, "07-phone-suspense");
+  const backToParty = async (show: "Quiz" | "Galleri") => {
+    for (const p of [a, b, c]) {
+      await p.page.getByRole("button", { name: "Tillbaka till festen" }).click();
+      await expect(greeting(p.page, p.name)).toBeVisible(SEE);
+      await tab(p.page, show);
+    }
+  };
 
-  await finale.getByRole("button", { name: "Reveal quiz winner" }).click();
-  await expect(finale.locator(".phase")).toHaveText("Quiz winner on phones");
+  await quizFinale.getByRole("button", { name: "Open suspense page" }).click();
+  await quizFinale.getByRole("button", { name: "Yes, open suspense page" }).click();
+  await expect(quizFinale.locator(".phase")).toHaveText("Suspense page on phones");
+  for (const p of [a, b, c]) await expect(heading(p.page, "Vem vann quizet?")).toBeVisible(SEE);
+  await expect(admin.getByText("Voting open"), "the quiz finale leaves the photo contest open").toBeVisible();
+  await expect(admin.getByRole("button", { name: "Reset quiz", exact: true })).toBeDisabled();
+  await expect(heartbeat).toHaveText("Fast heartbeat on");
+  await v.evidence(a.page, "07-phone-quiz-suspense");
+
+  await quizFinale.getByRole("button", { name: "Reveal quiz winner" }).click();
+  await expect(quizFinale.locator(".phase")).toHaveText("Winner on phones");
   for (const p of [a, b, c]) {
     await expect(p.page.getByText("Quizvinnaren", { exact: true })).toBeVisible(SEE);
     await expect(p.page.getByText("Grattis, du vann!")).toHaveCount(p === a ? 1 : 0);
   }
   await v.evidence(a.page, "08-phone-quiz-winner");
+  await backToParty("Quiz");
+  for (const p of [a, b, c]) await expect(p.page.locator(".quiz-winners"), "the Quiz tab keeps the winner").toContainText(a.name);
+  await v.evidence(a.page, "08b-phone-quiz-tab-winner");
 
-  await expect(finale.getByRole("button", { name: "Reveal photo winner" })).toBeDisabled();
-  await expect(finale.getByText("Photos are tied for first. Pick the winner before you reveal it.")).toBeVisible();
-  await finale.locator(".tie-photos").getByRole("button", { name: "Pick as winner" }).first().click();
-  await expect(finale.getByRole("button", { name: "Winner ✓" })).toBeVisible();
+  await photoFinale.getByRole("button", { name: "Open suspense page" }).click();
+  await photoFinale.getByRole("button", { name: "Yes, open suspense page" }).click();
+  for (const p of [a, b, c]) await expect(heading(p.page, "Vem tog bästa fotot?")).toBeVisible(SEE);
+  await expect(admin.getByText("Voting closed")).toBeVisible();
+  await expect(admin.getByText("Uploads closed")).toBeVisible();
+  await expect(photoFinale.getByRole("button", { name: "Reveal photo winner" })).toBeDisabled();
+  await expect(photoFinale.getByText("Photos are tied for first. Pick the winner before you reveal it.")).toBeVisible();
+  await photoFinale.locator(".tie-photos").getByRole("button", { name: "Pick as winner" }).first().click();
+  await expect(photoFinale.getByRole("button", { name: "Winner ✓" })).toBeVisible();
   await v.evidence(admin, "09-admin-tie-picked");
-  await finale.getByRole("button", { name: "Reveal photo winner" }).click();
-  await expect(finale.locator(".phase")).toHaveText("Photo winner on phones");
-  const photographer = (await finale.locator(".revealed dd").last().locator("b").textContent())!;
+  await photoFinale.getByRole("button", { name: "Reveal photo winner" }).click();
+  await expect(photoFinale.locator(".phase")).toHaveText("Winner on phones");
+  const photographer = (await photoFinale.locator(".revealed dd b").textContent())!;
   for (const p of [a, b, c]) {
     await expect(heading(p.page, photographer)).toBeVisible(SEE);
     await expect(p.page.getByText("Grattis, det är din bild!")).toHaveCount(p.name === photographer ? 1 : 0);
@@ -169,6 +187,9 @@ try {
   const winnerPhone = [a, b].find((p) => p.name === photographer)!;
   await expect(winnerPhone.page.locator(".win-photo img.full.loaded")).toBeVisible(SEE);
   await v.evidence(winnerPhone.page, "10-phone-photo-winner");
+  await backToParty("Galleri");
+  for (const p of [a, b, c]) await expect(p.page.locator(".photo-winner"), "the gallery shows the winner").toContainText(photographer);
+  await v.evidence(c.page, "10b-phone-gallery-winner");
 
   const end = admin.locator(".party-end");
   await end.getByRole("button", { name: "End the party" }).click();
@@ -182,7 +203,8 @@ try {
   await joinByLink(b.page, secrets.join, b.name.toLowerCase());
   await expect(heading(b.page, "Är det du?")).toBeVisible(SEE);
   await b.page.getByRole("button", { name: "Ja, det är jag" }).click();
-  await expect(heading(b.page, photographer)).toBeVisible(SEE);
+  // A fresh page lands on the photo reveal for the rest of its minute, and in the app after that.
+  await expect(heading(b.page, photographer).or(greeting(b.page, b.name))).toBeVisible(SEE);
 
   await end.getByRole("button", { name: "Wipe all data…" }).click();
   await expect(end.getByText(/^Download the photos first!/)).toBeVisible();
@@ -194,7 +216,7 @@ try {
   await expect(end.getByText("New guests can join.")).toBeVisible();
   await v.evidence(c.page, "13-phone-after-wipe");
 
-  console.log(`PASS quiz-finale: an automatic and an early round, a photo tie, both reveals, a drop on bad 3G, the end of the party and the wipe, with the heartbeat following the quiz. Evidence: ${out}`);
+  console.log(`PASS quiz-finale: an automatic and an early round, the quiz finale, the photo finale with a tie, a drop on bad 3G, each phone back in the party with the winners, the end of the party and the wipe, with the heartbeat following the quiz and the finale. Evidence: ${out}`);
 } catch (e) {
   console.error(`FAIL quiz-finale: ${redact(String(e instanceof Error ? e.message : e), secrets)}\nEvidence so far: ${out}`);
   process.exitCode = 1;

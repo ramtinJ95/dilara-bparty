@@ -47,4 +47,4 @@ Preconditions:
 - An upload that finishes while the live socket is down stays on `Klart!` until the socket is back, so the guest never sees an empty `Välj bild` and picks the photo again.
 - On staging, photos from earlier rehearsals stay in the gallery. Assert on photos you uploaded in this run.
 - The file input accepts `image/*`, and the phone always re-encodes to JPEG, so the stored type is `image/jpeg`.
-- Opening the finale closes voting for good (see [finale.md](./finale.md)).
+- Opening the photo finale closes uploads and voting for good, and the gallery then opens with the winner (see [finale.md](./finale.md)). The quiz finale leaves them open.

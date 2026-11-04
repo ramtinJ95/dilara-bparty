@@ -1,5 +1,6 @@
 import type { ComponentType } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { quizRunning, winOf, type FinaleKind } from "../../shared/finale";
 import type { GuestCmd, GuestState } from "../../shared/protocol";
 import { useDeadline } from "../clock";
 import { CameraIcon, GalleryIcon, LockIcon, QuizIcon } from "../icons";
@@ -7,9 +8,10 @@ import { Cap, Icicles } from "../ice";
 import { useLive, type LiveStatus } from "../live";
 import { forgetSession, hasSession, restoreSession } from "../session";
 import { heldAnswer, roundKey, settleAnswer } from "./answer-clock";
-import { Finale } from "./finale";
+import { Finale, QuizWinners } from "./finale";
 import { GalleryPanel } from "./gallery";
 import { MyPhotoPanel } from "./my-photo";
+import { onStage } from "./on-stage";
 import { Quiz } from "./quiz";
 import { UnlockPopup, useUnlockNotice } from "./unlock";
 import { useUploader, type Uploader } from "./use-upload";
@@ -25,8 +27,10 @@ type PanelProps = {
 type TabId = "quiz" | "mitt-foto" | "galleri";
 type Tab = { id: TabId; label: string; Icon: ComponentType; Panel: ComponentType<PanelProps> };
 
-const QuizPanel = ({ state, live, send, deadline }: PanelProps) =>
-  state.quiz.phase === "locked" ? (
+const QuizPanel = ({ state, live, send, deadline }: PanelProps) => {
+  const winners = winOf(state.finale.quiz);
+  if (winners) return <QuizWinners winners={winners} you={state.you.id} />;
+  return state.quiz.phase === "locked" ? (
     <section class="panel card" aria-labelledby="panel-title">
       <Cap />
       <span class="badge-icon">
@@ -38,11 +42,17 @@ const QuizPanel = ({ state, live, send, deadline }: PanelProps) =>
   ) : (
     <Quiz quiz={state.quiz} deadline={deadline} send={send} live={live} />
   );
+};
 
 const TABS: readonly Tab[] = [
   { id: "quiz", label: "Quiz", Icon: LockIcon, Panel: QuizPanel },
   { id: "mitt-foto", label: "Mitt foto", Icon: CameraIcon, Panel: (p) => <MyPhotoPanel contest={p.state.contest} upload={p.upload} live={p.live} send={p.send} /> },
-  { id: "galleri", label: "Galleri", Icon: GalleryIcon, Panel: (p) => <GalleryPanel contest={p.state.contest} live={p.live} send={p.send} toMyPhoto={() => p.go("mitt-foto")} /> },
+  {
+    id: "galleri",
+    label: "Galleri",
+    Icon: GalleryIcon,
+    Panel: (p) => <GalleryPanel contest={p.state.contest} winner={winOf(p.state.finale.photo)} live={p.live} send={p.send} toMyPhoto={() => p.go("mitt-foto")} />,
+  },
 ];
 const QUIZ_TAB = TABS[0]!;
 
@@ -115,6 +125,8 @@ function useRestoreOnRefusal(status: LiveStatus) {
 export function Shell() {
   const [tab, select] = useHashTab();
   const [toast, showToast] = useToast();
+  // Each phone leaves a reveal on its own button; the server's broadcast at the end of the reveal brings back the rest.
+  const [dismissed, setDismissed] = useState<ReadonlySet<FinaleKind>>(new Set());
   const { state, status, send, check } = useLive<GuestState>("/ws", (msg) =>
     msg.t === "gone" ? (forgetSession(), location.replace("/")) : msg.t === "error" && showToast(msg.message),
   );
@@ -133,9 +145,9 @@ export function Shell() {
   const deadline = useDeadline(state, quiz?.phase === "open" ? quiz.endsInMs : null);
   const unlock = useUnlockNotice(quiz && quiz.phase !== "locked" && quiz.phase !== "ended" ? quiz.unlockedAt : null, onQuizTab);
   const waitingForYou = quiz?.phase === "open" && quiz.pick === null && !onQuizTab;
-  const finale = state?.finale;
+  const staged = state && onStage(state.finale, dismissed, quizRunning(state.quiz.phase));
 
-  if (state && finale && finale.stage !== "off") {
+  if (state && staged) {
     return (
       <div class="shell finale-shell">
         {pill && (
@@ -143,7 +155,7 @@ export function Shell() {
             {pill}
           </div>
         )}
-        <Finale finale={finale} you={state.you.id} />
+        <Finale staged={staged} finales={state.finale} you={state.you.id} back={() => setDismissed(new Set([...dismissed, staged.kind]))} />
       </div>
     );
   }

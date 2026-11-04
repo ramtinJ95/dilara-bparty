@@ -1,45 +1,50 @@
 import { useEffect } from "preact/hooks";
-import type { GuestFinale, PhotoWin, QuizWin } from "../../shared/finale";
+import { winOf, type FinaleKind, type GuestFinales, type PhotoWin, type QuizWin } from "../../shared/finale";
 import type { PlayerId } from "../../shared/model";
 import { photoUrl } from "../api";
 import { Snowflake, Sparkle, Tiara } from "../icons";
 import { Cap, Drift, Icicles, Sheen } from "../ice";
 import "./finale.css";
 import { votesText } from "./my-photo";
+import type { OnStage } from "./on-stage";
 
-type Of<S extends GuestFinale["stage"]> = Extract<GuestFinale, { stage: S }>;
-type Props<S extends GuestFinale["stage"]> = { finale: Of<S>; you: PlayerId };
-type Stage = Exclude<GuestFinale["stage"], "off">;
+type Props = { staged: OnStage; finales: GuestFinales; you: PlayerId; back: () => void };
 
-const VIEWS: { [S in Stage]: (props: Props<S>) => preact.JSX.Element } = {
-  suspense: Suspense,
-  quiz: QuizReveal,
-  photo: PhotoReveal,
+const SUSPENSE: Record<FinaleKind, { title: string; sub: string }> = {
+  quiz: { title: "Vem vann quizet?", sub: "Håll i er, snart får vi veta!" },
+  photo: { title: "Vem tog bästa fotot?", sub: "Röstningen är stängd. Snart får vi veta!" },
 };
 
-export function Finale({ finale, you }: { finale: Of<Stage>; you: PlayerId }) {
-  const View = VIEWS[finale.stage] as (props: Props<Stage>) => preact.JSX.Element;
-  return <View finale={finale} you={you} />;
+export function Finale({ staged, finales, you, back }: Props) {
+  if (staged.view.stage === "suspense") return <Suspense {...SUSPENSE[staged.kind]} />;
+  if (staged.kind === "quiz") return <QuizReveal winners={staged.view.win} you={you} back={back} />;
+  return <PhotoReveal photo={staged.view.win} quiz={winOf(finales.quiz) ?? []} you={you} back={back} />;
 }
 
 const points = (n: number) => `${n.toLocaleString("sv-SE")} poäng`;
+const names = (winners: QuizWin[]) => winners.map((w) => w.name).join(" & ");
+const quizTitle = (winners: QuizWin[]) => (winners.length > 1 ? "Quizvinnarna" : "Quizvinnaren");
+const quizScore = (winners: QuizWin[]) => (winners.length > 1 ? `delar segern med ${points(winners[0]!.score)}` : points(winners[0]!.score));
+const quizCheer = (winners: QuizWin[], you: PlayerId) =>
+  winners.some((w) => w.id === you) ? (winners.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!") : null;
+const NO_QUIZ_WINNER = "Ingen fick poäng den här gången";
 
-function Suspense() {
+function Suspense({ title, sub }: { title: string; sub: string }) {
   return (
     <section class="finale suspense" aria-labelledby="finale-title">
       <Ice />
       <div class="sus-box">
         <Tiara />
         <h1 id="finale-title" class="finale-title">
-          Och vinnarna är…
+          {title}
         </h1>
-        <p class="finale-sub">Håll i er, snart får vi veta!</p>
+        <p class="finale-sub">{sub}</p>
       </div>
     </section>
   );
 }
 
-function PhotoReveal({ finale: { photo, quiz }, you }: Props<"photo">) {
+function PhotoReveal({ photo, quiz, you, back }: { photo: PhotoWin | null; quiz: QuizWin[]; you: PlayerId; back: () => void }) {
   useCheer();
   return (
     <section class="finale reveal" aria-labelledby="finale-title">
@@ -62,39 +67,75 @@ function PhotoReveal({ finale: { photo, quiz }, you }: Props<"photo">) {
         </h1>
       )}
       {quiz.length > 0 && <QuizRecap winners={quiz} />}
+      <Back onClick={back} />
       <Drift />
     </section>
   );
 }
 
-function QuizReveal({ finale: { quiz }, you }: Props<"quiz">) {
+function QuizReveal({ winners, you, back }: { winners: QuizWin[]; you: PlayerId; back: () => void }) {
   useCheer();
-  const mine = quiz.some((w) => w.id === you);
+  const cheer = quizCheer(winners, you);
   return (
     <section class="finale reveal" aria-labelledby="finale-title">
       <Ice opening />
       <BigFlake />
       <Burst />
-      <Kicker>{quiz.length > 1 ? "Quizvinnarna" : "Quizvinnaren"}</Kicker>
+      <Kicker>{quizTitle(winners)}</Kicker>
       <Tiara class="medal" />
-      {quiz.length > 0 ? (
+      {winners.length > 0 ? (
         <>
-          <h1 id="finale-title" class="finale-title" style={fit(quiz.map((w) => w.name).join(" & "))}>
-            {quiz.map((w) => w.name).join(" & ")}
+          <h1 id="finale-title" class="finale-title" style={fit(names(winners))}>
+            {names(winners)}
           </h1>
           <p class="finale-sub card">
-            <span>{quiz.length > 1 ? `delar segern med ${points(quiz[0]!.score)}` : points(quiz[0]!.score)}</span>
+            <span>{quizScore(winners)}</span>
             <Icicles />
           </p>
-          {mine && <You>{quiz.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!"}</You>}
+          {cheer && <You>{cheer}</You>}
         </>
       ) : (
         <h1 id="finale-title" class="finale-title small">
-          Ingen fick poäng den här gången
+          {NO_QUIZ_WINNER}
         </h1>
       )}
+      <Back onClick={back} />
       <Drift />
     </section>
+  );
+}
+
+export function QuizWinners({ winners, you }: { winners: QuizWin[]; you: PlayerId }) {
+  const cheer = quizCheer(winners, you);
+  return (
+    <section class="panel card calm quiz-winners" aria-labelledby="panel-title">
+      <Cap />
+      <Tiara />
+      <p class="win-kicker">{quizTitle(winners)}</p>
+      <h2 id="panel-title">{winners.length > 0 ? names(winners) : NO_QUIZ_WINNER}</h2>
+      {winners.length > 0 && <p>{quizScore(winners)}</p>}
+      {cheer && <You>{cheer}</You>}
+      <Sparkle class="sparkle a" />
+      <Sparkle class="sparkle b" />
+    </section>
+  );
+}
+
+export function PhotoWinner({ photo, open }: { photo: PhotoWin; open: () => void }) {
+  return (
+    <div class="photo-winner card">
+      <Cap />
+      <button class="thumb" type="button" aria-label="Visa vinnarbilden" onClick={open}>
+        <img src={photoUrl(photo.thumb)} alt={`Vinnarbilden av ${photo.name}`} />
+      </button>
+      <p>
+        <span class="win-kicker">Bästa fotot</span>
+        <strong>{photo.name}</strong>
+        <span>{votesText(photo.votes)}</span>
+      </p>
+      <Tiara />
+      <Icicles />
+    </div>
   );
 }
 
@@ -119,12 +160,18 @@ function QuizRecap({ winners }: { winners: QuizWin[] }) {
       <Cap />
       <Tiara />
       <p>
-        {winners.length > 1 ? "Quizvinnarna" : "Quizvinnaren"}
-        <strong>{winners.map((w) => w.name).join(" & ")}</strong>
+        {quizTitle(winners)}
+        <strong>{names(winners)}</strong>
       </p>
     </div>
   );
 }
+
+const Back = ({ onClick }: { onClick: () => void }) => (
+  <button class="btn back" type="button" onClick={onClick}>
+    Tillbaka till festen
+  </button>
+);
 
 function useCheer() {
   useEffect(() => void navigator.vibrate?.([120, 60, 240]), []);

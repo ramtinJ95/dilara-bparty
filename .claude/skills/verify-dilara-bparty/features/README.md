@@ -40,5 +40,5 @@ Each feature file starts with an H1 title and one paragraph about the user-visib
 - [Photo contest](./photo-contest.md) covers uploading with retry, voting, the hall of fame, and the admin's tally and toggles.
 - [Gated photo route](./photo-route.md) covers who can fetch `/photos/<id>` and its cache header.
 - [Live quiz](./quiz.md) covers the question editor, the unlock popup, playing, closing, revealing and scoring questions, the leaderboard, late joins, reconnects and the end.
-- [Finale and end of the party](./finale.md) covers the suspense page, the quiz and photo reveals, photo ties, reconnects during the finale, ending the party, the party reset and the wipe.
+- [Finale and end of the party](./finale.md) covers the quiz and photo finales, each with its suspense page and reveal, the way back to the party, photo ties, reconnects during a finale, ending the party, the party reset and the wipe.
 - [Reconnect on bad networks](./reconnect.md) covers slow profiles, clean and silent drops, the fast and slow heartbeat, frozen tabs and catching up to the current state.

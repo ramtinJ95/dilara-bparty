@@ -11,7 +11,7 @@ After joining, the guest app greets the guest by name, shows how many guests are
 - `shell-pill` shows `Ansluter…` before the first state and `Återansluter…` while reconnecting.
 - `shell-gate` redirects `/app` to `/` without a valid cookie.
 - `shell-quiz-dot` shows a dot labelled `En fråga väntar` on the Quiz tab while an unanswered question is open and the guest is on another tab.
-- `shell-finale` hides the greeting and the tabs while the finale runs, and shows only the finale screen (see [finale.md](./finale.md)).
+- `shell-finale` hides the greeting and the tabs while a finale's suspense page or a reveal this phone hasn't left is on, and shows only that screen (see [finale.md](./finale.md)).
 - `shell-gone` sends the phone to `/` when the host wipes or resets the party, and forgets its saved identity, so it stays on `/`.
 
 ## How to get to it (user POV)

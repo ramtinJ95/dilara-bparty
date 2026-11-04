@@ -1,5 +1,5 @@
-// Screenshots every guest state at 390 and 360 px, plus the admin at 1440 px, for a restyle PR. It plays the whole party through the
-// photo winner, which can't be undone, so point it only at a fresh local instance seeded with `npm run seed -- --base-url <url> --bots`.
+// Screenshots every guest state at 390 and 360 px, plus the admin at 1440 px, for a restyle PR. It plays the whole party through both
+// finales, which can't be undone, so point it only at a fresh local instance seeded with `npm run seed -- --base-url <url> --bots`.
 // Usage: node e2e/tour.ts <local base url> [out dir]
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -165,9 +165,17 @@ await shot(saga, "my-photo-closed");
 await shot(admin, "admin-before-finale", false);
 await full(admin, "admin-before-finale");
 
-await click("Open suspense page");
-await expect(kim.locator(".suspense")).toBeVisible();
-await shot(kim, "finale-suspense");
+const openSuspense = async (card: string) => {
+  await admin.locator(card).getByRole("button", { name: "Open suspense page" }).click();
+  await admin.locator(card).getByRole("button", { name: "Yes, open suspense page" }).click();
+  await expect(kim.locator(".suspense")).toBeVisible();
+};
+const backToParty = async () => {
+  await kim.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await expect(kim.locator(".tabs")).toBeVisible();
+};
+await openSuspense(".quiz-finale");
+await shot(kim, "finale-quiz-suspense");
 const winnerPhone = async (name: string) => {
   const [, page] = await phone();
   await page.goto(`/j/${JOIN}`);
@@ -182,6 +190,11 @@ await click(/^Reveal quiz winner/);
 await kim.waitForTimeout(2500);
 await shot(kim, "finale-quiz");
 await shot(await winnerPhone((await kim.locator("#finale-title").textContent())!.split(" & ")[0]!), "finale-quiz-own");
+await backToParty();
+await kim.getByRole("button", { name: "Quiz" }).click();
+await shot(kim, "quiz-winners");
+await openSuspense(".photo-finale");
+await shot(kim, "finale-photo-suspense");
 const pick = admin.getByRole("button", { name: "Pick as winner" });
 if (await pick.first().isVisible().catch(() => false)) await pick.first().click();
 await click("Reveal photo winner");
@@ -189,6 +202,9 @@ await expect(kim.locator(".win-photo")).toBeVisible();
 await kim.waitForTimeout(2500);
 await shot(kim, "finale-photo");
 await shot(await winnerPhone((await kim.locator("#finale-title").textContent())!), "finale-photo-own");
+await backToParty();
+await kim.getByRole("button", { name: "Galleri" }).click();
+await shot(kim, "gallery-winner");
 await shot(admin, "admin-finale", false);
 
 await browser.close();

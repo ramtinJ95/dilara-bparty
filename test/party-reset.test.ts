@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PhotoId } from "../src/shared/model";
 import type { AdminState } from "../src/shared/protocol";
 import { answer, answerCmd, choice, closeAll, host, number, phone, phones, stage, start, step, view, type Admin, type Phone } from "./support/quiz";
-import { adminCookie, call, connectAdmin, connectGuest, join, JOIN_SECRET, ORIGIN, uploadContestAs, uploadLanding, uploadQuestionPhoto } from "./support/worker";
+import { adminCookie, alarmAt, call, connectAdmin, connectGuest, fireAlarm, join, JOIN_SECRET, ORIGIN, uploadContestAs, uploadLanding, uploadQuestionPhoto } from "./support/worker";
 
 const reset = (cookie: string | undefined, origin = ORIGIN) => call("/api/admin/party/reset", { method: "POST", cookie, headers: { Origin: origin } });
 
@@ -43,7 +43,7 @@ async function expectFreshParty(admin: Admin, kept: { landing: PhotoId; question
   expect(after.quiz.questions.map((q) => q.text)).toEqual(["Fråga med bild", "Fråga två"]);
   expect(after.quiz.questions[0]?.photo).toBe(kept.questionPhoto);
   expect(after.contest).toEqual({ uploads: true, voting: true, tally: [], entrants: [] });
-  expect(after.finale).toMatchObject({ stage: "off", tied: [], pick: null, joins: true });
+  expect(after.finale).toEqual({ quiz: { stage: "off" }, photo: { stage: "off" }, tied: [], pick: null, joins: true });
   expect(after.landingPhoto).toBe(kept.landing);
   expect(await storedRows()).toEqual({ players: 0, entries: 0, votes: 0, rounds: 0, answers: 0, deliveries: 0, questions: 2, photoKinds: ["landing", "question"] });
 }
@@ -110,7 +110,7 @@ describe("party reset", () => {
     closeAll(admin, gone, fresh.socket);
   });
 
-  it("after the party has ended and the finale is shown, opens joins again and turns the finale off", async () => {
+  it("after the party has ended and both winners are on the phones, opens joins again and turns both finales off", async () => {
     const kept = await prepared();
     const { admin } = kept;
     const all = await phones("Astrid", "Olle");
@@ -122,16 +122,23 @@ describe("party reset", () => {
     await answer(olle, q, 1);
     await stage(admin, "reveal");
     await step(admin, "end", "ended");
-    for (const s of ["suspense", "quiz", "photo"] as const) await command(admin, { t: "finale", step: s }, (st) => st.finale.stage === s);
+    for (const kind of ["quiz", "photo"] as const) {
+      await command(admin, { t: "finale", kind, step: "suspense" }, (s) => s.finale[kind].stage === "suspense");
+      await command(admin, { t: "finale", kind, step: "reveal" }, (s) => s.finale[kind].stage === "reveal");
+    }
     await command(admin, { t: "joins", open: false }, (s) => !s.finale.joins);
     expect((await join("Ny gäst")).res.status).toBe(403);
 
     expect((await reset(await adminCookie())).status).toBe(204);
     for (const p of all) expect(await p.socket.next((m) => m.t === "gone")).toEqual({ t: "gone" });
     await expectFreshParty(admin, kept);
+    expect(await fireAlarm()).toBe(true);
+    const tick = ((await alarmAt()) ?? 0) - Date.now();
+    expect(tick, "the fast heartbeat of the finale is over, and the next alarm is the slow tick").toBeGreaterThan(25_000);
+    expect(tick).toBeLessThanOrEqual(30_000);
 
     const guest = await phone("Ny gäst");
-    expect((await guest.socket.current()).finale).toEqual({ stage: "off" });
+    expect((await guest.socket.current()).finale).toEqual({ quiz: { stage: "off" }, photo: { stage: "off" } });
     expect((await call(`/photos/${photo}`, { cookie: guest.cookie })).status, "the revealed winner is gone too").toBe(404);
     await step(admin, "unlock", "lobby");
     expect(await view(guest, "lobby"), "the quiz runs again, now that the finale is off").toMatchObject({ phase: "lobby" });
