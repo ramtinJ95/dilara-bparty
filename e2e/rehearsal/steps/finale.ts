@@ -26,9 +26,9 @@ async function openSuspense(r: Rehearsal, card: Locator, title: string): Promise
 }
 
 // Each phone leaves the reveal with its own button, so the rehearsal never waits the minute after which the server sends them back.
-async function backToParty(r: Rehearsal, show: "Quiz" | "Galleri", winner: (g: Guest) => Locator): Promise<void> {
+async function backToParty(r: Rehearsal, guests: Guest[], show: "Quiz" | "Galleri", winner: (g: Guest) => Locator): Promise<void> {
   await Promise.all(
-    r.guests.map(async (g) => {
+    guests.map(async (g) => {
       await r.time("back to the party", g, async () => {
         await g.page.getByRole("button", { name: "Tillbaka till festen" }).click();
         await expect(greeting(g.page, g.name)).toBeVisible({ timeout: SEE_TIMEOUT });
@@ -66,7 +66,7 @@ const quiz: Step = {
     const cheer = winners.length > 1 ? "Grattis, du delar segern!" : "Grattis, du vann!";
     await Promise.all(r.guests.map((g) => r.check(`${g.name} ${winners.includes(g.name) ? "is" : "isn't"} congratulated on the quiz`, () =>
       expect(g.page.getByText(cheer)).toHaveCount(winners.includes(g.name) ? 1 : 0), g.page)));
-    await backToParty(r, "Quiz", (g) => g.page.locator(".quiz-winners").getByText(/^Quizvinnar(en|na)$/));
+    await backToParty(r, r.guests, "Quiz", (g) => g.page.locator(".quiz-winners").getByText(/^Quizvinnar(en|na)$/));
   },
 };
 
@@ -105,14 +105,21 @@ const photo: Step = {
       expect(g.page.getByText("Grattis, det är din bild!")).toHaveCount(g.name === winner ? 1 : 0), g.page)));
 
     const dropper = r.guests.find((g) => g.profile === "flaky") ?? r.guests[0]!;
-    await dropper.line.cut("clean");
-    await r.admin.waitForTimeout(AWAY_MS);
-    await dropper.line.restore();
-    await r.time("finale reconnect lands on the reveal", dropper, async () => {
-      await expect(reconnecting(dropper.page)).toHaveCount(0, { timeout: SEE_TIMEOUT });
-      await expect(dropper.page.getByRole("heading", { name: winner, exact: true })).toBeVisible();
-    });
-    await backToParty(r, "Galleri", (g) => g.page.locator(".photo-winner").getByText(winner, { exact: true }));
+    const showsWinner = (g: Guest) => g.page.locator(".photo-winner").getByText(winner, { exact: true });
+    // The others go back while the dropper reconnects, so its wait doesn't use up their minute on the reveal.
+    await Promise.all([
+      backToParty(r, r.guests.filter((g) => g !== dropper), "Galleri", showsWinner),
+      (async () => {
+        await dropper.line.cut("clean");
+        await dropper.page.waitForTimeout(AWAY_MS);
+        await dropper.line.restore();
+        await r.time("finale reconnect lands on the reveal", dropper, async () => {
+          await expect(reconnecting(dropper.page)).toHaveCount(0, { timeout: SEE_TIMEOUT });
+          await expect(dropper.page.getByRole("heading", { name: winner, exact: true })).toBeVisible();
+        });
+        await backToParty(r, [dropper], "Galleri", showsWinner);
+      })(),
+    ]);
   },
 };
 

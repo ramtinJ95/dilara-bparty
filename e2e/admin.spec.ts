@@ -279,11 +279,13 @@ test("unlock, reset, start, an early reveal and leaderboard, the automatic ones,
 
   await press("Start question 1");
   await expect(phase).toHaveText("Question open");
-  for (const p of phones) {
-    await expect(p.getByText("Fråga 1 av 2")).toBeVisible();
-    await expect(p.getByText("Vilken färg har snöflingan på bilden?"), "phones show the edited text").toBeVisible();
-    expect(await lookOf(p.locator(".q-photo")), "phones show the photo the host attached").toBe("sea");
-  }
+  await Promise.all(
+    phones.map(async (p) => {
+      await expect(p.getByText("Fråga 1 av 2")).toBeVisible();
+      await expect(p.getByText("Vilken färg har snöflingan på bilden?"), "phones show the edited text").toBeVisible();
+      expect(await lookOf(p.locator(".q-photo")), "phones show the photo the host attached").toBe("sea");
+    }),
+  );
   await Promise.all([answer(astrid, "Rosa"), answer(olle, "Blå", 1_500)]);
   await expect(quiz.getByText("2 of 3 answered")).toBeVisible();
   await press("Reveal answer");
@@ -305,8 +307,10 @@ test("unlock, reset, start, an early reveal and leaderboard, the automatic ones,
   await Promise.all([answer(astrid, "12"), answer(kim, "12"), answer(olle, "9")]);
   await expect(phase, "everyone answered, so the answer is revealed at once").toHaveText("Answer revealed");
   await expect(quiz.getByText("3 of 3 answered")).toBeVisible();
-  for (const p of [astrid, kim]) await expect(p.getByRole("heading", { name: "Närmast!" }), "the edited answer counts: 9 would be closer to the old 10").toBeVisible();
-  await expect(olle.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible();
+  await Promise.all([
+    ...[astrid, kim].map((p) => expect(p.getByRole("heading", { name: "Närmast!" }), "the edited answer counts: 9 would be closer to the old 10").toBeVisible()),
+    expect(olle.getByRole("heading", { name: "Inte närmast den här gången" })).toBeVisible(),
+  ]);
   await expect(phase, "the leaderboard follows on its own").toHaveText("Leaderboard on phones", { timeout: 15_000 });
   for (const p of phones) await expect(p.getByRole("heading", { name: "Topplistan" })).toBeVisible();
 
@@ -336,30 +340,32 @@ test("the quiz finale shows its suspense page and the joint winners on every pho
   await expect(card(".photo-finale").getByText("The quiz finale is on the phones. Reveal it first.")).toBeVisible();
 
   await finale.getByRole("button", { name: "Reveal quiz winners" }).click();
-  for (const p of phones) {
-    await expect(p.getByText("Quizvinnarna")).toBeVisible();
-    await expect(p.getByRole("heading", { name: "Astrid & Kim Testsson" })).toBeVisible();
-    await expect(p.getByText(/^delar segern med 1\s000 poäng$/)).toBeVisible();
-  }
-  for (const p of [astrid, kim]) await expect(p.getByText("Grattis, du delar segern!"), "each winner's phone").toBeVisible();
-  await expect(olle.getByText("Grattis, du delar segern!")).toHaveCount(0);
+  // Every phone at once, not one after another, so a slow browser checks them all inside the reveal's minute.
+  await Promise.all([
+    ...phones.map(async (p) => {
+      await expect(p.getByText("Quizvinnarna")).toBeVisible();
+      await expect(p.getByRole("heading", { name: "Astrid & Kim Testsson" })).toBeVisible();
+      await expect(p.getByText(/^delar segern med 1\s000 poäng$/)).toBeVisible();
+      await expect(p.getByText("Grattis, du delar segern!"), "each winner's phone, and no other").toHaveCount(p === olle ? 0 : 1);
+      await expect(p.getByRole("button", { name: "Tillbaka till festen" }), "the way back fits on the screen").toBeInViewport();
+    }),
+    (async () => {
+      kimAgain = (await newPhone(browser)).page;
+      await joinByLink(kimAgain, secrets.join, "Kim T");
+      await expect(kimAgain.getByRole("heading", { name: "Astrid & Kim Testsson" }), "a phone that joins during the reveal lands on it").toBeVisible();
+    })(),
+  ]);
   await expect(finale.locator(".revealed dd"), "the admin view names both winners").toHaveText("Astrid & Kim Testsson");
   await expect(finale.getByText("Phones go back to the party on their own in a minute.")).toBeVisible();
 
-  kimAgain = (await newPhone(browser)).page;
-  await joinByLink(kimAgain, secrets.join, "Kim T");
-  await expect(kimAgain.getByRole("heading", { name: "Astrid & Kim Testsson" }), "a phone that joins during the reveal lands on it").toBeVisible();
-
+  for (const p of phones) await p.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await expect(kimAgain.getByRole("button", { name: "Tillbaka till festen" }), "a phone nobody touched stays on the reveal").toBeVisible();
   for (const p of phones) {
-    const back = p.getByRole("button", { name: "Tillbaka till festen" });
-    await expect(back, "the way back fits on the screen").toBeInViewport();
-    await back.click();
     await tab(p, "Quiz");
     await expect(p.locator(".quiz-winners").getByRole("heading", { name: "Astrid & Kim Testsson" }), "the Quiz tab shows the winners").toBeVisible();
   }
   await expect(kim.locator(".quiz-winners")).toContainText("Grattis, du delar segern!");
   await expect(olle.locator(".quiz-winners")).not.toContainText("Grattis");
-  await expect(kimAgain.getByRole("button", { name: "Tillbaka till festen" }), "a phone nobody touched stays on the reveal").toBeVisible();
 });
 
 test("the host closes and reopens uploads and voting, hides a photo, browses every version and downloads them all", async () => {
@@ -480,27 +486,27 @@ test("the photo finale closes uploads and voting, reveals the picked tied photo 
   await expect(tied.filter({ hasText: "Olle Testsson" }).getByRole("button", { name: "Winner ✓" })).toBeVisible();
 
   await finale.getByRole("button", { name: "Reveal photo winner" }).click();
-  for (const p of phones) {
-    await expect(p.getByRole("heading", { name: "Olle Testsson" }), "the picked photo wins under the new name").toBeVisible();
-    await expect(p.getByText("tog vinnarbilden · 1 röst")).toBeVisible();
-    await expect(p.locator(".recap"), "the quiz winners stay as a recap").toHaveText("QuizvinnarnaAstrid & Kim Testsson");
-  }
-  expect(await lookOf(kim.getByAltText("Vinnarbilden av Olle Testsson"))).toBe("rose");
-  await expect(olle.getByText("Grattis, det är din bild!")).toBeVisible();
-  await olle.context().clearCookies();
-  await olle.reload();
-  await expect(olle.getByText("Grattis, det är din bild!"), "a phone that restored its cookie lands on the reveal as the winner").toBeVisible();
-  for (const p of [astrid, kim]) await expect(p.getByText("Grattis, det är din bild!")).toHaveCount(0);
+  // Every phone at once, not one after another, so a slow browser checks them all inside the reveal's minute.
+  await Promise.all(
+    phones.map(async (p) => {
+      await expect(p.getByRole("heading", { name: "Olle Testsson" }), "the picked photo wins under the new name").toBeVisible();
+      await expect(p.getByText("tog vinnarbilden · 1 röst")).toBeVisible();
+      await expect(p.locator(".recap"), "the quiz winners stay as a recap").toHaveText("QuizvinnarnaAstrid & Kim Testsson");
+      expect(await lookOf(p.getByAltText("Vinnarbilden av Olle Testsson"))).toBe("rose");
+      await expect(p.getByText("Grattis, det är din bild!"), "only the winner's phone congratulates").toHaveCount(p === olle ? 1 : 0);
+      await expect(p.getByRole("button", { name: "Tillbaka till festen" }), "the way back fits on the screen").toBeInViewport();
+      if (p !== olle) return;
+      await olle.context().clearCookies();
+      await olle.reload();
+      await expect(olle.getByText("Grattis, det är din bild!"), "a phone that restored its cookie lands on the reveal as the winner").toBeVisible();
+    }),
+  );
   await expect(finale.locator(".revealed dd"), "the admin view names the photographer").toContainText("Olle Testsson");
   await expect(finale.locator(".tie"), "the tie is settled").toHaveCount(0);
 
-  for (const p of phones) {
-    const back = p.getByRole("button", { name: "Tillbaka till festen" });
-    await expect(back, "the way back fits on the screen").toBeInViewport();
-    await back.click();
-    await tab(p, "Galleri");
-    await expect(p.locator(".photo-winner"), "the gallery opens with the winner").toContainText(/Bästa fotot\s*Olle Testsson\s*1 röst/);
-  }
+  await astrid.getByRole("button", { name: "Tillbaka till festen" }).click();
+  await tab(astrid, "Galleri");
+  await expect(astrid.locator(".photo-winner"), "the gallery opens with the winner").toContainText(/Bästa fotot\s*Olle Testsson\s*1 röst/);
   expect(await lookOf(astrid.locator(".photo-winner img"))).toBe("rose");
   await tab(astrid, "Quiz");
   await expect(astrid.locator(".quiz-winners"), "the Quiz tab keeps the quiz winners").toContainText("Grattis, du delar segern!");

@@ -4,6 +4,8 @@ export { expect } from "@playwright/test";
 
 // The actions that wait for their element to be stable, which takes two animation frames of its page.
 const STABLE_ACTIONS = ["click", "dblclick", "tap", "check", "uncheck", "setChecked", "hover", "dragTo"] as const;
+// E2E_PHONE_ACTION_DELAY_MS delays each such action on a phone-sized page, to run the specs as a slow browser would.
+const phoneActionDelay = Number(process.env.E2E_PHONE_ACTION_DELAY_MS ?? 0);
 
 // WebKit can stop drawing frames for a page that is behind another, and an action on it then waits for stability until the test times out.
 // So every such action first brings its page to the front, as a person looks at the screen they tap. Playwright exports no Locator class,
@@ -16,6 +18,7 @@ function frontBeforeActions(sample: Locator): void {
     const act = proto[action] as (this: Locator, ...args: unknown[]) => Promise<unknown>;
     proto[action] = async function (this: Locator, ...args: unknown[]) {
       await this.page().bringToFront();
+      if (phoneActionDelay && (this.page().viewportSize()?.width ?? Infinity) < 600) await new Promise((resolve) => setTimeout(resolve, phoneActionDelay));
       return act.apply(this, args);
     };
   }
