@@ -250,12 +250,17 @@
   line-height: 1.35;
 }
 .drop-frame span:last-child { max-width: 18ch; }
-.photo-stage { display: grid; justify-items: center; gap: 16px; width: 100%; }
+/* What each state puts below the photo, plus the header, heading and tab bar, so the photo takes only the height left and the rest fits above the tab bar. */
+.photo-stage { --below: 444px; display: grid; justify-items: center; gap: 16px; width: 100%; }
+.photo-stage:has(.progress) { --below: 398px; }
+.photo-stage:has(.status-line.calm) { --below: 488px; }
+.my-photo:has(> .note) .photo-stage { --below: 466px; }
+.photo-stage:has(.confirm) { --below: 543px; }
 .photo-frame {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(100%, 250px);
+  width: clamp(96px, (100svh - var(--below) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.8, min(100%, 250px));
   aspect-ratio: 4 / 5;
   margin-bottom: 8px;
   padding: 10px;
@@ -278,7 +283,7 @@
 .status-line.calm { max-width: 28ch; line-height: 1.45; }
 .vote-count { margin: 0; padding: 6px 14px; border: var(--line); border-radius: 10px; background: var(--pink); box-shadow: 3px 3px 0 var(--ink); font-family: var(--display); font-size: 19px; rotate: 2deg; }
 .photo-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; width: 100%; padding-right: 5px; }
-.photo-actions .btn { flex: 1 1 130px; min-width: 0; padding: 0 14px; }
+.photo-actions .btn { flex: 1 1 120px; min-width: 0; padding: 0 14px; }
 .confirm { display: grid; gap: 14px; width: 100%; padding: 16px 14px; border: var(--line); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--pink), 7px 7px 0 var(--ink); }
 .confirm p { margin: 0 auto; font-weight: 600; font-size: 16px; line-height: 1.45; }
 .fame-line { margin: 0; font-weight: 600; font-size: 14px; color: var(--ink-soft); }

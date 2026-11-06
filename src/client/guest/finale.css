@@ -48,6 +48,13 @@
 .recap p { display: grid; gap: 2px; min-width: 0; margin: 0; font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
 .recap strong { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.05; letter-spacing: 0; text-transform: none; overflow-wrap: anywhere; }
 .finale .back { margin-top: 10px; }
+/* The winner's own page adds the cheer to the photo, the name and the quiz recap, so on a short phone the photo and the spacing give way to keep Back on screen. */
+@media (max-height: 760px) {
+  .finale:has(.win-photo):has(.you) { gap: 10px; padding-top: calc(env(safe-area-inset-top) + 20px); padding-bottom: calc(env(safe-area-inset-bottom) + 40px); }
+  .finale:has(.you) .win-photo { width: min(72vw, 300px, 22svh); }
+  .finale:has(.win-photo):has(.you) .recap { margin-top: 0; }
+  .finale:has(.win-photo):has(.you) .back { margin-top: 4px; }
+}
 
 .win-kicker { font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
 .quiz-winners .win-kicker { margin: 0 0 -6px; }
