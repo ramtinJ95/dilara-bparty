@@ -1,9 +1,10 @@
-// Screenshots every guest state at 390 and 360 px, plus the admin at 1440 px, for a restyle PR. It plays the whole party through both
+// Screenshots every guest state at each of SIZES, plus the admin at 1440 px, for a restyle PR. It plays the whole party through both
 // finales, which can't be undone, so point it only at a fresh local instance seeded with `npm run seed -- --base-url <url> --bots`.
 // Usage: node e2e/tour.ts <local base url> [out dir]
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromiumLaunchOptions } from "./drive.ts";
+import { LOOKS, placeholder, pngFile } from "./placeholder.ts";
 
 const base = process.argv[2] ?? "";
 if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(base)) throw new Error(`refusing ${base || "no base url"}: give a local instance`);
@@ -14,7 +15,13 @@ const JOIN = vars.JOIN_SECRET!;
 const ADMIN = vars.ADMIN_SECRET!;
 
 const browser = await chromium.launch({ ...chromiumLaunchOptions() });
-const phoneOpts = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, baseURL: base };
+// iPhone 15 in Safari with its toolbars, the iPhone SE, and the Pixel 7. The first is the one the phones start at.
+const SIZES = [
+  { width: 393, height: 659 },
+  { width: 375, height: 667 },
+  { width: 412, height: 839 },
+];
+const phoneOpts = { viewport: SIZES[0]!, isMobile: true, hasTouch: true, deviceScaleFactor: 2, baseURL: base };
 
 async function settle(page: Page) {
   await page.waitForFunction(() => document.getAnimations().every((a) => a.effect?.getTiming().iterations === Infinity || a.playState !== "running"), null, { timeout: 8000 }).catch(() => {});
@@ -25,12 +32,13 @@ async function shot(page: Page, name: string, narrow = true) {
   const id = `${String(n).padStart(2, "0")}-${name}`;
   await settle(page);
   await page.screenshot({ path: `${out}/${id}.png` });
-  if (narrow && page.viewportSize()!.width === 390) {
-    await page.setViewportSize({ width: 360, height: 780 });
+  if (!narrow || page.viewportSize()!.width !== SIZES[0]!.width) return;
+  for (const size of SIZES.slice(1)) {
+    await page.setViewportSize(size);
     await settle(page);
-    await page.screenshot({ path: `${out}/${id}-360.png` });
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `${out}/${id}-${size.width}.png` });
   }
+  await page.setViewportSize(SIZES[0]!);
 }
 async function full(page: Page, name: string) {
   n++;
@@ -73,6 +81,14 @@ await expect(kim.getByRole("heading", { name: "Hej, Testgäst Kim!" })).toBeVisi
 await shot(kim, "quiz-locked");
 await kim.getByRole("button", { name: "Mitt foto" }).click();
 await shot(kim, "my-photo-empty");
+let release = () => {};
+await kim.route("**/api/photo", (route) => new Promise<void>((resolve) => (release = () => resolve(route.continue()))));
+await kim.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(kim, LOOKS.snow)));
+await expect(kim.getByText("Skickar bilden…")).toBeVisible({ timeout: 20000 });
+await shot(kim, "my-photo-uploading");
+release();
+await kim.unroute("**/api/photo");
+await expect(kim.getByText("Inga röster än")).toBeVisible({ timeout: 20000 });
 await kim.getByRole("button", { name: "Galleri" }).click();
 await shot(kim, "gallery-voting");
 await full(kim, "gallery-voting");
