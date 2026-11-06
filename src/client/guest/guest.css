@@ -250,17 +250,18 @@
   line-height: 1.35;
 }
 .drop-frame span:last-child { max-width: 18ch; }
-/* What each state puts below the photo, plus the header, heading and tab bar, so the photo takes only the height left and the rest fits above the tab bar. */
-.photo-stage { --below: 444px; display: grid; justify-items: center; gap: 16px; width: 100%; }
-.photo-stage:has(.progress) { --below: 398px; }
-.photo-stage:has(.status-line.calm) { --below: 488px; }
-.my-photo:has(> .note) .photo-stage { --below: 466px; }
-.photo-stage:has(.confirm) { --below: 543px; }
+/* With a photo shown the page is one screen tall, and the photo frame is the one thing that shrinks, so every note and button below it stays above the
+   tab bar. Main scrolls only if even the smallest frame leaves too little room. */
+.shell:has(.photo-stage) { display: flex; flex-direction: column; height: 100svh; }
+.shell:has(.photo-stage) main { display: flex; flex: 1 1 0; flex-direction: column; width: 100%; min-height: 0; overflow-y: auto; }
+.my-photo:has(.photo-stage) { display: flex; flex: 0 1 auto; flex-direction: column; align-items: center; min-height: 0; }
+.photo-stage { display: flex; flex: 0 1 auto; flex-direction: column; align-items: center; gap: 16px; width: 100%; min-height: 0; }
 .photo-frame {
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(96px, (100svh - var(--below) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.8, min(100%, 250px));
+  flex: 0 1 312.5px;
+  min-height: 64px;
   aspect-ratio: 4 / 5;
   margin-bottom: 8px;
   padding: 10px;
@@ -270,7 +271,7 @@
   box-shadow: var(--bevel), 8px 8px 0 var(--ink);
   rotate: -2deg;
 }
-.photo-frame img { width: 100%; height: 100%; object-fit: cover; border: 3px solid var(--ink); border-radius: 8px; background: var(--frost) center / cover; }
+.photo-frame img { width: 100%; height: 100%; min-height: 0; object-fit: cover; border: 3px solid var(--ink); border-radius: 8px; background: var(--frost) center / cover; }
 .photo-frame > svg:not([class]) { width: 34%; color: var(--ink); }
 .photo-frame.waiting img { filter: grayscale(0.5); opacity: 0.7; }
 .photo-frame .sparkle.a { top: -14px; right: -12px; width: 28px; }
@@ -287,6 +288,19 @@
 .confirm { display: grid; gap: 14px; width: 100%; padding: 16px 14px; border: var(--line); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--pink), 7px 7px 0 var(--ink); }
 .confirm p { margin: 0 auto; font-weight: 600; font-size: 16px; line-height: 1.45; }
 .fame-line { margin: 0; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+/* On a short screen the spacing gives way too, and an open confirmation sets aside an earlier error and the hall-of-fame note until it closes. */
+@media (max-height: 760px) {
+  .shell:has(.photo-stage) main { padding-top: 16px; }
+  .my-photo:has(.photo-stage) { gap: 10px; padding-top: 16px; padding-bottom: 14px; }
+  .my-photo:has(.photo-stage) h2 { font-size: 26px; }
+  .my-photo:has(.photo-stage) :is(.note, .fame-line) { max-width: none; }
+  .my-photo:has(.photo-stage) .note { font-size: 15px; }
+  .my-photo:has(.photo-stage) .fame-line { font-size: 14px; line-height: 1.35; }
+  .my-photo:has(.confirm) > :is(.error, .fame-line) { display: none; }
+  .my-photo .photo-frame { margin-bottom: 4px; }
+  .photo-stage { gap: 10px; }
+  .confirm { gap: 10px; padding: 12px; }
+}
 
 .gallery { display: grid; gap: 16px; }
 .gallery h2 { margin: 0; font-size: 52px; line-height: 0.95; letter-spacing: -0.02em; text-shadow: 3px 3px 0 #fff, 6px 6px 0 var(--ice2); }

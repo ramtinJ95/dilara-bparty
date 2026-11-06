@@ -1,6 +1,6 @@
 import { devices, type Locator, type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { addQuestion, answer, greeting } from "./drive";
+import { addQuestion, answer, greeting, versionsOf } from "./drive";
 import { LOOKS, placeholder, pngFile } from "./placeholder";
 import { joinViaApi, laptop, openAdmin, openShell } from "./support";
 
@@ -22,6 +22,7 @@ const SIZES = [
 const onScreen = (target: Locator) =>
   target.evaluate((el) => {
     scrollTo(0, 0);
+    document.querySelector("main")?.scrollTo(0, 0);
     const box = el.getBoundingClientRect();
     const floor = document.querySelector(".tabs")?.getBoundingClientRect().top ?? innerHeight;
     return { top: Math.round(box.top), bottom: Math.round(box.bottom), floor: Math.round(floor), fits: box.top >= 0 && box.bottom <= floor };
@@ -37,12 +38,20 @@ async function expectOnScreen(targets: Locator[], what: string) {
       const name = await target.evaluate((el) => el.outerHTML.slice(0, 60));
       expect.soft(box.fits, `${what} at ${size.width}x${size.height}: ${name} at ${box.top}..${box.bottom}, floor ${box.floor}`).toBe(true);
     }
+    const spill = await page.evaluate(() => {
+      const frame = document.querySelector(".photo-frame")?.getBoundingClientRect();
+      const photo = document.querySelector(".photo-frame img")?.getBoundingClientRect();
+      return frame && photo ? Math.round(photo.bottom - frame.bottom) : 0;
+    });
+    expect.soft(spill, `${what} at ${size.width}x${size.height}: the photo ends ${spill} px below its frame`).toBeLessThanOrEqual(0);
   }
   await page.setViewportSize(SIZES[0]!);
 }
 
 const tab = (guest: Page, name: "Quiz" | "Mitt foto" | "Galleri") => guest.getByRole("button", { name, exact: true }).click();
 const uploaded = { timeout: 20_000 };
+// A phone's own photos are portrait, and a tall photo is the one that pushes on the frame.
+const portrait: [number, number] = [900, 1600];
 
 test("on an iPhone 15, my photo's controls and both finales' Back button fit on screen without scrolling, also on the winners' phones", async ({ browser }) => {
   const admin = await openAdmin(await browser.newContext(laptop));
@@ -78,7 +87,7 @@ test("on an iPhone 15, my photo's controls and both finales' Back button fit on 
       },
     });
   });
-  await photoWinner.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(photoWinner, LOOKS.snow)));
+  await photoWinner.locator('input[type="file"]').setInputFiles(pngFile("snow", await placeholder(photoWinner, LOOKS.snow, portrait)));
   await expect(photoWinner.getByText("Skickar bilden…")).toBeVisible(uploaded);
   await expect(photoWinner.getByRole("progressbar", { name: "Uppladdning" })).toBeVisible();
   // The lowest of the upload's lines: the status under the progress bar, or Försök igen once the phone's stall timer gives up on the held request.
@@ -98,8 +107,56 @@ test("on an iPhone 15, my photo's controls and both finales' Back button fit on 
   await expectOnScreen([photoWinner.getByRole("alert"), button("Ta bort"), button("Avbryt")], "the remove confirmation");
   await button("Avbryt").click();
 
+  const versions = versionsOf(admin, "Testgäst Långnamnsdotter");
+  const hiddenNote = photoWinner.getByText("Kalasvärden har gömt bilden från galleriet. Byt gärna till en annan.");
+  const actions = [button("Byt bild"), button("Ta bort")];
+  const vote = async () => {
+    await guest.getByRole("button", { name: "Ge en röst" }).first().click();
+    await expect(photoWinner.getByText("Din bild har 1 röst")).toBeVisible();
+  };
+  await versions.last().getByRole("button", { name: "Hide" }).click();
+  await expectOnScreen([hiddenNote, ...actions], "the hidden photo's note and buttons");
+  await versions.last().getByRole("button", { name: "Unhide" }).click();
+  await expect(hiddenNote).toBeHidden();
+  // Hiding took the vote back, and the replace confirmation only shows for a photo with votes.
+  await vote();
+
+  const picker = photoWinner.locator('input[type="file"]');
+  await button("Byt bild").click();
+  await button("Välj ny bild").click();
+  await picker.setInputFiles(pngFile("dusk", await placeholder(photoWinner, LOOKS.dusk, portrait)));
+  const fame = photoWinner.getByText("Din tidigare bild är kvar i Hall of fame och kan fortfarande vinna.");
+  await expect(fame, "the replaced photo went to the hall of fame").toBeVisible(uploaded);
+  await expectOnScreen([photoWinner.getByText("Inga röster än"), ...actions, fame], "the replacement's buttons and the hall-of-fame note");
+  await vote();
+  await button("Byt bild").click();
+  await expectOnScreen([photoWinner.getByRole("alert"), button("Välj ny bild"), button("Avbryt")], "the replace confirmation over the hall-of-fame note");
+  await button("Avbryt").click();
+
+  const unreadable = { name: "trasig.png", mimeType: "image/png", buffer: Buffer.from("ingen bild") };
+  const refused = photoWinner.getByRole("alert").filter({ hasText: "Den bilden gick inte att läsa. Prova en annan." });
+  await picker.setInputFiles(unreadable);
+  await expectOnScreen([refused, ...actions, fame], "the refused upload's error, the buttons and the hall-of-fame note");
+  await button("Ta bort").click();
+  await expectOnScreen([photoWinner.locator(".confirm"), button("Ta bort"), button("Avbryt")], "the remove confirmation under the refused upload's error");
+  await button("Avbryt").click();
+  await versions.last().getByRole("button", { name: "Hide" }).click();
+  await expectOnScreen([refused, hiddenNote, ...actions, fame], "the refused upload's error over the hidden photo, its buttons and the hall-of-fame note");
+
+  await photoWinner.route("**/api/photo", (route) => route.fulfill({ status: 503 }));
+  await picker.setInputFiles(pngFile("mint", await placeholder(photoWinner, LOOKS.mint, portrait)));
+  const retry = button("Försök igen");
+  await expect(photoWinner.getByText("Bilden kom inte fram.", { exact: false }), "every try failed").toBeVisible({ timeout: 60_000 });
+  await expectOnScreen([photoWinner.locator(".status-line"), retry, fame], "the stuck upload's status, Försök igen and the hall-of-fame note");
+  await photoWinner.unroute("**/api/photo");
+  await retry.click();
+  await expect(photoWinner.getByText("Inga röster än"), "the retry finished the upload").toBeVisible(uploaded);
+
+  await picker.setInputFiles(unreadable);
+  await expect(refused).toBeVisible();
   await admin.getByRole("button", { name: /^Close uploads/ }).click();
-  await expectOnScreen([photoWinner.getByText("Uppladdningen är stängd. Tack för alla fina bilder!")], "the closed note");
+  const closed = photoWinner.getByText("Uppladdningen är stängd. Tack för alla fina bilder!");
+  await expectOnScreen([refused, closed, fame], "the closed note under the refused upload's error, and the hall-of-fame note");
 
   const phones = [photoWinner, quizWinner, guest];
   const back = (p: Page) => p.getByRole("button", { name: "Tillbaka till festen" });

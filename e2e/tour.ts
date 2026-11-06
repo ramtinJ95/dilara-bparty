@@ -3,7 +3,7 @@
 // Usage: node e2e/tour.ts <local base url> [out dir]
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
-import { chromiumLaunchOptions } from "./drive.ts";
+import { chromiumLaunchOptions, versionsOf } from "./drive.ts";
 import { LOOKS, placeholder, pngFile } from "./placeholder.ts";
 
 const base = process.argv[2] ?? "";
@@ -111,6 +111,30 @@ await saga.getByRole("button", { name: "Avbryt" }).click();
 await saga.getByRole("button", { name: "Ta bort" }).click();
 await shot(saga, "my-photo-remove-confirm");
 await saga.getByRole("button", { name: "Avbryt" }).click();
+const sagaPhoto = versionsOf(admin, "Testgäst Saga").last();
+await sagaPhoto.getByRole("button", { name: "Hide" }).click();
+await expect(saga.getByText("Kalasvärden har gömt bilden från galleriet.", { exact: false })).toBeVisible();
+await shot(saga, "my-photo-hidden");
+await sagaPhoto.getByRole("button", { name: "Unhide" }).click();
+// Hiding took the votes back, and only a photo with votes stays in the hall of fame when it is replaced.
+await kim.locator(".tile").filter({ has: kim.locator(`img[src="${new URL(sagaThumb).pathname}"]`) }).getByRole("button", { name: "Ge en röst" }).click();
+await expect(saga.getByText("Inga röster än")).toBeHidden();
+await saga.getByRole("button", { name: "Byt bild" }).click();
+await saga.getByRole("button", { name: "Välj ny bild" }).click();
+await saga.locator('input[type="file"]').setInputFiles(pngFile("dusk", await placeholder(saga, LOOKS.dusk, [900, 1600])));
+await expect(saga.locator(".fame-line")).toBeVisible({ timeout: 20000 });
+await expect(saga.getByText("Inga röster än")).toBeVisible({ timeout: 20000 });
+await shot(saga, "my-photo-fame");
+await saga.locator('input[type="file"]').setInputFiles({ name: "trasig.png", mimeType: "image/png", buffer: Buffer.from("ingen bild") });
+await expect(saga.getByText("Den bilden gick inte att läsa. Prova en annan.")).toBeVisible();
+await shot(saga, "my-photo-refused");
+await saga.route("**/api/photo", (route) => route.fulfill({ status: 503 }));
+await saga.locator('input[type="file"]').setInputFiles(pngFile("mint", await placeholder(saga, LOOKS.mint, [900, 1600])));
+await expect(saga.getByText("Bilden kom inte fram.", { exact: false })).toBeVisible({ timeout: 60000 });
+await shot(saga, "my-photo-stuck");
+await saga.unroute("**/api/photo");
+await saga.getByRole("button", { name: "Försök igen" }).click();
+await expect(saga.getByText("Inga röster än")).toBeVisible({ timeout: 20000 });
 await saga.getByRole("button", { name: "Galleri" }).click();
 await full(saga, "gallery-own-fame");
 
