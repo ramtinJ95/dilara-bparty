@@ -34,6 +34,8 @@ export default defineConfig({
     { name: "webkit-smoke", testMatch: "smoke.spec.ts", use: webkit, timeout: 90_000, expect: { timeout: 15_000 } },
     { name: "webkit-network", testMatch: "network.spec.ts", use: webkit, timeout: 90_000, expect: { timeout: 15_000 }, dependencies: ["webkit-smoke"], fullyParallel: true, workers: 2 },
     { name: "webkit-admin", testMatch: "admin.spec.ts", use: webkit, timeout: 180_000, expect: { timeout: 15_000 }, dependencies: ["webkit-network"] },
+    // Bounding boxes on an iPhone 15 viewport. It plays both finales, so it runs after the admin wipe, on the empty party that leaves.
+    { name: "webkit-layout", testMatch: "layout.spec.ts", use: webkit, timeout: 180_000, expect: { timeout: 15_000 }, dependencies: ["webkit-admin"] },
   ],
   webServer: {
     command: `node e2e/server.ts ${port}`,

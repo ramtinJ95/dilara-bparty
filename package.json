@@ -9,7 +9,7 @@
     "typecheck": "wrangler types --check && tsc -b",
     "test": "vitest run",
     "test:e2e": "playwright test --project=smoke --project=network --project=dev --project=admin",
-    "test:e2e:webkit": "playwright test --project=webkit-smoke --project=webkit-network --project=webkit-admin",
+    "test:e2e:webkit": "playwright test --project=webkit-smoke --project=webkit-network --project=webkit-admin --project=webkit-layout",
     "media": "playwright test --project=media",
     "rehearse": "node e2e/rehearsal/main.ts",
     "seed": "node scripts/preview-seed.ts"
